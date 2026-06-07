@@ -50,9 +50,10 @@ services:
     labels:
       - traefik.enable=true
       - traefik.docker.network=piza
-      - traefik.http.routers.piza-api.rule=Host(`${API_DOMAIN}`)
+      - traefik.http.routers.piza-api.rule=Host(`${API_DOMAIN:-api.marinapizzas.com.au}`)
       - traefik.http.routers.piza-api.entrypoints=websecure
       - traefik.http.routers.piza-api.tls.certresolver=letsencrypt
+      - traefik.http.routers.piza-api.service=piza-api
       - traefik.http.services.piza-api.loadbalancer.server.port=3001
     networks:
       - piza
@@ -71,9 +72,10 @@ services:
     labels:
       - traefik.enable=true
       - traefik.docker.network=piza
-      - traefik.http.routers.piza-web.rule=Host(`${WEB_DOMAIN}`) || Host(`${WEB_WWW_DOMAIN}`)
+      - traefik.http.routers.piza-web.rule=Host(`${WEB_DOMAIN:-marinapizzas.com.au}`) || Host(`${WEB_WWW_DOMAIN:-www.marinapizzas.com.au}`)
       - traefik.http.routers.piza-web.entrypoints=websecure
       - traefik.http.routers.piza-web.tls.certresolver=letsencrypt
+      - traefik.http.routers.piza-web.service=piza-web
       - traefik.http.services.piza-web.loadbalancer.server.port=3000
     networks:
       - piza
