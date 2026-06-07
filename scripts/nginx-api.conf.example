@@ -1,0 +1,30 @@
+# /etc/nginx/sites-available/api.marinapizzas.com.au
+# Proxy HTTPS to Docker API on localhost:3001
+#
+#   sudo certbot --nginx -d api.marinapizzas.com.au
+#   sudo ln -s /etc/nginx/sites-available/api.marinapizzas.com.au /etc/nginx/sites-enabled/
+#   sudo nginx -t && sudo systemctl reload nginx
+
+server {
+    listen 80;
+    server_name api.marinapizzas.com.au;
+    return 301 https://$host$request_uri;
+}
+
+server {
+    listen 443 ssl http2;
+    server_name api.marinapizzas.com.au;
+
+    # certbot fills these paths
+    ssl_certificate /etc/letsencrypt/live/api.marinapizzas.com.au/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/api.marinapizzas.com.au/privkey.pem;
+
+    location / {
+        proxy_pass http://127.0.0.1:3001;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}

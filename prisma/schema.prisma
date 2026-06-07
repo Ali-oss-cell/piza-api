@@ -1,0 +1,241 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum UserRole {
+  USER
+  ADMIN
+}
+
+enum MenuItemBadge {
+  SIGNATURE
+  SPICY
+  VEGAN
+}
+
+enum OrderStatus {
+  PENDING
+  CONFIRMED
+  PREPARING
+  READY
+  OUT_FOR_DELIVERY
+  COMPLETED
+  CANCELLED
+}
+
+enum DeliveryMode {
+  DELIVERY
+  PICKUP
+}
+
+enum DealDiscountType {
+  PERCENTAGE
+  FIXED_AMOUNT
+}
+
+model User {
+  id        String   @id @default(uuid()) @db.Uuid
+  email     String   @unique
+  password  String
+  firstName String   @map("first_name")
+  lastName  String   @map("last_name")
+  role      UserRole @default(USER)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  orders    Order[]
+
+  @@map("users")
+}
+
+model MenuCategory {
+  id                  String     @id @default(uuid()) @db.Uuid
+  slug                String     @unique
+  label               String
+  sortOrder           Int        @default(0) @map("sort_order")
+  supportsSizeOptions Boolean    @default(false) @map("supports_size_options")
+  isActive            Boolean    @default(true) @map("is_active")
+  createdAt           DateTime   @default(now()) @map("created_at")
+  updatedAt           DateTime   @updatedAt @map("updated_at")
+  items               MenuItem[]
+
+  @@map("menu_categories")
+}
+
+model MenuItem {
+  id                String          @id @default(uuid()) @db.Uuid
+  slug              String          @unique
+  number            Int
+  name              String
+  description       String
+  price             Decimal         @db.Decimal(10, 2)
+  categorySlug      String          @map("category_slug")
+  imageUrl          String          @map("image_url")
+  imageAlt          String          @map("image_alt")
+  badges            MenuItemBadge[] @default([])
+  priceNote         String?         @map("price_note")
+  ingredients       String[]        @default([])
+  sizeOptions       Json?           @map("size_options")
+  sizePricing       Json?           @map("size_pricing")
+  allowedToppingIds String[]        @default([]) @map("allowed_topping_ids")
+  isActive          Boolean         @default(true) @map("is_active")
+  createdAt         DateTime        @default(now()) @map("created_at")
+  updatedAt         DateTime        @updatedAt @map("updated_at")
+  category          MenuCategory    @relation(fields: [categorySlug], references: [slug], onUpdate: Cascade)
+  orderItems        OrderItem[]
+
+  @@index([categorySlug])
+  @@map("menu_items")
+}
+
+model ToppingCategory {
+  id        String         @id @default(uuid()) @db.Uuid
+  slug      String         @unique
+  label     String
+  sortOrder Int            @default(0) @map("sort_order")
+  createdAt DateTime       @default(now()) @map("created_at")
+  updatedAt DateTime       @updatedAt @map("updated_at")
+  toppings  ExtraTopping[]
+
+  @@map("topping_categories")
+}
+
+model ExtraTopping {
+  id            String          @id @default(uuid()) @db.Uuid
+  slug          String          @unique
+  label         String
+  categorySlug  String          @map("category_slug")
+  categoryLabel String          @map("category_label")
+  priceDelta    Decimal         @map("price_delta") @db.Decimal(10, 2)
+  sortOrder     Int             @default(0) @map("sort_order")
+  isActive      Boolean         @default(true) @map("is_active")
+  createdAt     DateTime        @default(now()) @map("created_at")
+  updatedAt     DateTime        @updatedAt @map("updated_at")
+  category      ToppingCategory @relation(fields: [categorySlug], references: [slug], onUpdate: Cascade)
+
+  @@index([categorySlug, sortOrder])
+  @@map("extra_toppings")
+}
+
+model CrustOption {
+  id         String   @id @default(uuid()) @db.Uuid
+  slug       String   @unique
+  label      String
+  priceDelta Decimal  @map("price_delta") @db.Decimal(10, 2)
+  sortOrder  Int      @default(0) @map("sort_order")
+  isActive   Boolean  @default(true) @map("is_active")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  @@map("crust_options")
+}
+
+model IngredientCategory {
+  id          String       @id @default(uuid()) @db.Uuid
+  slug        String       @unique
+  label       String
+  sortOrder   Int          @default(0) @map("sort_order")
+  createdAt   DateTime     @default(now()) @map("created_at")
+  updatedAt   DateTime     @updatedAt @map("updated_at")
+  ingredients Ingredient[]
+
+  @@map("ingredient_categories")
+}
+
+model Ingredient {
+  id            String             @id @default(uuid()) @db.Uuid
+  slug          String             @unique
+  label         String
+  categorySlug  String             @map("category_slug")
+  categoryLabel String             @map("category_label")
+  sortOrder     Int                @default(0) @map("sort_order")
+  isActive      Boolean            @default(true) @map("is_active")
+  createdAt     DateTime           @default(now()) @map("created_at")
+  updatedAt     DateTime           @updatedAt @map("updated_at")
+  category      IngredientCategory @relation(fields: [categorySlug], references: [slug], onUpdate: Cascade)
+
+  @@index([categorySlug, sortOrder])
+  @@map("ingredients")
+}
+
+model StoreSettings {
+  id             String   @id @default("00000000-0000-0000-0000-000000000001") @db.Uuid
+  storeName      String   @map("store_name")
+  tagline        String?
+  deliveryFee    Decimal  @default(5) @map("delivery_fee") @db.Decimal(10, 2)
+  minOrderAmount Decimal  @default(0) @map("min_order_amount") @db.Decimal(10, 2)
+  contactEmail   String?  @map("contact_email")
+  contactPhone   String?  @map("contact_phone")
+  address        String?
+  openingHours   Json?    @map("opening_hours")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  @@map("store_settings")
+}
+
+model Deal {
+  id            String           @id @default(uuid()) @db.Uuid
+  slug          String           @unique
+  title         String
+  description   String
+  badgeLabel    String?          @map("badge_label")
+  discountType  DealDiscountType @map("discount_type")
+  discountValue Decimal          @map("discount_value") @db.Decimal(10, 2)
+  promoCode     String?          @unique @map("promo_code")
+  imageUrl      String?          @map("image_url")
+  imageAlt      String?          @map("image_alt")
+  termsNote     String?          @map("terms_note")
+  ctaLabel      String           @default("Order Now") @map("cta_label")
+  ctaHref       String           @default("/") @map("cta_href")
+  validFrom     DateTime?        @map("valid_from")
+  validUntil    DateTime?        @map("valid_until")
+  sortOrder     Int              @default(0) @map("sort_order")
+  isActive      Boolean          @default(true) @map("is_active")
+  isFeatured    Boolean          @default(false) @map("is_featured")
+  createdAt     DateTime         @default(now()) @map("created_at")
+  updatedAt     DateTime         @updatedAt @map("updated_at")
+
+  @@map("deals")
+}
+
+model Order {
+  id           String       @id @default(uuid()) @db.Uuid
+  userId       String?      @map("user_id") @db.Uuid
+  guestEmail   String?      @map("guest_email")
+  guestName    String?      @map("guest_name")
+  deliveryMode DeliveryMode @map("delivery_mode")
+  status       OrderStatus  @default(PENDING)
+  subtotal     Decimal      @db.Decimal(10, 2)
+  deliveryFee  Decimal      @default(0) @map("delivery_fee") @db.Decimal(10, 2)
+  total        Decimal      @db.Decimal(10, 2)
+  createdAt    DateTime     @default(now()) @map("created_at")
+  updatedAt    DateTime     @updatedAt @map("updated_at")
+  user         User?        @relation(fields: [userId], references: [id], onDelete: SetNull)
+  items        OrderItem[]
+
+  @@index([userId])
+  @@index([status])
+  @@map("orders")
+}
+
+model OrderItem {
+  id          String    @id @default(uuid()) @db.Uuid
+  orderId     String    @map("order_id") @db.Uuid
+  menuItemId  String?   @map("menu_item_id") @db.Uuid
+  name        String
+  description String
+  price       Decimal   @db.Decimal(10, 2)
+  quantity    Int
+  size        String?
+  crust       String?
+  toppings    Json?
+  createdAt   DateTime  @default(now()) @map("created_at")
+  order       Order     @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  menuItem    MenuItem? @relation(fields: [menuItemId], references: [id], onDelete: SetNull)
+
+  @@index([orderId])
+  @@map("order_items")
+}

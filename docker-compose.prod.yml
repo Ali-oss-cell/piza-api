@@ -1,0 +1,22 @@
+# Production API only — use with DigitalOcean Managed PostgreSQL (not local postgres).
+#
+#   cp .env.production.example .env
+#   # edit .env with real DATABASE_URL, JWT_SECRET, CORS_ORIGIN
+#   docker compose -f docker-compose.prod.yml up -d --build
+
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: piza-api
+    restart: unless-stopped
+    env_file: .env
+    ports:
+      - '127.0.0.1:3001:3001'
+    environment:
+      NODE_ENV: production
+      PORT: 3001
+      API_PREFIX: api
+      RUN_MIGRATIONS: 'true'
+      RUN_SEED: 'false'

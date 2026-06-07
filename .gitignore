@@ -1,0 +1,9 @@
+node_modules
+dist
+coverage
+*.tsbuildinfo
+
+# Keep secrets out of version control
+.env
+!.env.example
+!.env.production.example
