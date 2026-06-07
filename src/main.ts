@@ -29,6 +29,12 @@ async function bootstrap(): Promise<void> {
   });
 
   const port = Number(configService.get<string>('PORT', '3001'));
+
+  const expressApp = app.getHttpAdapter().getInstance() as {
+    set: (setting: string, value: number) => void;
+  };
+  expressApp.set('trust proxy', 1);
+
   await app.listen(port);
 }
 

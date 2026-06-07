@@ -1,10 +1,39 @@
-# Production API only — use with DigitalOcean Managed PostgreSQL (not local postgres).
+# Production stack: Traefik + API + Next.js frontend (Droplet).
+#
+# Layout on the droplet:
+#   ~/piza/piza-api/     ← this repo (run compose from here)
+#   ~/piza/piza-front/   ← sibling clone (FRONTEND_DIR)
 #
 #   cp .env.production.example .env
-#   # edit .env with real DATABASE_URL, JWT_SECRET, CORS_ORIGIN
+#   # edit .env — ACME_EMAIL, DATABASE_URL, JWT_SECRET, etc.
 #   docker compose -f docker-compose.prod.yml up -d --build
 
 services:
+  traefik:
+    image: traefik:v3.3
+    container_name: piza-traefik
+    restart: unless-stopped
+    command:
+      - --api.dashboard=false
+      - --providers.docker=true
+      - --providers.docker.exposedbydefault=false
+      - --providers.docker.network=piza
+      - --entrypoints.web.address=:80
+      - --entrypoints.websecure.address=:443
+      - --entrypoints.web.http.redirections.entrypoint.to=websecure
+      - --entrypoints.web.http.redirections.entrypoint.scheme=https
+      - --certificatesresolvers.letsencrypt.acme.email=${ACME_EMAIL}
+      - --certificatesresolvers.letsencrypt.acme.storage=/letsencrypt/acme.json
+      - --certificatesresolvers.letsencrypt.acme.httpchallenge.entrypoint=web
+    ports:
+      - '80:80'
+      - '443:443'
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - traefik_letsencrypt:/letsencrypt
+    networks:
+      - piza
+
   api:
     build:
       context: .
@@ -12,11 +41,46 @@ services:
     container_name: piza-api
     restart: unless-stopped
     env_file: .env
-    ports:
-      - '127.0.0.1:3001:3001'
     environment:
       NODE_ENV: production
       PORT: 3001
       API_PREFIX: api
-      RUN_MIGRATIONS: 'true'
-      RUN_SEED: 'false'
+      RUN_MIGRATIONS: ${RUN_MIGRATIONS:-true}
+      RUN_SEED: ${RUN_SEED:-false}
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=piza
+      - traefik.http.routers.piza-api.rule=Host(`${API_DOMAIN}`)
+      - traefik.http.routers.piza-api.entrypoints=websecure
+      - traefik.http.routers.piza-api.tls.certresolver=letsencrypt
+      - traefik.http.services.piza-api.loadbalancer.server.port=3001
+    networks:
+      - piza
+
+  web:
+    build:
+      context: ${FRONTEND_DIR}
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
+    container_name: piza-front
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=piza
+      - traefik.http.routers.piza-web.rule=Host(`${WEB_DOMAIN}`) || Host(`${WEB_WWW_DOMAIN}`)
+      - traefik.http.routers.piza-web.entrypoints=websecure
+      - traefik.http.routers.piza-web.tls.certresolver=letsencrypt
+      - traefik.http.services.piza-web.loadbalancer.server.port=3000
+    networks:
+      - piza
+
+networks:
+  piza:
+    name: piza
+
+volumes:
+  traefik_letsencrypt:

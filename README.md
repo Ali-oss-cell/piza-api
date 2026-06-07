@@ -109,51 +109,82 @@ The seed script creates one `ADMIN` user only if the configured email does not a
 
 ## Production deploy (DigitalOcean Droplet)
 
-Frontend is a **separate repo**: [`piza-front`](https://github.com/Ali-oss-cell/piza-front) on App Platform.
+Frontend and API run on the **same Droplet** behind **Traefik** (HTTPS + routing).
 
-### 1. Create repo & database
+### 1. Managed PostgreSQL
 
-1. GitHub repo: **`Ali-oss-cell/piza-api`**.
-2. Create **DigitalOcean Managed PostgreSQL** (Sydney region).
-3. Copy the connection string into `.env` (see `.env.production.example`).
+1. Create **DigitalOcean Managed PostgreSQL** (Sydney region).
+2. Copy the connection string into `.env` (see `.env.production.example`).
 
-### 2. Droplet setup
+### 2. Clone both repos on the droplet
 
 ```bash
-# On a fresh Ubuntu droplet (same region as DB)
-sudo apt update && sudo apt install -y docker.io docker-compose-v2 nginx certbot python3-certbot-nginx git
+sudo apt update && sudo apt install -y docker.io docker-compose-v2 git
 
+mkdir -p ~/piza && cd ~/piza
 git clone git@github.com:Ali-oss-cell/piza-api.git
+git clone git@github.com:Ali-oss-cell/piza-front.git
+
 cd piza-api
 cp .env.production.example .env
-# Edit .env: DATABASE_URL, JWT_SECRET, CORS_ORIGIN, admin password
+# Edit .env — ACME_EMAIL, DATABASE_URL, JWT_SECRET, CORS_ORIGIN, admin password
 # First deploy only: RUN_SEED=true, then set RUN_SEED=false
 
 docker compose -f docker-compose.prod.yml up -d --build
 ```
 
-### 3. Nginx + SSL for `api.marinapizzas.com.au`
+This starts three containers:
 
-```bash
-sudo cp scripts/nginx-api.conf.example /etc/nginx/sites-available/api.marinapizzas.com.au
-sudo ln -s /etc/nginx/sites-available/api.marinapizzas.com.au /etc/nginx/sites-enabled/
-sudo certbot --nginx -d api.marinapizzas.com.au
-sudo nginx -t && sudo systemctl reload nginx
-```
+| Service | Role |
+|---------|------|
+| `traefik` | HTTPS (Let's Encrypt), routes by hostname |
+| `api` | NestJS on internal port 3001 → `api.marinapizzas.com.au` |
+| `web` | Next.js on internal port 3000 → `marinapizzas.com.au` / `www` |
 
-### 4. DNS
+### 3. DNS
 
-Update the existing **A record** for `api.marinapizzas.com.au` to this droplet’s IP.
+Point these to the **Droplet IP** (same IP for all):
 
-### 5. Production env checklist
+| Record | Host |
+|--------|------|
+| A | `@` (apex) |
+| A or CNAME | `www` |
+| A | `api` |
+
+Open **firewall ports 80 and 443** on the droplet. Traefik handles HTTP→HTTPS redirect and certificate renewal.
+
+### 4. Production env checklist
 
 | Variable | Example |
 |----------|---------|
+| `ACME_EMAIL` | `you@marinapizzas.com.au` |
+| `FRONTEND_DIR` | `../piza-front` |
+| `NEXT_PUBLIC_API_URL` | `https://api.marinapizzas.com.au/api` |
 | `CORS_ORIGIN` | `https://marinapizzas.com.au,https://www.marinapizzas.com.au` |
 | `DATABASE_URL` | Managed Postgres URL with `?sslmode=require` |
 | `RUN_SEED` | `true` once, then `false` |
 | `JWT_SECRET` | Long random string (32+ chars) |
 
+### 5. Updates
+
+```bash
+cd ~/piza/piza-api && git pull
+cd ../piza-front && git pull
+cd ../piza-api
+docker compose -f docker-compose.prod.yml up -d --build
+```
+
+Rebuild a single service:
+
+```bash
+docker compose -f docker-compose.prod.yml up -d --build api   # API only
+docker compose -f docker-compose.prod.yml up -d --build web   # frontend only
+```
+
+### Alternative: host nginx
+
+See `scripts/nginx-api.conf.example` if you prefer nginx on the host instead of Traefik (API only — you would still need a reverse proxy for the frontend).
+
 ## Repo layout
 
-This repo contains **backend only**. Do not add the Next.js frontend here.
+This repo contains **backend + production stack** (`docker-compose.prod.yml`). The Next.js app lives in [`piza-front`](https://github.com/Ali-oss-cell/piza-front).
