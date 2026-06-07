@@ -1,11 +1,11 @@
-# Production stack: Traefik + API + Next.js frontend (Droplet).
+# Production stack: Traefik + PostgreSQL + API + Next.js frontend (Droplet).
 #
 # Layout on the droplet:
 #   ~/piza/piza-api/     ← this repo (run compose from here)
 #   ~/piza/piza-front/   ← sibling clone (FRONTEND_DIR)
 #
 #   cp .env.production.example .env
-#   # edit .env — ACME_EMAIL, DATABASE_URL, JWT_SECRET, etc.
+#   # edit .env — POSTGRES_PASSWORD, JWT_SECRET, ACME_EMAIL, etc.
 #   docker compose -f docker-compose.prod.yml up -d --build
 
 services:
@@ -34,17 +34,44 @@ services:
     networks:
       - piza
 
+  postgres:
+    image: postgres:16-alpine
+    container_name: piza-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-marinapizzas}
+      POSTGRES_USER: ${POSTGRES_USER:-piza}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test:
+        [
+          'CMD-SHELL',
+          'pg_isready -U "$$POSTGRES_USER" -d "$$POSTGRES_DB"',
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    networks:
+      - piza
+
   api:
     build:
       context: .
       dockerfile: Dockerfile
     container_name: piza-api
     restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
     env_file: .env
     environment:
       NODE_ENV: production
       PORT: 3001
       API_PREFIX: api
+      DATABASE_URL: postgresql://${POSTGRES_USER:-piza}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-marinapizzas}?schema=public
       RUN_MIGRATIONS: ${RUN_MIGRATIONS:-true}
       RUN_SEED: ${RUN_SEED:-false}
     labels:
@@ -86,3 +113,4 @@ networks:
 
 volumes:
   traefik_letsencrypt:
+  postgres_data:

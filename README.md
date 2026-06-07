@@ -109,14 +109,9 @@ The seed script creates one `ADMIN` user only if the configured email does not a
 
 ## Production deploy (DigitalOcean Droplet)
 
-Frontend and API run on the **same Droplet** behind **Traefik** (HTTPS + routing).
+Frontend, API, **PostgreSQL**, and Traefik all run on the **same Droplet** via Docker Compose.
 
-### 1. Managed PostgreSQL
-
-1. Create **DigitalOcean Managed PostgreSQL** (Sydney region).
-2. Copy the connection string into `.env` (see `.env.production.example`).
-
-### 2. Clone both repos on the droplet
+### 1. Clone both repos on the droplet
 
 ```bash
 sudo apt update && sudo apt install -y docker.io docker-compose-v2 git
@@ -127,21 +122,24 @@ git clone git@github.com:Ali-oss-cell/piza-front.git
 
 cd piza-api
 cp .env.production.example .env
-# Edit .env — ACME_EMAIL, DATABASE_URL, JWT_SECRET, CORS_ORIGIN, admin password
+# Edit .env — POSTGRES_PASSWORD, JWT_SECRET, ACME_EMAIL, admin password
 # First deploy only: RUN_SEED=true, then set RUN_SEED=false
 
 docker compose -f docker-compose.prod.yml up -d --build
 ```
 
-This starts three containers:
+This starts four containers:
 
 | Service | Role |
 |---------|------|
+| `postgres` | PostgreSQL 16 (data persisted in Docker volume) |
 | `traefik` | HTTPS (Let's Encrypt), routes by hostname |
-| `api` | NestJS on internal port 3001 → `api.marinapizzas.com.au` |
-| `web` | Next.js on internal port 3000 → `marinapizzas.com.au` / `www` |
+| `api` | NestJS → `api.marinapizzas.com.au` |
+| `web` | Next.js → `marinapizzas.com.au` / `www` |
 
-### 3. DNS
+Postgres is **not exposed** to the internet — only the API container connects on the internal Docker network (`postgres:5432`).
+
+### 2. DNS
 
 Point these to the **Droplet IP** (same IP for all):
 
@@ -153,19 +151,19 @@ Point these to the **Droplet IP** (same IP for all):
 
 Open **firewall ports 80 and 443** on the droplet. Traefik handles HTTP→HTTPS redirect and certificate renewal.
 
-### 4. Production env checklist
+### 3. Production env checklist
 
 | Variable | Example |
 |----------|---------|
+| `POSTGRES_PASSWORD` | Strong random password |
 | `ACME_EMAIL` | `you@marinapizzas.com.au` |
 | `FRONTEND_DIR` | `../piza-front` |
 | `NEXT_PUBLIC_API_URL` | `https://api.marinapizzas.com.au/api` |
 | `CORS_ORIGIN` | `https://marinapizzas.com.au,https://www.marinapizzas.com.au` |
-| `DATABASE_URL` | Managed Postgres URL with `?sslmode=require` |
 | `RUN_SEED` | `true` once, then `false` |
 | `JWT_SECRET` | Long random string (32+ chars) |
 
-### 5. Updates
+### 4. Updates
 
 ```bash
 cd ~/piza/piza-api && git pull
