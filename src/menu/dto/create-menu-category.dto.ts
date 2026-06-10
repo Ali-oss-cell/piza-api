@@ -18,5 +18,9 @@ export class CreateMenuCategoryDto {
 
   @IsOptional()
   @IsBoolean()
+  supportsExtras?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
   isActive?: boolean;
 }

@@ -36,6 +36,17 @@ const TOPPING_SEED = [
       { slug: 'rocket', label: 'Rocket', priceDelta: 2 },
     ],
   },
+  {
+    categorySlug: 'pasta-extras',
+    categoryLabel: 'Pasta & sides extras',
+    toppings: [
+      { slug: 'extra-parmesan', label: 'Extra Parmesan', priceDelta: 2 },
+      { slug: 'extra-bacon', label: 'Extra Bacon', priceDelta: 3 },
+      { slug: 'extra-chicken', label: 'Extra Chicken', priceDelta: 3.5 },
+      { slug: 'chilli-flakes', label: 'Chilli Flakes', priceDelta: 1 },
+      { slug: 'garlic-bread-side', label: 'Garlic Bread Side', priceDelta: 6 },
+    ],
+  },
 ];
 
 const INGREDIENT_SEED = [

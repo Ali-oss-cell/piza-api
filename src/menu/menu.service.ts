@@ -114,6 +114,7 @@ export class MenuService {
         label: dto.label.trim(),
         sortOrder: dto.sortOrder ?? 0,
         supportsSizeOptions: dto.supportsSizeOptions ?? false,
+        supportsExtras: dto.supportsExtras ?? false,
         isActive: dto.isActive ?? true,
       },
     });
@@ -152,6 +153,9 @@ export class MenuService {
           ...(dto.sortOrder !== undefined ? { sortOrder: dto.sortOrder } : {}),
           ...(dto.supportsSizeOptions !== undefined
             ? { supportsSizeOptions: dto.supportsSizeOptions }
+            : {}),
+          ...(dto.supportsExtras !== undefined
+            ? { supportsExtras: dto.supportsExtras }
             : {}),
           ...(dto.isActive !== undefined ? { isActive: dto.isActive } : {}),
         },

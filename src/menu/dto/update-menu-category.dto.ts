@@ -20,5 +20,9 @@ export class UpdateMenuCategoryDto {
 
   @IsOptional()
   @IsBoolean()
+  supportsExtras?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
   isActive?: boolean;
 }
