@@ -1,26 +1,14 @@
 import {
   IsInt,
-  IsNumber,
   IsOptional,
   IsString,
   IsUUID,
   Min,
 } from 'class-validator';
 
-export class CreateOrderItemDto {
-  @IsOptional()
+export class QuoteLineDto {
   @IsUUID()
-  menuItemId?: string;
-
-  @IsString()
-  name!: string;
-
-  @IsString()
-  description!: string;
-
-  @IsNumber({ maxDecimalPlaces: 2 })
-  @Min(0)
-  price!: number;
+  menuItemId!: string;
 
   @IsInt()
   @Min(1)
@@ -35,6 +23,7 @@ export class CreateOrderItemDto {
   crust?: string;
 
   @IsOptional()
+  @IsString({ each: true })
   toppings?: string[];
 
   @IsOptional()

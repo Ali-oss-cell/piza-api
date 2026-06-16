@@ -35,10 +35,27 @@ export class RolesGuard implements CanActivate {
       throw new ForbiddenException('Authentication required');
     }
 
-    if (!requiredRoles.includes(user.role)) {
+    const expandedRoles = this.expandRoles(requiredRoles);
+
+    if (!expandedRoles.includes(user.role)) {
       throw new ForbiddenException('Insufficient permissions');
     }
 
     return true;
+  }
+
+  private expandRoles(requiredRoles: UserRole[]): UserRole[] {
+    const roles = new Set(requiredRoles);
+
+    if (roles.has(UserRole.STAFF)) {
+      roles.add(UserRole.MANAGER);
+      roles.add(UserRole.ADMIN);
+    }
+
+    if (roles.has(UserRole.MANAGER)) {
+      roles.add(UserRole.ADMIN);
+    }
+
+    return [...roles];
   }
 }

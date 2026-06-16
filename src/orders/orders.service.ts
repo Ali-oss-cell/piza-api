@@ -32,6 +32,7 @@ export class OrdersService {
           size: item.size,
           crust: item.crust,
           toppings: item.toppings,
+          removedIngredients: item.removedIngredients ?? [],
         })),
       },
     };

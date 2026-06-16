@@ -7,9 +7,13 @@ import { DealsModule } from './deals/deals.module';
 import { CustomizationsModule } from './customizations/customizations.module';
 import { MenuModule } from './menu/menu.module';
 import { OrdersModule } from './orders/orders.module';
+import { PaymentsModule } from './payments/payments.module';
+import { PosModule } from './pos/pos.module';
+import { PricingModule } from './pricing/pricing.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { SettingsModule } from './settings/settings.module';
 import { UsersModule } from './users/users.module';
+import { WebhooksModule } from './webhooks/webhooks.module';
 
 @Module({
   imports: [
@@ -25,6 +29,10 @@ import { UsersModule } from './users/users.module';
     DealsModule,
     OrdersModule,
     SettingsModule,
+    PricingModule,
+    PaymentsModule,
+    PosModule,
+    WebhooksModule,
   ],
   controllers: [HealthController],
   providers: [DatabaseBootstrapService],

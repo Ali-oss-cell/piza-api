@@ -107,6 +107,28 @@ services:
     networks:
       - piza
 
+  pos:
+    build:
+      context: ${POS_DIR:-../piza-pos}
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_POS_API_URL:-${NEXT_PUBLIC_API_URL}}
+    container_name: piza-pos
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 3002
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=piza
+      - traefik.http.routers.piza-pos.rule=Host(`${POS_DOMAIN:-pos.marinapizzas.com.au}`)
+      - traefik.http.routers.piza-pos.entrypoints=websecure
+      - traefik.http.routers.piza-pos.tls.certresolver=letsencrypt
+      - traefik.http.routers.piza-pos.service=piza-pos
+      - traefik.http.services.piza-pos.loadbalancer.server.port=3002
+    networks:
+      - piza
+
 networks:
   piza:
     name: piza

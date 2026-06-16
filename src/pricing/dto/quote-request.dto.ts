@@ -1,26 +1,17 @@
+import { Type } from 'class-transformer';
 import {
+  ArrayMinSize,
   IsInt,
-  IsNumber,
   IsOptional,
   IsString,
   IsUUID,
   Min,
+  ValidateNested,
 } from 'class-validator';
 
-export class CreateOrderItemDto {
-  @IsOptional()
+export class QuoteLineDto {
   @IsUUID()
-  menuItemId?: string;
-
-  @IsString()
-  name!: string;
-
-  @IsString()
-  description!: string;
-
-  @IsNumber({ maxDecimalPlaces: 2 })
-  @Min(0)
-  price!: number;
+  menuItemId!: string;
 
   @IsInt()
   @Min(1)
@@ -35,9 +26,17 @@ export class CreateOrderItemDto {
   crust?: string;
 
   @IsOptional()
-  toppings?: string[];
+  @IsString({ each: true })
+  toppingIds?: string[];
 
   @IsOptional()
   @IsString({ each: true })
   removedIngredients?: string[];
+}
+
+export class QuoteRequestDto {
+  @ArrayMinSize(1)
+  @ValidateNested({ each: true })
+  @Type(() => QuoteLineDto)
+  items!: QuoteLineDto[];
 }

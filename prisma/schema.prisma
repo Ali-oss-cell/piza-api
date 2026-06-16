@@ -8,6 +8,8 @@ datasource db {
 
 enum UserRole {
   USER
+  STAFF
+  MANAGER
   ADMIN
 }
 
@@ -32,6 +34,36 @@ enum DeliveryMode {
   PICKUP
 }
 
+enum OrderChannel {
+  WEB
+  POS
+  PHONE
+}
+
+enum PaymentStatus {
+  UNPAID
+  REQUIRES_PAYMENT
+  PROCESSING
+  PAID
+  FAILED
+  REFUNDED
+  VOID
+}
+
+enum PaymentMethod {
+  CARD_TERMINAL
+  CARD_ONLINE
+  CASH
+  EXTERNAL
+}
+
+enum FulfillmentType {
+  DELIVERY
+  PICKUP
+  DINE_IN
+  COUNTER
+}
+
 enum DealDiscountType {
   PERCENTAGE
   FIXED_AMOUNT
@@ -43,10 +75,11 @@ model User {
   password  String
   firstName String   @map("first_name")
   lastName  String   @map("last_name")
-  role      UserRole @default(USER)
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
-  orders    Order[]
+  role         UserRole @default(USER)
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+  orders       Order[]       @relation("CustomerOrders")
+  staffedOrders Order[]      @relation("StaffOrders")
 
   @@map("users")
 }
@@ -203,22 +236,40 @@ model Deal {
 }
 
 model Order {
-  id           String       @id @default(uuid()) @db.Uuid
-  userId       String?      @map("user_id") @db.Uuid
-  guestEmail   String?      @map("guest_email")
-  guestName    String?      @map("guest_name")
-  deliveryMode DeliveryMode @map("delivery_mode")
-  status       OrderStatus  @default(PENDING)
-  subtotal     Decimal      @db.Decimal(10, 2)
-  deliveryFee  Decimal      @default(0) @map("delivery_fee") @db.Decimal(10, 2)
-  total        Decimal      @db.Decimal(10, 2)
-  createdAt    DateTime     @default(now()) @map("created_at")
-  updatedAt    DateTime     @updatedAt @map("updated_at")
-  user         User?        @relation(fields: [userId], references: [id], onDelete: SetNull)
-  items        OrderItem[]
+  id                    String         @id @default(uuid()) @db.Uuid
+  userId                String?        @map("user_id") @db.Uuid
+  staffUserId           String?        @map("staff_user_id") @db.Uuid
+  guestEmail            String?        @map("guest_email")
+  guestName             String?        @map("guest_name")
+  channel               OrderChannel   @default(WEB)
+  deliveryMode          DeliveryMode   @map("delivery_mode")
+  fulfillmentType       FulfillmentType @default(PICKUP) @map("fulfillment_type")
+  status                OrderStatus    @default(PENDING)
+  paymentStatus         PaymentStatus  @default(UNPAID) @map("payment_status")
+  paymentMethod         PaymentMethod? @map("payment_method")
+  stripePaymentIntentId String?        @map("stripe_payment_intent_id")
+  stripeChargeId        String?        @map("stripe_charge_id")
+  paidAt                DateTime?      @map("paid_at")
+  registerId            String?        @map("register_id")
+  ticketNumber          Int?           @map("ticket_number")
+  subtotal              Decimal        @db.Decimal(10, 2)
+  taxAmount             Decimal        @default(0) @map("tax_amount") @db.Decimal(10, 2)
+  discountAmount        Decimal        @default(0) @map("discount_amount") @db.Decimal(10, 2)
+  deliveryFee           Decimal        @default(0) @map("delivery_fee") @db.Decimal(10, 2)
+  total                 Decimal        @db.Decimal(10, 2)
+  promoCode             String?        @map("promo_code")
+  notes                 String?
+  createdAt             DateTime       @default(now()) @map("created_at")
+  updatedAt             DateTime       @updatedAt @map("updated_at")
+  user                  User?          @relation("CustomerOrders", fields: [userId], references: [id], onDelete: SetNull)
+  staffUser             User?          @relation("StaffOrders", fields: [staffUserId], references: [id], onDelete: SetNull)
+  items                 OrderItem[]
 
   @@index([userId])
+  @@index([staffUserId])
   @@index([status])
+  @@index([paymentStatus])
+  @@index([channel, ticketNumber])
   @@map("orders")
 }
 
@@ -230,10 +281,11 @@ model OrderItem {
   description String
   price       Decimal   @db.Decimal(10, 2)
   quantity    Int
-  size        String?
-  crust       String?
-  toppings    Json?
-  createdAt   DateTime  @default(now()) @map("created_at")
+  size                String?
+  crust               String?
+  toppings            Json?
+  removedIngredients  String[]  @default([]) @map("removed_ingredients")
+  createdAt           DateTime  @default(now()) @map("created_at")
   order       Order     @relation(fields: [orderId], references: [id], onDelete: Cascade)
   menuItem    MenuItem? @relation(fields: [menuItemId], references: [id], onDelete: SetNull)
 
