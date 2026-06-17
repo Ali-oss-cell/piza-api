@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ForbiddenException,
   Injectable,
   NotFoundException,
@@ -7,20 +8,48 @@ import { Order, Prisma, UserRole } from '@prisma/client';
 import { AuthenticatedUser } from '../auth/interfaces/authenticated-user.interface';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateOrderDto } from './dto/create-order.dto';
+import { OrderSchedulingService } from './order-scheduling.service';
 import { UpdateOrderStatusDto } from './dto/update-order-status.dto';
 
 @Injectable()
 export class OrdersService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly orderSchedulingService: OrderSchedulingService,
+  ) {}
 
-  create(dto: CreateOrderDto, user?: AuthenticatedUser): Promise<Order> {
+  async create(dto: CreateOrderDto, user?: AuthenticatedUser): Promise<Order> {
+    const scheduledAt = new Date(dto.scheduledAt);
+
+    await this.orderSchedulingService.assertScheduledAtValid(scheduledAt);
+    await this.orderSchedulingService.assertMinOrderAmount(dto.subtotal);
+    this.orderSchedulingService.assertDeliveryAddress(dto.deliveryMode, dto);
+
+    if (!user && (!dto.guestName?.trim() || !dto.guestEmail?.trim())) {
+      throw new BadRequestException(
+        'Guest name and email are required for checkout.',
+      );
+    }
+
+    if (!dto.guestPhone?.trim()) {
+      throw new BadRequestException('Phone number is required for checkout.');
+    }
+
     const data: Prisma.OrderCreateInput = {
       deliveryMode: dto.deliveryMode,
       subtotal: dto.subtotal,
       deliveryFee: dto.deliveryFee,
       total: dto.total,
-      guestEmail: user ? undefined : dto.guestEmail,
-      guestName: user ? undefined : dto.guestName,
+      scheduledAt,
+      notes: dto.notes?.trim() || undefined,
+      guestEmail: user ? undefined : dto.guestEmail?.trim(),
+      guestName: user ? undefined : dto.guestName?.trim(),
+      guestPhone: dto.guestPhone?.trim(),
+      deliveryAddressLine1: dto.deliveryAddressLine1?.trim(),
+      deliveryAddressLine2: dto.deliveryAddressLine2?.trim() || undefined,
+      deliverySuburb: dto.deliverySuburb?.trim(),
+      deliveryState: dto.deliveryState?.trim() || 'VIC',
+      deliveryPostcode: dto.deliveryPostcode?.trim(),
       user: user ? { connect: { id: user.id } } : undefined,
       items: {
         create: dto.items.map((item) => ({

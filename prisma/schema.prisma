@@ -241,6 +241,13 @@ model Order {
   staffUserId           String?        @map("staff_user_id") @db.Uuid
   guestEmail            String?        @map("guest_email")
   guestName             String?        @map("guest_name")
+  guestPhone            String?        @map("guest_phone")
+  deliveryAddressLine1  String?        @map("delivery_address_line1")
+  deliveryAddressLine2  String?        @map("delivery_address_line2")
+  deliverySuburb        String?        @map("delivery_suburb")
+  deliveryState         String?        @map("delivery_state")
+  deliveryPostcode      String?        @map("delivery_postcode")
+  scheduledAt           DateTime?      @map("scheduled_at")
   channel               OrderChannel   @default(WEB)
   deliveryMode          DeliveryMode   @map("delivery_mode")
   fulfillmentType       FulfillmentType @default(PICKUP) @map("fulfillment_type")
