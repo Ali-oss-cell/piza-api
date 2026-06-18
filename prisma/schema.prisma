@@ -259,6 +259,7 @@ model Order {
   paidAt                DateTime?      @map("paid_at")
   registerId            String?        @map("register_id")
   ticketNumber          Int?           @map("ticket_number")
+  clientRequestId       String?        @unique @map("client_request_id")
   subtotal              Decimal        @db.Decimal(10, 2)
   taxAmount             Decimal        @default(0) @map("tax_amount") @db.Decimal(10, 2)
   discountAmount        Decimal        @default(0) @map("discount_amount") @db.Decimal(10, 2)

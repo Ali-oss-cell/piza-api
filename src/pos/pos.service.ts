@@ -36,6 +36,17 @@ export class PosService {
     dto: CreatePosOrderDto,
     staff: AuthenticatedUser,
   ): Promise<Order> {
+    if (dto.clientRequestId) {
+      const existing = await this.prisma.order.findUnique({
+        where: { clientRequestId: dto.clientRequestId },
+        include: { items: true, staffUser: true },
+      });
+
+      if (existing) {
+        return existing;
+      }
+    }
+
     const quote = await this.pricingService.quote(dto.items);
     const ticketNumber = await this.nextTicketNumber();
 
@@ -55,6 +66,7 @@ export class PosService {
       total: quote.total,
       ticketNumber,
       notes: dto.notes,
+      clientRequestId: dto.clientRequestId,
       staffUser: { connect: { id: staff.id } },
       items: {
         create: quote.lines.map((line) => ({

@@ -21,4 +21,8 @@ export class CreatePosOrderDto {
   @IsOptional()
   @IsString()
   notes?: string;
+
+  @IsOptional()
+  @IsString()
+  clientRequestId?: string;
 }
