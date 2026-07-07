@@ -159,7 +159,7 @@ Open **firewall ports 80 and 443** on the droplet. Traefik handles HTTP→HTTPS 
 | `ACME_EMAIL` | `you@marinapizzas.com.au` |
 | `FRONTEND_DIR` | `../piza-front` |
 | `NEXT_PUBLIC_API_URL` | `https://api.marinapizzas.com.au/api` |
-| `CORS_ORIGIN` | `https://marinapizzas.com.au,https://www.marinapizzas.com.au` |
+| `CORS_ORIGIN` | `https://marinapizzas.com.au,https://www.marinapizzas.com.au,https://pos.marinapizzas.com.au` |
 | `RUN_SEED` | `true` once, then `false` |
 | `JWT_SECRET` | Long random string (32+ chars) |
 

@@ -74,6 +74,7 @@ services:
       DATABASE_URL: postgresql://${POSTGRES_USER:-piza}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-marinapizzas}?schema=public
       RUN_MIGRATIONS: ${RUN_MIGRATIONS:-true}
       RUN_SEED: ${RUN_SEED:-false}
+      CORS_ORIGIN: ${CORS_ORIGIN:-https://marinapizzas.com.au,https://www.marinapizzas.com.au,https://pos.marinapizzas.com.au}
     labels:
       - traefik.enable=true
       - traefik.docker.network=piza

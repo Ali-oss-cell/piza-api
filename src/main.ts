@@ -21,11 +21,22 @@ async function bootstrap(): Promise<void> {
     'CORS_ORIGIN',
     'http://localhost:3000',
   );
-  const allowedOrigins = corsOrigin.split(',').map((origin) => origin.trim());
+  const allowedOrigins = corsOrigin
+    .split(',')
+    .map((origin) => origin.trim())
+    .filter(Boolean);
 
   app.enableCors({
     origin: allowedOrigins.length === 1 ? allowedOrigins[0] : allowedOrigins,
     credentials: true,
+    methods: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: [
+      'Content-Type',
+      'Authorization',
+      'X-Brand-Slug',
+      'Accept',
+      'Origin',
+    ],
   });
 
   const port = Number(configService.get<string>('PORT', '3001'));
