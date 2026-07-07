@@ -5,6 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { ExtraTopping, CrustOption, Ingredient, IngredientCategory, ToppingCategory } from '@prisma/client';
+import { BrandsService } from '../brands/brands.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateCrustOptionDto } from './dto/create-crust-option.dto';
 import { CreateIngredientCategoryDto } from './dto/create-ingredient-category.dto';
@@ -31,25 +32,36 @@ export interface IngredientCategoryGroup {
 
 @Injectable()
 export class CustomizationsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly brandsService: BrandsService,
+  ) {}
 
-  findActiveToppings(): Promise<ExtraTopping[]> {
-    return this.prisma.extraTopping.findMany({
-      where: { isActive: true },
-      orderBy: [{ categorySlug: 'asc' }, { sortOrder: 'asc' }, { label: 'asc' }],
-    });
+  findActiveToppings(brandSlug?: string): Promise<ExtraTopping[]> {
+    return this.brandsService.resolveBrandId(brandSlug).then((brandId) =>
+      this.prisma.extraTopping.findMany({
+        where: { brandId, isActive: true },
+        orderBy: [{ categorySlug: 'asc' }, { sortOrder: 'asc' }, { label: 'asc' }],
+      }),
+    );
   }
 
-  findAllToppings(): Promise<ExtraTopping[]> {
-    return this.prisma.extraTopping.findMany({
-      orderBy: [{ categorySlug: 'asc' }, { sortOrder: 'asc' }, { label: 'asc' }],
-    });
+  findAllToppings(brandSlug?: string): Promise<ExtraTopping[]> {
+    return this.brandsService.resolveBrandId(brandSlug).then((brandId) =>
+      this.prisma.extraTopping.findMany({
+        where: { brandId },
+        orderBy: [{ categorySlug: 'asc' }, { sortOrder: 'asc' }, { label: 'asc' }],
+      }),
+    );
   }
 
-  findAllCategories(): Promise<ToppingCategory[]> {
-    return this.prisma.toppingCategory.findMany({
-      orderBy: [{ sortOrder: 'asc' }, { label: 'asc' }],
-    });
+  findAllCategories(brandSlug?: string): Promise<ToppingCategory[]> {
+    return this.brandsService.resolveBrandId(brandSlug).then((brandId) =>
+      this.prisma.toppingCategory.findMany({
+        where: { brandId },
+        orderBy: [{ sortOrder: 'asc' }, { label: 'asc' }],
+      }),
+    );
   }
 
   groupToppings(toppings: ExtraTopping[]): ToppingCategoryGroup[] {
@@ -73,11 +85,15 @@ export class CustomizationsService {
     return [...groups.values()];
   }
 
-  async createCategory(dto: CreateToppingCategoryDto): Promise<ToppingCategory> {
+  async createCategory(
+    dto: CreateToppingCategoryDto,
+    brandSlug?: string,
+  ): Promise<ToppingCategory> {
+    const brandId = await this.brandsService.resolveBrandId(brandSlug);
     const slug = dto.slug.trim().toLowerCase();
 
     const existing = await this.prisma.toppingCategory.findUnique({
-      where: { slug },
+      where: { brandId_slug: { brandId, slug } },
     });
 
     if (existing) {
@@ -86,6 +102,7 @@ export class CustomizationsService {
 
     return this.prisma.toppingCategory.create({
       data: {
+        brandId,
         slug,
         label: dto.label.trim(),
         sortOrder: dto.sortOrder ?? 0,
@@ -96,9 +113,11 @@ export class CustomizationsService {
   async updateCategory(
     slug: string,
     dto: UpdateToppingCategoryDto,
+    brandSlug?: string,
   ): Promise<ToppingCategory> {
+    const brandId = await this.brandsService.resolveBrandId(brandSlug);
     const category = await this.prisma.toppingCategory.findUnique({
-      where: { slug },
+      where: { brandId_slug: { brandId, slug } },
     });
 
     if (!category) {
@@ -110,7 +129,7 @@ export class CustomizationsService {
 
     if (nextSlug && nextSlug !== slug) {
       const conflict = await this.prisma.toppingCategory.findUnique({
-        where: { slug: nextSlug },
+        where: { brandId_slug: { brandId, slug: nextSlug } },
       });
 
       if (conflict) {
@@ -120,7 +139,7 @@ export class CustomizationsService {
 
     return this.prisma.$transaction(async (tx) => {
       const updated = await tx.toppingCategory.update({
-        where: { slug },
+        where: { brandId_slug: { brandId, slug } },
         data: {
           ...(nextSlug ? { slug: nextSlug } : {}),
           ...(nextLabel ? { label: nextLabel } : {}),
@@ -130,7 +149,7 @@ export class CustomizationsService {
 
       if (nextSlug || nextLabel) {
         await tx.extraTopping.updateMany({
-          where: { categorySlug: slug },
+          where: { brandId, categorySlug: slug },
           data: {
             ...(nextSlug ? { categorySlug: nextSlug } : {}),
             ...(nextLabel ? { categoryLabel: nextLabel } : {}),
@@ -142,9 +161,10 @@ export class CustomizationsService {
     });
   }
 
-  async removeCategory(slug: string): Promise<void> {
+  async removeCategory(slug: string, brandSlug?: string): Promise<void> {
+    const brandId = await this.brandsService.resolveBrandId(brandSlug);
     const category = await this.prisma.toppingCategory.findUnique({
-      where: { slug },
+      where: { brandId_slug: { brandId, slug } },
       include: { _count: { select: { toppings: true } } },
     });
 
@@ -158,15 +178,18 @@ export class CustomizationsService {
       );
     }
 
-    await this.prisma.toppingCategory.delete({ where: { slug } });
+    await this.prisma.toppingCategory.delete({
+      where: { brandId_slug: { brandId, slug } },
+    });
   }
 
-  async createTopping(dto: CreateToppingDto): Promise<ExtraTopping> {
+  async createTopping(dto: CreateToppingDto, brandSlug?: string): Promise<ExtraTopping> {
+    const brandId = await this.brandsService.resolveBrandId(brandSlug);
     const slug = dto.slug.trim().toLowerCase();
     const categorySlug = dto.categorySlug.trim().toLowerCase();
 
     const category = await this.prisma.toppingCategory.findUnique({
-      where: { slug: categorySlug },
+      where: { brandId_slug: { brandId, slug: categorySlug } },
     });
 
     if (!category) {
@@ -174,7 +197,7 @@ export class CustomizationsService {
     }
 
     const existing = await this.prisma.extraTopping.findUnique({
-      where: { slug },
+      where: { brandId_slug: { brandId, slug } },
     });
 
     if (existing) {
@@ -183,6 +206,7 @@ export class CustomizationsService {
 
     return this.prisma.extraTopping.create({
       data: {
+        brandId,
         slug,
         label: dto.label.trim(),
         categorySlug: category.slug,
@@ -194,8 +218,15 @@ export class CustomizationsService {
     });
   }
 
-  async updateTopping(id: string, dto: UpdateToppingDto): Promise<ExtraTopping> {
-    const topping = await this.prisma.extraTopping.findUnique({ where: { id } });
+  async updateTopping(
+    id: string,
+    dto: UpdateToppingDto,
+    brandSlug?: string,
+  ): Promise<ExtraTopping> {
+    const brandId = await this.brandsService.resolveBrandId(brandSlug);
+    const topping = await this.prisma.extraTopping.findFirst({
+      where: { id, brandId },
+    });
 
     if (!topping) {
       throw new NotFoundException(`Topping "${id}" not found.`);
@@ -206,7 +237,12 @@ export class CustomizationsService {
 
     if (dto.categorySlug) {
       const category = await this.prisma.toppingCategory.findUnique({
-        where: { slug: dto.categorySlug.trim().toLowerCase() },
+        where: {
+          brandId_slug: {
+            brandId,
+            slug: dto.categorySlug.trim().toLowerCase(),
+          },
+        },
       });
 
       if (!category) {
@@ -221,7 +257,7 @@ export class CustomizationsService {
       const nextSlug = dto.slug.trim().toLowerCase();
       if (nextSlug !== topping.slug) {
         const conflict = await this.prisma.extraTopping.findUnique({
-          where: { slug: nextSlug },
+          where: { brandId_slug: { brandId, slug: nextSlug } },
         });
 
         if (conflict) {
@@ -254,24 +290,30 @@ export class CustomizationsService {
     await this.prisma.extraTopping.delete({ where: { id } });
   }
 
-  findActiveCrusts(): Promise<CrustOption[]> {
-    return this.prisma.crustOption.findMany({
-      where: { isActive: true },
-      orderBy: [{ sortOrder: 'asc' }, { label: 'asc' }],
-    });
+  findActiveCrusts(brandSlug?: string): Promise<CrustOption[]> {
+    return this.brandsService.resolveBrandId(brandSlug).then((brandId) =>
+      this.prisma.crustOption.findMany({
+        where: { brandId, isActive: true },
+        orderBy: [{ sortOrder: 'asc' }, { label: 'asc' }],
+      }),
+    );
   }
 
-  findAllCrusts(): Promise<CrustOption[]> {
-    return this.prisma.crustOption.findMany({
-      orderBy: [{ sortOrder: 'asc' }, { label: 'asc' }],
-    });
+  findAllCrusts(brandSlug?: string): Promise<CrustOption[]> {
+    return this.brandsService.resolveBrandId(brandSlug).then((brandId) =>
+      this.prisma.crustOption.findMany({
+        where: { brandId },
+        orderBy: [{ sortOrder: 'asc' }, { label: 'asc' }],
+      }),
+    );
   }
 
-  async createCrust(dto: CreateCrustOptionDto): Promise<CrustOption> {
+  async createCrust(dto: CreateCrustOptionDto, brandSlug?: string): Promise<CrustOption> {
+    const brandId = await this.brandsService.resolveBrandId(brandSlug);
     const slug = dto.slug.trim().toLowerCase();
 
     const existing = await this.prisma.crustOption.findUnique({
-      where: { slug },
+      where: { brandId_slug: { brandId, slug } },
     });
 
     if (existing) {
@@ -280,6 +322,7 @@ export class CustomizationsService {
 
     return this.prisma.crustOption.create({
       data: {
+        brandId,
         slug,
         label: dto.label.trim(),
         priceDelta: dto.priceDelta,
@@ -289,8 +332,13 @@ export class CustomizationsService {
     });
   }
 
-  async updateCrust(id: string, dto: UpdateCrustOptionDto): Promise<CrustOption> {
-    const crust = await this.prisma.crustOption.findUnique({ where: { id } });
+  async updateCrust(
+    id: string,
+    dto: UpdateCrustOptionDto,
+    brandSlug?: string,
+  ): Promise<CrustOption> {
+    const brandId = await this.brandsService.resolveBrandId(brandSlug);
+    const crust = await this.prisma.crustOption.findFirst({ where: { id, brandId } });
 
     if (!crust) {
       throw new NotFoundException(`Crust "${id}" not found.`);
@@ -300,7 +348,7 @@ export class CustomizationsService {
       const nextSlug = dto.slug.trim().toLowerCase();
       if (nextSlug !== crust.slug) {
         const conflict = await this.prisma.crustOption.findUnique({
-          where: { slug: nextSlug },
+          where: { brandId_slug: { brandId, slug: nextSlug } },
         });
 
         if (conflict) {
@@ -331,23 +379,31 @@ export class CustomizationsService {
     await this.prisma.crustOption.delete({ where: { id } });
   }
 
-  findActiveIngredients(): Promise<Ingredient[]> {
-    return this.prisma.ingredient.findMany({
-      where: { isActive: true },
-      orderBy: [{ categorySlug: 'asc' }, { sortOrder: 'asc' }, { label: 'asc' }],
-    });
+  findActiveIngredients(brandSlug?: string): Promise<Ingredient[]> {
+    return this.brandsService.resolveBrandId(brandSlug).then((brandId) =>
+      this.prisma.ingredient.findMany({
+        where: { brandId, isActive: true },
+        orderBy: [{ categorySlug: 'asc' }, { sortOrder: 'asc' }, { label: 'asc' }],
+      }),
+    );
   }
 
-  findAllIngredients(): Promise<Ingredient[]> {
-    return this.prisma.ingredient.findMany({
-      orderBy: [{ categorySlug: 'asc' }, { sortOrder: 'asc' }, { label: 'asc' }],
-    });
+  findAllIngredients(brandSlug?: string): Promise<Ingredient[]> {
+    return this.brandsService.resolveBrandId(brandSlug).then((brandId) =>
+      this.prisma.ingredient.findMany({
+        where: { brandId },
+        orderBy: [{ categorySlug: 'asc' }, { sortOrder: 'asc' }, { label: 'asc' }],
+      }),
+    );
   }
 
-  findAllIngredientCategories(): Promise<IngredientCategory[]> {
-    return this.prisma.ingredientCategory.findMany({
-      orderBy: [{ sortOrder: 'asc' }, { label: 'asc' }],
-    });
+  findAllIngredientCategories(brandSlug?: string): Promise<IngredientCategory[]> {
+    return this.brandsService.resolveBrandId(brandSlug).then((brandId) =>
+      this.prisma.ingredientCategory.findMany({
+        where: { brandId },
+        orderBy: [{ sortOrder: 'asc' }, { label: 'asc' }],
+      }),
+    );
   }
 
   groupIngredients(ingredients: Ingredient[]): IngredientCategoryGroup[] {
@@ -373,11 +429,13 @@ export class CustomizationsService {
 
   async createIngredientCategory(
     dto: CreateIngredientCategoryDto,
+    brandSlug?: string,
   ): Promise<IngredientCategory> {
+    const brandId = await this.brandsService.resolveBrandId(brandSlug);
     const slug = dto.slug.trim().toLowerCase();
 
     const existing = await this.prisma.ingredientCategory.findUnique({
-      where: { slug },
+      where: { brandId_slug: { brandId, slug } },
     });
 
     if (existing) {
@@ -386,6 +444,7 @@ export class CustomizationsService {
 
     return this.prisma.ingredientCategory.create({
       data: {
+        brandId,
         slug,
         label: dto.label.trim(),
         sortOrder: dto.sortOrder ?? 0,
@@ -396,9 +455,11 @@ export class CustomizationsService {
   async updateIngredientCategory(
     slug: string,
     dto: UpdateIngredientCategoryDto,
+    brandSlug?: string,
   ): Promise<IngredientCategory> {
+    const brandId = await this.brandsService.resolveBrandId(brandSlug);
     const category = await this.prisma.ingredientCategory.findUnique({
-      where: { slug },
+      where: { brandId_slug: { brandId, slug } },
     });
 
     if (!category) {
@@ -410,7 +471,7 @@ export class CustomizationsService {
 
     if (nextSlug && nextSlug !== slug) {
       const conflict = await this.prisma.ingredientCategory.findUnique({
-        where: { slug: nextSlug },
+        where: { brandId_slug: { brandId, slug: nextSlug } },
       });
 
       if (conflict) {
@@ -420,7 +481,7 @@ export class CustomizationsService {
 
     return this.prisma.$transaction(async (tx) => {
       const updated = await tx.ingredientCategory.update({
-        where: { slug },
+        where: { brandId_slug: { brandId, slug } },
         data: {
           ...(nextSlug ? { slug: nextSlug } : {}),
           ...(nextLabel ? { label: nextLabel } : {}),
@@ -430,7 +491,7 @@ export class CustomizationsService {
 
       if (nextSlug || nextLabel) {
         await tx.ingredient.updateMany({
-          where: { categorySlug: slug },
+          where: { brandId, categorySlug: slug },
           data: {
             ...(nextSlug ? { categorySlug: nextSlug } : {}),
             ...(nextLabel ? { categoryLabel: nextLabel } : {}),
@@ -442,9 +503,10 @@ export class CustomizationsService {
     });
   }
 
-  async removeIngredientCategory(slug: string): Promise<void> {
+  async removeIngredientCategory(slug: string, brandSlug?: string): Promise<void> {
+    const brandId = await this.brandsService.resolveBrandId(brandSlug);
     const category = await this.prisma.ingredientCategory.findUnique({
-      where: { slug },
+      where: { brandId_slug: { brandId, slug } },
       include: { _count: { select: { ingredients: true } } },
     });
 
@@ -458,15 +520,18 @@ export class CustomizationsService {
       );
     }
 
-    await this.prisma.ingredientCategory.delete({ where: { slug } });
+    await this.prisma.ingredientCategory.delete({
+      where: { brandId_slug: { brandId, slug } },
+    });
   }
 
-  async createIngredient(dto: CreateIngredientDto): Promise<Ingredient> {
+  async createIngredient(dto: CreateIngredientDto, brandSlug?: string): Promise<Ingredient> {
+    const brandId = await this.brandsService.resolveBrandId(brandSlug);
     const slug = dto.slug.trim().toLowerCase();
     const categorySlug = dto.categorySlug.trim().toLowerCase();
 
     const category = await this.prisma.ingredientCategory.findUnique({
-      where: { slug: categorySlug },
+      where: { brandId_slug: { brandId, slug: categorySlug } },
     });
 
     if (!category) {
@@ -474,7 +539,7 @@ export class CustomizationsService {
     }
 
     const existing = await this.prisma.ingredient.findUnique({
-      where: { slug },
+      where: { brandId_slug: { brandId, slug } },
     });
 
     if (existing) {
@@ -483,6 +548,7 @@ export class CustomizationsService {
 
     return this.prisma.ingredient.create({
       data: {
+        brandId,
         slug,
         label: dto.label.trim(),
         categorySlug: category.slug,
@@ -493,8 +559,15 @@ export class CustomizationsService {
     });
   }
 
-  async updateIngredient(id: string, dto: UpdateIngredientDto): Promise<Ingredient> {
-    const ingredient = await this.prisma.ingredient.findUnique({ where: { id } });
+  async updateIngredient(
+    id: string,
+    dto: UpdateIngredientDto,
+    brandSlug?: string,
+  ): Promise<Ingredient> {
+    const brandId = await this.brandsService.resolveBrandId(brandSlug);
+    const ingredient = await this.prisma.ingredient.findFirst({
+      where: { id, brandId },
+    });
 
     if (!ingredient) {
       throw new NotFoundException(`Ingredient "${id}" not found.`);
@@ -505,7 +578,12 @@ export class CustomizationsService {
 
     if (dto.categorySlug) {
       const category = await this.prisma.ingredientCategory.findUnique({
-        where: { slug: dto.categorySlug.trim().toLowerCase() },
+        where: {
+          brandId_slug: {
+            brandId,
+            slug: dto.categorySlug.trim().toLowerCase(),
+          },
+        },
       });
 
       if (!category) {
@@ -520,7 +598,7 @@ export class CustomizationsService {
       const nextSlug = dto.slug.trim().toLowerCase();
       if (nextSlug !== ingredient.slug) {
         const conflict = await this.prisma.ingredient.findUnique({
-          where: { slug: nextSlug },
+          where: { brandId_slug: { brandId, slug: nextSlug } },
         });
 
         if (conflict) {
@@ -552,13 +630,13 @@ export class CustomizationsService {
     await this.prisma.ingredient.delete({ where: { id } });
   }
 
-  async resolveIngredientLabels(slugs: string[]): Promise<string[]> {
+  async resolveIngredientLabels(slugs: string[], brandId: string): Promise<string[]> {
     if (slugs.length === 0) {
       return [];
     }
 
     const records = await this.prisma.ingredient.findMany({
-      where: { slug: { in: slugs } },
+      where: { brandId, slug: { in: slugs } },
     });
     const bySlug = new Map(records.map((entry) => [entry.slug, entry.label]));
 

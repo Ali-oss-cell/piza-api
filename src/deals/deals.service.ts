@@ -5,19 +5,25 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { Deal, Prisma } from '@prisma/client';
+import { BrandsService } from '../brands/brands.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateDealDto } from './dto/create-deal.dto';
 import { UpdateDealDto } from './dto/update-deal.dto';
 
 @Injectable()
 export class DealsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly brandsService: BrandsService,
+  ) {}
 
-  findActiveDeals(): Promise<Deal[]> {
+  async findActiveDeals(brandSlug?: string): Promise<Deal[]> {
+    const brandId = await this.brandsService.resolveBrandId(brandSlug);
     const now = new Date();
 
     return this.prisma.deal.findMany({
       where: {
+        brandId,
         isActive: true,
         AND: [
           { OR: [{ validFrom: null }, { validFrom: { lte: now } }] },
@@ -28,30 +34,34 @@ export class DealsService {
     });
   }
 
-  findAllForAdmin(): Promise<Deal[]> {
+  async findAllForAdmin(brandSlug?: string): Promise<Deal[]> {
+    const brandId = await this.brandsService.resolveBrandId(brandSlug);
     return this.prisma.deal.findMany({
+      where: { brandId },
       orderBy: [{ sortOrder: 'asc' }, { title: 'asc' }],
     });
   }
 
-  async create(dto: CreateDealDto): Promise<Deal> {
+  async create(dto: CreateDealDto, brandSlug?: string): Promise<Deal> {
+    const brandId = await this.brandsService.resolveBrandId(brandSlug);
     const slug = dto.slug.trim().toLowerCase();
     const promoCode = dto.promoCode?.trim().toUpperCase() || null;
 
-    await this.ensureUniqueSlug(slug);
+    await this.ensureUniqueSlug(brandId, slug);
     if (promoCode) {
-      await this.ensureUniquePromoCode(promoCode);
+      await this.ensureUniquePromoCode(brandId, promoCode);
     }
 
     this.validateDiscount(dto.discountType, dto.discountValue);
 
     return this.prisma.deal.create({
-      data: this.buildCreateData(dto, slug, promoCode),
+      data: this.buildCreateData(dto, brandId, slug, promoCode),
     });
   }
 
-  async update(id: string, dto: UpdateDealDto): Promise<Deal> {
-    const deal = await this.findById(id);
+  async update(id: string, dto: UpdateDealDto, brandSlug?: string): Promise<Deal> {
+    const brandId = await this.brandsService.resolveBrandId(brandSlug);
+    const deal = await this.findById(id, brandId);
 
     const nextSlug = dto.slug?.trim().toLowerCase();
     const nextPromoCode =
@@ -62,11 +72,11 @@ export class DealsService {
           : null;
 
     if (nextSlug && nextSlug !== deal.slug) {
-      await this.ensureUniqueSlug(nextSlug, id);
+      await this.ensureUniqueSlug(brandId, nextSlug, id);
     }
 
     if (nextPromoCode && nextPromoCode !== deal.promoCode) {
-      await this.ensureUniquePromoCode(nextPromoCode, id);
+      await this.ensureUniquePromoCode(brandId, nextPromoCode, id);
     }
 
     const discountType = dto.discountType ?? deal.discountType;
@@ -105,17 +115,20 @@ export class DealsService {
     });
   }
 
-  async remove(id: string): Promise<void> {
-    await this.findById(id);
+  async remove(id: string, brandSlug?: string): Promise<void> {
+    const brandId = await this.brandsService.resolveBrandId(brandSlug);
+    await this.findById(id, brandId);
     await this.prisma.deal.delete({ where: { id } });
   }
 
   private buildCreateData(
     dto: CreateDealDto,
+    brandId: string,
     slug: string,
     promoCode: string | null,
   ): Prisma.DealCreateInput {
     return {
+      brand: { connect: { id: brandId } },
       slug,
       title: dto.title.trim(),
       description: dto.description.trim(),
@@ -145,8 +158,8 @@ export class DealsService {
     }
   }
 
-  private async findById(id: string): Promise<Deal> {
-    const deal = await this.prisma.deal.findUnique({ where: { id } });
+  private async findById(id: string, brandId: string): Promise<Deal> {
+    const deal = await this.prisma.deal.findFirst({ where: { id, brandId } });
 
     if (!deal) {
       throw new NotFoundException(`Deal "${id}" not found.`);
@@ -155,8 +168,14 @@ export class DealsService {
     return deal;
   }
 
-  private async ensureUniqueSlug(slug: string, excludeId?: string): Promise<void> {
-    const existing = await this.prisma.deal.findUnique({ where: { slug } });
+  private async ensureUniqueSlug(
+    brandId: string,
+    slug: string,
+    excludeId?: string,
+  ): Promise<void> {
+    const existing = await this.prisma.deal.findUnique({
+      where: { brandId_slug: { brandId, slug } },
+    });
 
     if (existing && existing.id !== excludeId) {
       throw new ConflictException(`Deal "${slug}" already exists.`);
@@ -164,11 +183,12 @@ export class DealsService {
   }
 
   private async ensureUniquePromoCode(
+    brandId: string,
     promoCode: string,
     excludeId?: string,
   ): Promise<void> {
-    const existing = await this.prisma.deal.findUnique({
-      where: { promoCode },
+    const existing = await this.prisma.deal.findFirst({
+      where: { brandId, promoCode },
     });
 
     if (existing && existing.id !== excludeId) {

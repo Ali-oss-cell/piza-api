@@ -10,6 +10,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { UserRole } from '@prisma/client';
+import { BrandSlug } from '../common/decorators/brand-slug.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
@@ -30,24 +31,24 @@ export class CustomizationsController {
   constructor(private readonly customizationsService: CustomizationsService) {}
 
   @Get('toppings')
-  async findActiveToppings() {
-    const toppings = await this.customizationsService.findActiveToppings();
+  async findActiveToppings(@BrandSlug() brandSlug?: string) {
+    const toppings = await this.customizationsService.findActiveToppings(brandSlug);
     return this.customizationsService.groupToppings(toppings);
   }
 
   @Get('toppings/manage/all')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN)
-  async findAllToppings() {
-    const toppings = await this.customizationsService.findAllToppings();
+  async findAllToppings(@BrandSlug() brandSlug?: string) {
+    const toppings = await this.customizationsService.findAllToppings(brandSlug);
     return this.customizationsService.groupToppings(toppings);
   }
 
   @Post('toppings')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN)
-  createTopping(@Body() dto: CreateToppingDto) {
-    return this.customizationsService.createTopping(dto);
+  createTopping(@Body() dto: CreateToppingDto, @BrandSlug() brandSlug?: string) {
+    return this.customizationsService.createTopping(dto, brandSlug);
   }
 
   @Put('toppings/:id')
@@ -56,8 +57,9 @@ export class CustomizationsController {
   updateTopping(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdateToppingDto,
+    @BrandSlug() brandSlug?: string,
   ) {
-    return this.customizationsService.updateTopping(id, dto);
+    return this.customizationsService.updateTopping(id, dto, brandSlug);
   }
 
   @Delete('toppings/:id')
@@ -70,15 +72,18 @@ export class CustomizationsController {
   @Get('categories/manage/all')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN)
-  findAllCategories() {
-    return this.customizationsService.findAllCategories();
+  findAllCategories(@BrandSlug() brandSlug?: string) {
+    return this.customizationsService.findAllCategories(brandSlug);
   }
 
   @Post('categories')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN)
-  createCategory(@Body() dto: CreateToppingCategoryDto) {
-    return this.customizationsService.createCategory(dto);
+  createCategory(
+    @Body() dto: CreateToppingCategoryDto,
+    @BrandSlug() brandSlug?: string,
+  ) {
+    return this.customizationsService.createCategory(dto, brandSlug);
   }
 
   @Put('categories/:slug')
@@ -87,34 +92,35 @@ export class CustomizationsController {
   updateCategory(
     @Param('slug') slug: string,
     @Body() dto: UpdateToppingCategoryDto,
+    @BrandSlug() brandSlug?: string,
   ) {
-    return this.customizationsService.updateCategory(slug, dto);
+    return this.customizationsService.updateCategory(slug, dto, brandSlug);
   }
 
   @Delete('categories/:slug')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN)
-  removeCategory(@Param('slug') slug: string) {
-    return this.customizationsService.removeCategory(slug);
+  removeCategory(@Param('slug') slug: string, @BrandSlug() brandSlug?: string) {
+    return this.customizationsService.removeCategory(slug, brandSlug);
   }
 
   @Get('crusts')
-  findActiveCrusts() {
-    return this.customizationsService.findActiveCrusts();
+  findActiveCrusts(@BrandSlug() brandSlug?: string) {
+    return this.customizationsService.findActiveCrusts(brandSlug);
   }
 
   @Get('crusts/manage/all')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN)
-  findAllCrusts() {
-    return this.customizationsService.findAllCrusts();
+  findAllCrusts(@BrandSlug() brandSlug?: string) {
+    return this.customizationsService.findAllCrusts(brandSlug);
   }
 
   @Post('crusts')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN)
-  createCrust(@Body() dto: CreateCrustOptionDto) {
-    return this.customizationsService.createCrust(dto);
+  createCrust(@Body() dto: CreateCrustOptionDto, @BrandSlug() brandSlug?: string) {
+    return this.customizationsService.createCrust(dto, brandSlug);
   }
 
   @Put('crusts/:id')
@@ -123,8 +129,9 @@ export class CustomizationsController {
   updateCrust(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdateCrustOptionDto,
+    @BrandSlug() brandSlug?: string,
   ) {
-    return this.customizationsService.updateCrust(id, dto);
+    return this.customizationsService.updateCrust(id, dto, brandSlug);
   }
 
   @Delete('crusts/:id')
@@ -135,24 +142,24 @@ export class CustomizationsController {
   }
 
   @Get('ingredients')
-  async findActiveIngredients() {
-    const ingredients = await this.customizationsService.findActiveIngredients();
+  async findActiveIngredients(@BrandSlug() brandSlug?: string) {
+    const ingredients = await this.customizationsService.findActiveIngredients(brandSlug);
     return this.customizationsService.groupIngredients(ingredients);
   }
 
   @Get('ingredients/manage/all')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN)
-  async findAllIngredients() {
-    const ingredients = await this.customizationsService.findAllIngredients();
+  async findAllIngredients(@BrandSlug() brandSlug?: string) {
+    const ingredients = await this.customizationsService.findAllIngredients(brandSlug);
     return this.customizationsService.groupIngredients(ingredients);
   }
 
   @Post('ingredients')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN)
-  createIngredient(@Body() dto: CreateIngredientDto) {
-    return this.customizationsService.createIngredient(dto);
+  createIngredient(@Body() dto: CreateIngredientDto, @BrandSlug() brandSlug?: string) {
+    return this.customizationsService.createIngredient(dto, brandSlug);
   }
 
   @Put('ingredients/:id')
@@ -161,8 +168,9 @@ export class CustomizationsController {
   updateIngredient(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdateIngredientDto,
+    @BrandSlug() brandSlug?: string,
   ) {
-    return this.customizationsService.updateIngredient(id, dto);
+    return this.customizationsService.updateIngredient(id, dto, brandSlug);
   }
 
   @Delete('ingredients/:id')
@@ -175,15 +183,18 @@ export class CustomizationsController {
   @Get('ingredient-categories/manage/all')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN)
-  findAllIngredientCategories() {
-    return this.customizationsService.findAllIngredientCategories();
+  findAllIngredientCategories(@BrandSlug() brandSlug?: string) {
+    return this.customizationsService.findAllIngredientCategories(brandSlug);
   }
 
   @Post('ingredient-categories')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN)
-  createIngredientCategory(@Body() dto: CreateIngredientCategoryDto) {
-    return this.customizationsService.createIngredientCategory(dto);
+  createIngredientCategory(
+    @Body() dto: CreateIngredientCategoryDto,
+    @BrandSlug() brandSlug?: string,
+  ) {
+    return this.customizationsService.createIngredientCategory(dto, brandSlug);
   }
 
   @Put('ingredient-categories/:slug')
@@ -192,14 +203,18 @@ export class CustomizationsController {
   updateIngredientCategory(
     @Param('slug') slug: string,
     @Body() dto: UpdateIngredientCategoryDto,
+    @BrandSlug() brandSlug?: string,
   ) {
-    return this.customizationsService.updateIngredientCategory(slug, dto);
+    return this.customizationsService.updateIngredientCategory(slug, dto, brandSlug);
   }
 
   @Delete('ingredient-categories/:slug')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN)
-  removeIngredientCategory(@Param('slug') slug: string) {
-    return this.customizationsService.removeIngredientCategory(slug);
+  removeIngredientCategory(
+    @Param('slug') slug: string,
+    @BrandSlug() brandSlug?: string,
+  ) {
+    return this.customizationsService.removeIngredientCategory(slug, brandSlug);
   }
 }

@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { Order, Prisma, UserRole } from '@prisma/client';
 import { AuthenticatedUser } from '../auth/interfaces/authenticated-user.interface';
+import { BrandsService } from '../brands/brands.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { OrderSchedulingService } from './order-scheduling.service';
@@ -16,13 +17,19 @@ export class OrdersService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly orderSchedulingService: OrderSchedulingService,
+    private readonly brandsService: BrandsService,
   ) {}
 
-  async create(dto: CreateOrderDto, user?: AuthenticatedUser): Promise<Order> {
+  async create(
+    dto: CreateOrderDto,
+    user?: AuthenticatedUser,
+    brandSlug?: string,
+  ): Promise<Order> {
     const scheduledAt = new Date(dto.scheduledAt);
+    const location = await this.brandsService.resolveDefaultLocation(brandSlug);
 
-    await this.orderSchedulingService.assertScheduledAtValid(scheduledAt);
-    await this.orderSchedulingService.assertMinOrderAmount(dto.subtotal);
+    await this.orderSchedulingService.assertScheduledAtValid(scheduledAt, brandSlug);
+    await this.orderSchedulingService.assertMinOrderAmount(dto.subtotal, brandSlug);
     this.orderSchedulingService.assertDeliveryAddress(dto.deliveryMode, dto);
 
     if (!user && (!dto.guestName?.trim() || !dto.guestEmail?.trim())) {
@@ -36,6 +43,7 @@ export class OrdersService {
     }
 
     const data: Prisma.OrderCreateInput = {
+      location: { connect: { id: location.id } },
       deliveryMode: dto.deliveryMode,
       subtotal: dto.subtotal,
       deliveryFee: dto.deliveryFee,
@@ -72,8 +80,11 @@ export class OrdersService {
     });
   }
 
-  findAll(): Promise<Order[]> {
+  async findAll(brandSlug?: string): Promise<Order[]> {
+    const brandId = await this.brandsService.resolveBrandId(brandSlug);
+
     return this.prisma.order.findMany({
+      where: { location: { brandId } },
       include: { items: true, user: true },
       orderBy: { createdAt: 'desc' },
     });

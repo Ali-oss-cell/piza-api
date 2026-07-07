@@ -1,44 +1,84 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { StoreSettings } from '@prisma/client';
+import { BrandsService } from '../brands/brands.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { UpdateStoreSettingsDto } from './dto/update-store-settings.dto';
 
-const SETTINGS_ID = '00000000-0000-0000-0000-000000000001';
-
 @Injectable()
 export class SettingsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly brandsService: BrandsService,
+  ) {}
 
-  async findStoreSettings(): Promise<StoreSettings> {
-    const settings = await this.prisma.storeSettings.findUnique({
-      where: { id: SETTINGS_ID },
-    });
+  async findStoreSettings(brandSlug?: string): Promise<StoreSettings> {
+    const brandWithLocation = await this.brandsService.getBrandWithDefaultLocation(brandSlug);
+    const location = brandWithLocation.locations[0];
 
-    if (!settings) {
-      throw new NotFoundException('Store settings not found');
-    }
-
-    return settings;
+    return {
+      id: location.id,
+      storeName: brandWithLocation.name,
+      tagline: brandWithLocation.tagline,
+      deliveryFee: location.deliveryFee,
+      minOrderAmount: location.minOrderAmount,
+      contactEmail: location.email,
+      contactPhone: location.phone,
+      address: location.address,
+      openingHours: location.openingHours,
+      updatedAt: location.updatedAt,
+    };
   }
 
-  async updateStoreSettings(dto: UpdateStoreSettingsDto): Promise<StoreSettings> {
-    await this.findStoreSettings();
+  async updateStoreSettings(
+    dto: UpdateStoreSettingsDto,
+    brandSlug?: string,
+  ): Promise<StoreSettings> {
+    const brandWithLocation = await this.brandsService.getBrandWithDefaultLocation(brandSlug);
+    const location = brandWithLocation.locations[0];
 
-    return this.prisma.storeSettings.update({
-      where: { id: SETTINGS_ID },
+    if (
+      dto.storeName !== undefined ||
+      dto.tagline !== undefined
+    ) {
+      await this.prisma.brand.update({
+        where: { id: brandWithLocation.id },
+        data: {
+          ...(dto.storeName !== undefined ? { name: dto.storeName.trim() } : {}),
+          ...(dto.tagline !== undefined ? { tagline: dto.tagline.trim() || null } : {}),
+        },
+      });
+    }
+
+    const updatedLocation = await this.prisma.location.update({
+      where: { id: location.id },
       data: {
-        ...(dto.storeName !== undefined ? { storeName: dto.storeName.trim() } : {}),
-        ...(dto.tagline !== undefined ? { tagline: dto.tagline.trim() || null } : {}),
         ...(dto.deliveryFee !== undefined ? { deliveryFee: dto.deliveryFee } : {}),
         ...(dto.minOrderAmount !== undefined ? { minOrderAmount: dto.minOrderAmount } : {}),
         ...(dto.contactEmail !== undefined
-          ? { contactEmail: dto.contactEmail.trim() || null }
+          ? { email: dto.contactEmail.trim() || null }
           : {}),
         ...(dto.contactPhone !== undefined
-          ? { contactPhone: dto.contactPhone.trim() || null }
+          ? { phone: dto.contactPhone.trim() || null }
           : {}),
         ...(dto.address !== undefined ? { address: dto.address.trim() || null } : {}),
       },
     });
+
+    const brand = await this.prisma.brand.findUniqueOrThrow({
+      where: { id: brandWithLocation.id },
+    });
+
+    return {
+      id: updatedLocation.id,
+      storeName: brand.name,
+      tagline: brand.tagline,
+      deliveryFee: updatedLocation.deliveryFee,
+      minOrderAmount: updatedLocation.minOrderAmount,
+      contactEmail: updatedLocation.email,
+      contactPhone: updatedLocation.phone,
+      address: updatedLocation.address,
+      openingHours: updatedLocation.openingHours,
+      updatedAt: updatedLocation.updatedAt,
+    };
   }
 }

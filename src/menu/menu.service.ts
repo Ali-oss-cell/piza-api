@@ -5,8 +5,9 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { MenuCategory, MenuItem, Prisma } from '@prisma/client';
-import { PrismaService } from '../prisma/prisma.service';
+import { BrandsService } from '../brands/brands.service';
 import { CustomizationsService } from '../customizations/customizations.service';
+import { PrismaService } from '../prisma/prisma.service';
 import { CreateMenuCategoryDto } from './dto/create-menu-category.dto';
 import { CreateMenuItemDto } from './dto/create-menu-item.dto';
 import { UpdateMenuCategoryDto } from './dto/update-menu-category.dto';
@@ -23,38 +24,62 @@ export class MenuService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly customizationsService: CustomizationsService,
+    private readonly brandsService: BrandsService,
   ) {}
 
-  async findAll(): Promise<MenuItem[]> {
+  async findAll(brandSlug?: string): Promise<MenuItem[]> {
+    const brandId = await this.brandsService.resolveBrandId(brandSlug);
     const items = await this.prisma.menuItem.findMany({
-      where: { isActive: true },
+      where: { brandId, isActive: true },
       orderBy: [{ categorySlug: 'asc' }, { number: 'asc' }],
     });
 
     return Promise.all(items.map((item) => this.mapPublicItem(item)));
   }
 
-  findAllForAdmin(): Promise<MenuItem[]> {
+  async findAllForAdmin(brandSlug?: string): Promise<MenuItem[]> {
+    const brandId = await this.brandsService.resolveBrandId(brandSlug);
     return this.prisma.menuItem.findMany({
+      where: { brandId },
       orderBy: [{ categorySlug: 'asc' }, { number: 'asc' }],
     });
   }
 
-  findAllCategories(): Promise<MenuCategory[]> {
+  async findAllCategories(brandSlug?: string): Promise<MenuCategory[]> {
+    const brandId = await this.brandsService.resolveBrandId(brandSlug);
     return this.prisma.menuCategory.findMany({
-      where: { isActive: true },
+      where: { brandId, isActive: true },
       orderBy: [{ sortOrder: 'asc' }, { label: 'asc' }],
     });
   }
 
-  findAllCategoriesForAdmin(): Promise<MenuCategory[]> {
+  async findAllCategoriesForAdmin(brandSlug?: string): Promise<MenuCategory[]> {
+    const brandId = await this.brandsService.resolveBrandId(brandSlug);
     return this.prisma.menuCategory.findMany({
+      where: { brandId },
       orderBy: [{ sortOrder: 'asc' }, { label: 'asc' }],
     });
   }
 
-  async findOne(id: string): Promise<MenuItem> {
-    const item = await this.prisma.menuItem.findUnique({ where: { id } });
+  async findOne(id: string): Promise<MenuItem & { brandSlug: string }> {
+    const item = await this.prisma.menuItem.findUnique({
+      where: { id },
+      include: { brand: { select: { slug: true } } },
+    });
+
+    if (!item || !item.isActive) {
+      throw new NotFoundException('Menu item not found');
+    }
+
+    const mapped = await this.mapPublicItem(item);
+    return { ...mapped, brandSlug: item.brand.slug };
+  }
+
+  async findBySlug(slug: string, brandSlug?: string): Promise<MenuItem> {
+    const brandId = await this.brandsService.resolveBrandId(brandSlug);
+    const item = await this.prisma.menuItem.findUnique({
+      where: { brandId_slug: { brandId, slug } },
+    });
 
     if (!item || !item.isActive) {
       throw new NotFoundException('Menu item not found');
@@ -63,33 +88,26 @@ export class MenuService {
     return this.mapPublicItem(item);
   }
 
-  async findBySlug(slug: string): Promise<MenuItem> {
-    const item = await this.prisma.menuItem.findUnique({ where: { slug } });
-
-    if (!item || !item.isActive) {
-      throw new NotFoundException('Menu item not found');
-    }
-
-    return this.mapPublicItem(item);
-  }
-
-  create(dto: CreateMenuItemDto): Promise<MenuItem> {
+  async create(dto: CreateMenuItemDto, brandSlug?: string): Promise<MenuItem> {
+    const brandId = await this.brandsService.resolveBrandId(brandSlug);
     return this.prisma.menuItem.create({
-      data: this.buildCreateInput(dto),
+      data: this.buildCreateInput(dto, brandId),
     });
   }
 
-  async update(id: string, dto: UpdateMenuItemDto): Promise<MenuItem> {
-    await this.ensureExists(id);
+  async update(id: string, dto: UpdateMenuItemDto, brandSlug?: string): Promise<MenuItem> {
+    const brandId = await this.brandsService.resolveBrandId(brandSlug);
+    await this.ensureExists(id, brandId);
 
     return this.prisma.menuItem.update({
       where: { id },
-      data: this.buildUpdateInput(dto),
+      data: this.buildUpdateInput(dto, brandId),
     });
   }
 
-  async remove(id: string): Promise<MenuItem> {
-    await this.ensureExists(id);
+  async remove(id: string, brandSlug?: string): Promise<MenuItem> {
+    const brandId = await this.brandsService.resolveBrandId(brandSlug);
+    await this.ensureExists(id, brandId);
 
     return this.prisma.menuItem.update({
       where: { id },
@@ -97,11 +115,15 @@ export class MenuService {
     });
   }
 
-  async createCategory(dto: CreateMenuCategoryDto): Promise<MenuCategory> {
+  async createCategory(
+    dto: CreateMenuCategoryDto,
+    brandSlug?: string,
+  ): Promise<MenuCategory> {
+    const brandId = await this.brandsService.resolveBrandId(brandSlug);
     const slug = dto.slug.trim().toLowerCase();
 
     const existing = await this.prisma.menuCategory.findUnique({
-      where: { slug },
+      where: { brandId_slug: { brandId, slug } },
     });
 
     if (existing) {
@@ -110,6 +132,7 @@ export class MenuService {
 
     return this.prisma.menuCategory.create({
       data: {
+        brandId,
         slug,
         label: dto.label.trim(),
         sortOrder: dto.sortOrder ?? 0,
@@ -123,9 +146,11 @@ export class MenuService {
   async updateCategory(
     slug: string,
     dto: UpdateMenuCategoryDto,
+    brandSlug?: string,
   ): Promise<MenuCategory> {
+    const brandId = await this.brandsService.resolveBrandId(brandSlug);
     const category = await this.prisma.menuCategory.findUnique({
-      where: { slug },
+      where: { brandId_slug: { brandId, slug } },
     });
 
     if (!category) {
@@ -136,7 +161,7 @@ export class MenuService {
 
     if (nextSlug && nextSlug !== slug) {
       const conflict = await this.prisma.menuCategory.findUnique({
-        where: { slug: nextSlug },
+        where: { brandId_slug: { brandId, slug: nextSlug } },
       });
 
       if (conflict) {
@@ -146,7 +171,7 @@ export class MenuService {
 
     return this.prisma.$transaction(async (tx) => {
       const updated = await tx.menuCategory.update({
-        where: { slug },
+        where: { brandId_slug: { brandId, slug } },
         data: {
           ...(nextSlug ? { slug: nextSlug } : {}),
           ...(dto.label ? { label: dto.label.trim() } : {}),
@@ -163,7 +188,7 @@ export class MenuService {
 
       if (nextSlug) {
         await tx.menuItem.updateMany({
-          where: { categorySlug: slug },
+          where: { brandId, categorySlug: slug },
           data: { categorySlug: nextSlug },
         });
       }
@@ -172,9 +197,10 @@ export class MenuService {
     });
   }
 
-  async removeCategory(slug: string): Promise<void> {
+  async removeCategory(slug: string, brandSlug?: string): Promise<void> {
+    const brandId = await this.brandsService.resolveBrandId(brandSlug);
     const category = await this.prisma.menuCategory.findUnique({
-      where: { slug },
+      where: { brandId_slug: { brandId, slug } },
       include: { _count: { select: { items: true } } },
     });
 
@@ -188,20 +214,27 @@ export class MenuService {
       );
     }
 
-    await this.prisma.menuCategory.delete({ where: { slug } });
+    await this.prisma.menuCategory.delete({
+      where: { brandId_slug: { brandId, slug } },
+    });
   }
 
-  private buildCreateInput(dto: CreateMenuItemDto): Prisma.MenuItemCreateInput {
+  private buildCreateInput(
+    dto: CreateMenuItemDto,
+    brandId: string,
+  ): Prisma.MenuItemCreateInput {
     const sizeOptions = this.resolveSizeOptions(dto);
     const price = dto.price ?? (sizeOptions ? deriveBasePrice(sizeOptions) : dto.price);
+    const categorySlug = dto.categorySlug.trim().toLowerCase();
 
     return {
+      brand: { connect: { id: brandId } },
       slug: dto.slug,
       number: dto.number,
       name: dto.name,
       description: dto.description,
       price,
-      category: { connect: { slug: dto.categorySlug.trim().toLowerCase() } },
+      category: { connect: { brandId_slug: { brandId, slug: categorySlug } } },
       imageUrl: dto.imageUrl,
       imageAlt: dto.imageAlt,
       badges: dto.badges ?? [],
@@ -215,7 +248,10 @@ export class MenuService {
     };
   }
 
-  private buildUpdateInput(dto: UpdateMenuItemDto): Prisma.MenuItemUpdateInput {
+  private buildUpdateInput(
+    dto: UpdateMenuItemDto,
+    brandId: string,
+  ): Prisma.MenuItemUpdateInput {
     const sizeOptions =
       dto.sizeOptions === null
         ? null
@@ -230,7 +266,16 @@ export class MenuService {
       description: dto.description,
       price: dto.price,
       ...(dto.categorySlug
-        ? { category: { connect: { slug: dto.categorySlug.trim().toLowerCase() } } }
+        ? {
+            category: {
+              connect: {
+                brandId_slug: {
+                  brandId,
+                  slug: dto.categorySlug.trim().toLowerCase(),
+                },
+              },
+            },
+          }
         : {}),
       imageUrl: dto.imageUrl,
       imageAlt: dto.imageAlt,
@@ -275,6 +320,7 @@ export class MenuService {
   private async mapPublicItem(item: MenuItem): Promise<MenuItem> {
     const ingredients = await this.customizationsService.resolveIngredientLabels(
       item.ingredients,
+      item.brandId,
     );
 
     return {
@@ -283,8 +329,10 @@ export class MenuService {
     };
   }
 
-  private async ensureExists(id: string): Promise<void> {
-    const item = await this.prisma.menuItem.findUnique({ where: { id } });
+  private async ensureExists(id: string, brandId: string): Promise<void> {
+    const item = await this.prisma.menuItem.findFirst({
+      where: { id, brandId },
+    });
 
     if (!item) {
       throw new NotFoundException('Menu item not found');

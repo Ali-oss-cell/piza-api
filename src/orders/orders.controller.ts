@@ -9,12 +9,13 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { UserRole } from '@prisma/client';
+import { AuthenticatedUser } from '../auth/interfaces/authenticated-user.interface';
+import { BrandSlug } from '../common/decorators/brand-slug.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { OptionalJwtAuthGuard } from '../common/guards/optional-jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
-import { AuthenticatedUser } from '../auth/interfaces/authenticated-user.interface';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { UpdateOrderStatusDto } from './dto/update-order-status.dto';
 import { OrdersService } from './orders.service';
@@ -25,15 +26,19 @@ export class OrdersController {
 
   @Post()
   @UseGuards(OptionalJwtAuthGuard)
-  create(@Body() dto: CreateOrderDto, @CurrentUser() user?: AuthenticatedUser) {
-    return this.ordersService.create(dto, user);
+  create(
+    @Body() dto: CreateOrderDto,
+    @CurrentUser() user: AuthenticatedUser | undefined,
+    @BrandSlug() brandSlug?: string,
+  ) {
+    return this.ordersService.create(dto, user, brandSlug);
   }
 
   @Get()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN)
-  findAll() {
-    return this.ordersService.findAll();
+  findAll(@BrandSlug() brandSlug?: string) {
+    return this.ordersService.findAll(brandSlug);
   }
 
   @Get(':id')

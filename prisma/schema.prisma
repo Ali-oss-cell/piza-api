@@ -70,23 +70,74 @@ enum DealDiscountType {
 }
 
 model User {
-  id        String   @id @default(uuid()) @db.Uuid
-  email     String   @unique
-  password  String
-  firstName String   @map("first_name")
-  lastName  String   @map("last_name")
-  role         UserRole @default(USER)
-  createdAt    DateTime @default(now()) @map("created_at")
-  updatedAt    DateTime @updatedAt @map("updated_at")
-  orders       Order[]       @relation("CustomerOrders")
-  staffedOrders Order[]      @relation("StaffOrders")
+  id            String   @id @default(uuid()) @db.Uuid
+  email         String   @unique
+  password      String
+  firstName     String   @map("first_name")
+  lastName      String   @map("last_name")
+  role          UserRole @default(USER)
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+  orders        Order[]  @relation("CustomerOrders")
+  staffedOrders Order[]  @relation("StaffOrders")
 
   @@map("users")
 }
 
+model Brand {
+  id           String   @id @default(uuid()) @db.Uuid
+  slug         String   @unique
+  name         String
+  tagline      String?
+  logoUrl      String?  @map("logo_url")
+  primaryColor String?  @map("primary_color")
+  isActive     Boolean  @default(true) @map("is_active")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  locations            Location[]
+  menuCategories       MenuCategory[]
+  menuItems            MenuItem[]
+  toppingCategories    ToppingCategory[]
+  extraToppings        ExtraTopping[]
+  crustOptions         CrustOption[]
+  ingredientCategories IngredientCategory[]
+  ingredients          Ingredient[]
+  deals                Deal[]
+
+  @@map("brands")
+}
+
+model Location {
+  id                       String   @id @default(uuid()) @db.Uuid
+  brandId                  String   @map("brand_id") @db.Uuid
+  slug                     String
+  name                     String
+  suburb                   String?
+  address                  String?
+  phone                    String?
+  email                    String?
+  deliveryFee              Decimal  @default(5) @map("delivery_fee") @db.Decimal(10, 2)
+  minOrderAmount           Decimal  @default(0) @map("min_order_amount") @db.Decimal(10, 2)
+  openingHours             Json?    @map("opening_hours")
+  isActive                 Boolean  @default(true) @map("is_active")
+  isDefault                Boolean  @default(false) @map("is_default")
+  stripeTerminalLocationId String?  @map("stripe_terminal_location_id")
+  stripeTerminalReaderId   String?  @map("stripe_terminal_reader_id")
+  createdAt                DateTime @default(now()) @map("created_at")
+  updatedAt                DateTime @updatedAt @map("updated_at")
+
+  brand  Brand   @relation(fields: [brandId], references: [id], onDelete: Cascade)
+  orders Order[]
+
+  @@unique([brandId, slug])
+  @@map("locations")
+}
+
 model MenuCategory {
   id                  String     @id @default(uuid()) @db.Uuid
-  slug                String     @unique
+  brandId             String     @map("brand_id") @db.Uuid
+  slug                String
   label               String
   sortOrder           Int        @default(0) @map("sort_order")
   supportsSizeOptions Boolean    @default(false) @map("supports_size_options")
@@ -94,14 +145,17 @@ model MenuCategory {
   isActive            Boolean    @default(true) @map("is_active")
   createdAt           DateTime   @default(now()) @map("created_at")
   updatedAt           DateTime   @updatedAt @map("updated_at")
+  brand               Brand      @relation(fields: [brandId], references: [id], onDelete: Cascade)
   items               MenuItem[]
 
+  @@unique([brandId, slug])
   @@map("menu_categories")
 }
 
 model MenuItem {
   id                String          @id @default(uuid()) @db.Uuid
-  slug              String          @unique
+  brandId           String          @map("brand_id") @db.Uuid
+  slug              String
   number            Int
   name              String
   description       String
@@ -118,28 +172,34 @@ model MenuItem {
   isActive          Boolean         @default(true) @map("is_active")
   createdAt         DateTime        @default(now()) @map("created_at")
   updatedAt         DateTime        @updatedAt @map("updated_at")
-  category          MenuCategory    @relation(fields: [categorySlug], references: [slug], onUpdate: Cascade)
+  brand             Brand           @relation(fields: [brandId], references: [id], onDelete: Cascade)
+  category          MenuCategory    @relation(fields: [brandId, categorySlug], references: [brandId, slug], onUpdate: Cascade)
   orderItems        OrderItem[]
 
-  @@index([categorySlug])
+  @@unique([brandId, slug])
+  @@index([brandId, categorySlug])
   @@map("menu_items")
 }
 
 model ToppingCategory {
   id        String         @id @default(uuid()) @db.Uuid
-  slug      String         @unique
+  brandId   String         @map("brand_id") @db.Uuid
+  slug      String
   label     String
   sortOrder Int            @default(0) @map("sort_order")
   createdAt DateTime       @default(now()) @map("created_at")
   updatedAt DateTime       @updatedAt @map("updated_at")
+  brand     Brand          @relation(fields: [brandId], references: [id], onDelete: Cascade)
   toppings  ExtraTopping[]
 
+  @@unique([brandId, slug])
   @@map("topping_categories")
 }
 
 model ExtraTopping {
   id            String          @id @default(uuid()) @db.Uuid
-  slug          String          @unique
+  brandId       String          @map("brand_id") @db.Uuid
+  slug          String
   label         String
   categorySlug  String          @map("category_slug")
   categoryLabel String          @map("category_label")
@@ -148,40 +208,49 @@ model ExtraTopping {
   isActive      Boolean         @default(true) @map("is_active")
   createdAt     DateTime        @default(now()) @map("created_at")
   updatedAt     DateTime        @updatedAt @map("updated_at")
-  category      ToppingCategory @relation(fields: [categorySlug], references: [slug], onUpdate: Cascade)
+  brand         Brand           @relation(fields: [brandId], references: [id], onDelete: Cascade)
+  category      ToppingCategory @relation(fields: [brandId, categorySlug], references: [brandId, slug], onUpdate: Cascade)
 
-  @@index([categorySlug, sortOrder])
+  @@unique([brandId, slug])
+  @@index([brandId, categorySlug, sortOrder])
   @@map("extra_toppings")
 }
 
 model CrustOption {
   id         String   @id @default(uuid()) @db.Uuid
-  slug       String   @unique
+  brandId    String   @map("brand_id") @db.Uuid
+  slug       String
   label      String
   priceDelta Decimal  @map("price_delta") @db.Decimal(10, 2)
   sortOrder  Int      @default(0) @map("sort_order")
   isActive   Boolean  @default(true) @map("is_active")
   createdAt  DateTime @default(now()) @map("created_at")
   updatedAt  DateTime @updatedAt @map("updated_at")
+  brand      Brand    @relation(fields: [brandId], references: [id], onDelete: Cascade)
 
+  @@unique([brandId, slug])
   @@map("crust_options")
 }
 
 model IngredientCategory {
   id          String       @id @default(uuid()) @db.Uuid
-  slug        String       @unique
+  brandId     String       @map("brand_id") @db.Uuid
+  slug        String
   label       String
   sortOrder   Int          @default(0) @map("sort_order")
   createdAt   DateTime     @default(now()) @map("created_at")
   updatedAt   DateTime     @updatedAt @map("updated_at")
+  brand       Brand        @relation(fields: [brandId], references: [id], onDelete: Cascade)
   ingredients Ingredient[]
 
+  @@unique([brandId, slug])
   @@map("ingredient_categories")
 }
 
 model Ingredient {
   id            String             @id @default(uuid()) @db.Uuid
-  slug          String             @unique
+  brandId       String             @map("brand_id") @db.Uuid
+  slug          String
   label         String
   categorySlug  String             @map("category_slug")
   categoryLabel String             @map("category_label")
@@ -189,9 +258,11 @@ model Ingredient {
   isActive      Boolean            @default(true) @map("is_active")
   createdAt     DateTime           @default(now()) @map("created_at")
   updatedAt     DateTime           @updatedAt @map("updated_at")
-  category      IngredientCategory @relation(fields: [categorySlug], references: [slug], onUpdate: Cascade)
+  brand         Brand              @relation(fields: [brandId], references: [id], onDelete: Cascade)
+  category      IngredientCategory @relation(fields: [brandId, categorySlug], references: [brandId, slug], onUpdate: Cascade)
 
-  @@index([categorySlug, sortOrder])
+  @@unique([brandId, slug])
+  @@index([brandId, categorySlug, sortOrder])
   @@map("ingredients")
 }
 
@@ -212,13 +283,14 @@ model StoreSettings {
 
 model Deal {
   id            String           @id @default(uuid()) @db.Uuid
-  slug          String           @unique
+  brandId       String           @map("brand_id") @db.Uuid
+  slug          String
   title         String
   description   String
   badgeLabel    String?          @map("badge_label")
   discountType  DealDiscountType @map("discount_type")
   discountValue Decimal          @map("discount_value") @db.Decimal(10, 2)
-  promoCode     String?          @unique @map("promo_code")
+  promoCode     String?          @map("promo_code")
   imageUrl      String?          @map("image_url")
   imageAlt      String?          @map("image_alt")
   termsNote     String?          @map("terms_note")
@@ -231,50 +303,56 @@ model Deal {
   isFeatured    Boolean          @default(false) @map("is_featured")
   createdAt     DateTime         @default(now()) @map("created_at")
   updatedAt     DateTime         @updatedAt @map("updated_at")
+  brand         Brand            @relation(fields: [brandId], references: [id], onDelete: Cascade)
 
+  @@unique([brandId, slug])
+  @@unique([brandId, promoCode])
   @@map("deals")
 }
 
 model Order {
-  id                    String         @id @default(uuid()) @db.Uuid
-  userId                String?        @map("user_id") @db.Uuid
-  staffUserId           String?        @map("staff_user_id") @db.Uuid
-  guestEmail            String?        @map("guest_email")
-  guestName             String?        @map("guest_name")
-  guestPhone            String?        @map("guest_phone")
-  deliveryAddressLine1  String?        @map("delivery_address_line1")
-  deliveryAddressLine2  String?        @map("delivery_address_line2")
-  deliverySuburb        String?        @map("delivery_suburb")
-  deliveryState         String?        @map("delivery_state")
-  deliveryPostcode      String?        @map("delivery_postcode")
-  scheduledAt           DateTime?      @map("scheduled_at")
-  channel               OrderChannel   @default(WEB)
-  deliveryMode          DeliveryMode   @map("delivery_mode")
+  id                    String          @id @default(uuid()) @db.Uuid
+  locationId            String          @map("location_id") @db.Uuid
+  userId                String?         @map("user_id") @db.Uuid
+  staffUserId           String?         @map("staff_user_id") @db.Uuid
+  guestEmail            String?         @map("guest_email")
+  guestName             String?         @map("guest_name")
+  guestPhone            String?         @map("guest_phone")
+  deliveryAddressLine1  String?         @map("delivery_address_line1")
+  deliveryAddressLine2  String?         @map("delivery_address_line2")
+  deliverySuburb        String?         @map("delivery_suburb")
+  deliveryState         String?         @map("delivery_state")
+  deliveryPostcode      String?         @map("delivery_postcode")
+  scheduledAt           DateTime?       @map("scheduled_at")
+  channel               OrderChannel    @default(WEB)
+  deliveryMode          DeliveryMode    @map("delivery_mode")
   fulfillmentType       FulfillmentType @default(PICKUP) @map("fulfillment_type")
-  status                OrderStatus    @default(PENDING)
-  paymentStatus         PaymentStatus  @default(UNPAID) @map("payment_status")
-  paymentMethod         PaymentMethod? @map("payment_method")
-  stripePaymentIntentId String?        @map("stripe_payment_intent_id")
-  stripeChargeId        String?        @map("stripe_charge_id")
-  paidAt                DateTime?      @map("paid_at")
-  registerId            String?        @map("register_id")
-  ticketNumber          Int?           @map("ticket_number")
-  clientRequestId       String?        @unique @map("client_request_id")
-  subtotal              Decimal        @db.Decimal(10, 2)
-  taxAmount             Decimal        @default(0) @map("tax_amount") @db.Decimal(10, 2)
-  discountAmount        Decimal        @default(0) @map("discount_amount") @db.Decimal(10, 2)
-  deliveryFee           Decimal        @default(0) @map("delivery_fee") @db.Decimal(10, 2)
-  total                 Decimal        @db.Decimal(10, 2)
-  promoCode             String?        @map("promo_code")
+  status                OrderStatus     @default(PENDING)
+  paymentStatus         PaymentStatus   @default(UNPAID) @map("payment_status")
+  paymentMethod         PaymentMethod?  @map("payment_method")
+  stripePaymentIntentId String?         @map("stripe_payment_intent_id")
+  stripeChargeId        String?         @map("stripe_charge_id")
+  paidAt                DateTime?       @map("paid_at")
+  registerId            String?         @map("register_id")
+  ticketNumber          Int?            @map("ticket_number")
+  clientRequestId       String?         @unique @map("client_request_id")
+  subtotal              Decimal         @db.Decimal(10, 2)
+  taxAmount             Decimal         @default(0) @map("tax_amount") @db.Decimal(10, 2)
+  discountAmount        Decimal         @default(0) @map("discount_amount") @db.Decimal(10, 2)
+  deliveryFee           Decimal         @default(0) @map("delivery_fee") @db.Decimal(10, 2)
+  total                 Decimal         @db.Decimal(10, 2)
+  promoCode             String?         @map("promo_code")
   notes                 String?
-  createdAt             DateTime       @default(now()) @map("created_at")
-  updatedAt             DateTime       @updatedAt @map("updated_at")
-  user                  User?          @relation("CustomerOrders", fields: [userId], references: [id], onDelete: SetNull)
-  staffUser             User?          @relation("StaffOrders", fields: [staffUserId], references: [id], onDelete: SetNull)
+  createdAt             DateTime        @default(now()) @map("created_at")
+  updatedAt             DateTime        @updatedAt @map("updated_at")
+  location              Location        @relation(fields: [locationId], references: [id], onDelete: Restrict)
+  user                  User?           @relation("CustomerOrders", fields: [userId], references: [id], onDelete: SetNull)
+  staffUser             User?           @relation("StaffOrders", fields: [staffUserId], references: [id], onDelete: SetNull)
   items                 OrderItem[]
 
   @@index([userId])
   @@index([staffUserId])
+  @@index([locationId])
   @@index([status])
   @@index([paymentStatus])
   @@index([channel, ticketNumber])
@@ -282,20 +360,20 @@ model Order {
 }
 
 model OrderItem {
-  id          String    @id @default(uuid()) @db.Uuid
-  orderId     String    @map("order_id") @db.Uuid
-  menuItemId  String?   @map("menu_item_id") @db.Uuid
-  name        String
-  description String
-  price       Decimal   @db.Decimal(10, 2)
-  quantity    Int
-  size                String?
-  crust               String?
-  toppings            Json?
-  removedIngredients  String[]  @default([]) @map("removed_ingredients")
-  createdAt           DateTime  @default(now()) @map("created_at")
-  order       Order     @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  menuItem    MenuItem? @relation(fields: [menuItemId], references: [id], onDelete: SetNull)
+  id                 String    @id @default(uuid()) @db.Uuid
+  orderId            String    @map("order_id") @db.Uuid
+  menuItemId         String?   @map("menu_item_id") @db.Uuid
+  name               String
+  description        String
+  price              Decimal   @db.Decimal(10, 2)
+  quantity           Int
+  size               String?
+  crust              String?
+  toppings           Json?
+  removedIngredients String[]  @default([]) @map("removed_ingredients")
+  createdAt          DateTime  @default(now()) @map("created_at")
+  order              Order     @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  menuItem           MenuItem? @relation(fields: [menuItemId], references: [id], onDelete: SetNull)
 
   @@index([orderId])
   @@map("order_items")

@@ -14,6 +14,8 @@ import {
   Prisma,
 } from '@prisma/client';
 import { AuthenticatedUser } from '../auth/interfaces/authenticated-user.interface';
+import { BrandsService } from '../brands/brands.service';
+import { DEFAULT_BRAND_SLUG } from '../common/constants/brands';
 import { PrismaService } from '../prisma/prisma.service';
 import { PricingService } from '../pricing/pricing.service';
 import { StripeService } from '../payments/stripe.service';
@@ -26,6 +28,7 @@ export class PosService {
     private readonly prisma: PrismaService,
     private readonly pricingService: PricingService,
     private readonly stripeService: StripeService,
+    private readonly brandsService: BrandsService,
   ) {}
 
   quote(dto: QuoteRequestDto) {
@@ -49,8 +52,10 @@ export class PosService {
 
     const quote = await this.pricingService.quote(dto.items);
     const ticketNumber = await this.nextTicketNumber();
+    const location = await this.brandsService.resolveDefaultLocation(DEFAULT_BRAND_SLUG);
 
     const data: Prisma.OrderCreateInput = {
+      location: { connect: { id: location.id } },
       channel: OrderChannel.POS,
       deliveryMode:
         dto.fulfillmentType === FulfillmentType.DELIVERY

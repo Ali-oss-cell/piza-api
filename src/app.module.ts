@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { AuthModule } from './auth/auth.module';
+import { BrandsModule } from './brands/brands.module';
 import { DatabaseBootstrapService } from './bootstrap/database-bootstrap.service';
 import { HealthController } from './health/health.controller';
 import { DealsModule } from './deals/deals.module';
@@ -22,6 +23,7 @@ import { WebhooksModule } from './webhooks/webhooks.module';
       envFilePath: ['.env'],
     }),
     PrismaModule,
+    BrandsModule,
     UsersModule,
     AuthModule,
     MenuModule,

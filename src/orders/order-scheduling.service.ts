@@ -12,8 +12,11 @@ const DEFAULT_LEAD_TIME_MINUTES = 45;
 export class OrderSchedulingService {
   constructor(private readonly settingsService: SettingsService) {}
 
-  async assertScheduledAtValid(scheduledAt: Date): Promise<void> {
-    const settings = await this.settingsService.findStoreSettings();
+  async assertScheduledAtValid(
+    scheduledAt: Date,
+    brandSlug?: string,
+  ): Promise<void> {
+    const settings = await this.settingsService.findStoreSettings(brandSlug);
     const openingHours = parseOpeningHours(settings.openingHours);
     const timezone = openingHours?.timezone ?? 'Australia/Melbourne';
     const leadTimeMinutes =
@@ -62,8 +65,8 @@ export class OrderSchedulingService {
     }
   }
 
-  async assertMinOrderAmount(subtotal: number): Promise<void> {
-    const settings = await this.settingsService.findStoreSettings();
+  async assertMinOrderAmount(subtotal: number, brandSlug?: string): Promise<void> {
+    const settings = await this.settingsService.findStoreSettings(brandSlug);
     const minOrder = Number(settings.minOrderAmount);
 
     if (subtotal < minOrder) {
