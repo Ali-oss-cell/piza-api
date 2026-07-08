@@ -21,10 +21,18 @@ async function bootstrap(): Promise<void> {
     'CORS_ORIGIN',
     'http://localhost:3000',
   );
-  const allowedOrigins = corsOrigin
+  const configuredOrigins = corsOrigin
     .split(',')
     .map((origin) => origin.trim())
     .filter(Boolean);
+  const baselineOrigins = [
+    'http://localhost:3000',
+    'http://127.0.0.1:3000',
+    'https://marinapizzas.com.au',
+    'https://www.marinapizzas.com.au',
+    'https://pos.marinapizzas.com.au',
+  ];
+  const allowedOrigins = [...new Set([...baselineOrigins, ...configuredOrigins])];
 
   app.enableCors({
     origin: allowedOrigins.length === 1 ? allowedOrigins[0] : allowedOrigins,
