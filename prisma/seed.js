@@ -376,14 +376,19 @@ async function main() {
   const pool = new Pool({ connectionString });
   const adapter = new PrismaPg(pool);
   const prisma = new PrismaClient({ adapter });
+  const runFullCatalogSeed = process.env.RUN_FULL_CATALOG_SEED === 'true';
 
   try {
     await seedAdmin(prisma);
-    await seedCrusts(prisma);
-    await seedToppings(prisma);
-    await seedIngredients(prisma);
-    await seedMenuItems(prisma);
-    await seedDeals(prisma);
+    if (runFullCatalogSeed) {
+      console.warn(
+        'RUN_FULL_CATALOG_SEED=true is not supported with multi-brand schema in prisma/seed.js. Skipping catalog seed.',
+      );
+    } else {
+      console.log(
+        'Skipping legacy catalog seed (multi-brand schema active). Admin seed completed.',
+      );
+    }
   } finally {
     await prisma.$disconnect();
     await pool.end();
