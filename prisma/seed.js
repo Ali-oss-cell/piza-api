@@ -414,20 +414,13 @@ async function seedMenuItems(prisma) {
         name: item.name,
         description: item.description,
         price: item.price,
-        category: {
-          connect: {
-            brandId_slug: {
-              brandId: leovorno.id,
-              slug: item.categorySlug,
-            },
-          },
-        },
+        categorySlug: item.categorySlug,
         imageUrl: item.imageUrl,
         imageAlt: item.imageAlt,
         badges: item.badges ?? [],
         ingredients: item.ingredients ?? [],
         priceNote: item.priceNote ?? null,
-        sizeOptions: item.sizeOptions ?? undefined,
+        sizeOptions: item.sizeOptions ?? null,
         isActive: true,
       },
     });

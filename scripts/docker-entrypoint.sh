@@ -10,7 +10,9 @@ fi
 
 if [ "${RUN_SEED}" = "true" ]; then
   echo "Running database seed..."
-  node prisma/seed.js
+  if ! node prisma/seed.js; then
+    echo "WARNING: Database seed failed. API will start anyway — fix seed and re-run: node prisma/seed.js"
+  fi
 fi
 
 echo "Launching NestJS application..."
