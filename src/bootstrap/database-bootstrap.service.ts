@@ -29,7 +29,7 @@ export class DatabaseBootstrapService implements OnModuleInit {
 
     if (runSeed) {
       this.logger.log('Running database seed...');
-      await execAsync('npx prisma db seed');
+      await execAsync('node prisma/seed.js');
       this.logger.log('Database seed completed.');
     }
   }

@@ -9,8 +9,8 @@ if [ "${RUN_MIGRATIONS}" = "true" ]; then
 fi
 
 if [ "${RUN_SEED}" = "true" ]; then
-  echo "Running idempotent admin seed..."
-  npx prisma db seed
+  echo "Running database seed..."
+  node prisma/seed.js
 fi
 
 echo "Launching NestJS application..."
