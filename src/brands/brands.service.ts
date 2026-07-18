@@ -13,6 +13,12 @@ export type BrandWithDefaultLocation = Brand & {
   locations: Location[];
 };
 
+export type ResolvedStore = Brand & {
+  pathPrefix: string | null;
+  host: string | null;
+  locations: Location[];
+};
+
 const STARTER_CATEGORIES = [
   { slug: 'mains', label: 'Mains', supportsSizeOptions: false, supportsExtras: true },
   { slug: 'sides', label: 'Sides', supportsSizeOptions: false, supportsExtras: false },
@@ -28,6 +34,51 @@ export class BrandsService {
       where: { isActive: true },
       orderBy: { name: 'asc' },
     });
+  }
+
+  async resolveStore(params: {
+    pathPrefix?: string;
+    host?: string;
+  }): Promise<ResolvedStore> {
+    const pathPrefix = params.pathPrefix
+      ? this.normalizeLookupPath(params.pathPrefix)
+      : undefined;
+    const host = params.host?.trim().toLowerCase() || undefined;
+
+    if (!pathPrefix && !host) {
+      throw new BadRequestException('Provide pathPrefix or host to resolve a store.');
+    }
+
+    const domain = await this.prisma.storeDomain.findFirst({
+      where: {
+        isActive: true,
+        ...(host ? { host } : {}),
+        ...(pathPrefix ? { pathPrefix } : {}),
+        store: { isActive: true },
+      },
+      include: {
+        store: {
+          include: {
+            locations: {
+              where: { isActive: true },
+              orderBy: [{ isDefault: 'desc' }, { name: 'asc' }],
+              take: 1,
+            },
+          },
+        },
+      },
+    });
+
+    if (!domain) {
+      throw new NotFoundException('Store not found for the given path or host.');
+    }
+
+    return {
+      ...domain.store,
+      pathPrefix: domain.pathPrefix,
+      host: domain.host,
+      locations: domain.store.locations,
+    };
   }
 
   async createStore(dto: CreateStoreDto) {
@@ -209,6 +260,15 @@ export class BrandsService {
     const trimmed = value.trim().toLowerCase();
     if (!trimmed || trimmed === '/') {
       throw new BadRequestException('pathPrefix must be a non-root path like /ninja');
+    }
+    const withSlash = trimmed.startsWith('/') ? trimmed : `/${trimmed}`;
+    return withSlash.replace(/\/+$/, '') || withSlash;
+  }
+
+  private normalizeLookupPath(value: string): string {
+    const trimmed = value.trim().toLowerCase();
+    if (!trimmed || trimmed === '/') {
+      return '/';
     }
     const withSlash = trimmed.startsWith('/') ? trimmed : `/${trimmed}`;
     return withSlash.replace(/\/+$/, '') || withSlash;
