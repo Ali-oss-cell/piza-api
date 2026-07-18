@@ -1,5 +1,7 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { BrandsService } from '../brands/brands.service';
+import { normalizeOpeningHours } from '../orders/opening-hours.types';
 import { PrismaService } from '../prisma/prisma.service';
 import { UpdateStoreSettingsDto } from './dto/update-store-settings.dto';
 
@@ -79,6 +81,21 @@ export class SettingsService {
       });
     }
 
+    let openingHoursUpdate: Prisma.InputJsonValue | typeof Prisma.JsonNull | undefined;
+    if (dto.openingHours !== undefined) {
+      if (dto.openingHours === null) {
+        openingHoursUpdate = Prisma.JsonNull;
+      } else {
+        const normalized = normalizeOpeningHours(dto.openingHours);
+        if (!normalized) {
+          throw new BadRequestException(
+            'Invalid opening hours. Use HH:MM times and set close after open for each open day.',
+          );
+        }
+        openingHoursUpdate = normalized as unknown as Prisma.InputJsonValue;
+      }
+    }
+
     const updatedLocation = await this.prisma.location.update({
       where: { id: location.id },
       data: {
@@ -91,6 +108,9 @@ export class SettingsService {
           ? { phone: dto.contactPhone.trim() || null }
           : {}),
         ...(dto.address !== undefined ? { address: dto.address.trim() || null } : {}),
+        ...(openingHoursUpdate !== undefined
+          ? { openingHours: openingHoursUpdate }
+          : {}),
       },
     });
 

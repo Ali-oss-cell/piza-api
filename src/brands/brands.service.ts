@@ -4,8 +4,9 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { Brand, BrandStatus, Location, StoreMembershipRole } from '@prisma/client';
+import { Brand, BrandStatus, Location, Prisma, StoreMembershipRole } from '@prisma/client';
 import { DEFAULT_BRAND_SLUG } from '../common/constants/brands';
+import { DEFAULT_OPENING_HOURS } from '../orders/opening-hours.types';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateStoreDto } from './dto/create-store.dto';
 
@@ -140,6 +141,7 @@ export class BrandsService {
           email: dto.location.email?.trim() || null,
           deliveryFee: dto.location.deliveryFee ?? 5,
           minOrderAmount: dto.location.minOrderAmount ?? 0,
+          openingHours: DEFAULT_OPENING_HOURS as unknown as Prisma.InputJsonValue,
           isActive: true,
           isDefault: true,
         },

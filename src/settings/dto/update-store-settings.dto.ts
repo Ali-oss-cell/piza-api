@@ -1,4 +1,4 @@
-import { IsNumber, IsOptional, IsString, Min } from 'class-validator';
+import { IsNumber, IsObject, IsOptional, IsString, Min } from 'class-validator';
 
 export class UpdateStoreSettingsDto {
   @IsOptional()
@@ -42,4 +42,9 @@ export class UpdateStoreSettingsDto {
   @IsOptional()
   @IsString()
   address?: string;
+
+  /** Per-day open/close hours JSON; null clears hours. */
+  @IsOptional()
+  @IsObject()
+  openingHours?: Record<string, unknown> | null;
 }
