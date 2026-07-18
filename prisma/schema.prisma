@@ -69,31 +69,51 @@ enum DealDiscountType {
   FIXED_AMOUNT
 }
 
+enum BrandStatus {
+  DRAFT
+  LIVE
+}
+
+enum StorePaymentProvider {
+  NONE
+  CASH
+  STRIPE
+  LINKLY
+}
+
+enum StoreMembershipRole {
+  PLATFORM_ADMIN
+  STORE_ADMIN
+  STAFF
+}
+
 model User {
-  id            String   @id @default(uuid()) @db.Uuid
-  email         String   @unique
-  password      String
-  firstName     String   @map("first_name")
-  lastName      String   @map("last_name")
-  role          UserRole @default(USER)
-  createdAt     DateTime @default(now()) @map("created_at")
-  updatedAt     DateTime @updatedAt @map("updated_at")
-  orders        Order[]  @relation("CustomerOrders")
-  staffedOrders Order[]  @relation("StaffOrders")
+  id               String      @id @default(uuid()) @db.Uuid
+  email            String      @unique
+  password         String
+  firstName        String      @map("first_name")
+  lastName         String      @map("last_name")
+  role             UserRole    @default(USER)
+  createdAt        DateTime    @default(now()) @map("created_at")
+  updatedAt        DateTime    @updatedAt @map("updated_at")
+  orders           Order[]     @relation("CustomerOrders")
+  staffedOrders    Order[]     @relation("StaffOrders")
+  storeMemberships UserStore[]
 
   @@map("users")
 }
 
 model Brand {
-  id           String   @id @default(uuid()) @db.Uuid
-  slug         String   @unique
+  id           String      @id @default(uuid()) @db.Uuid
+  slug         String      @unique
   name         String
   tagline      String?
-  logoUrl      String?  @map("logo_url")
-  primaryColor String?  @map("primary_color")
-  isActive     Boolean  @default(true) @map("is_active")
-  createdAt    DateTime @default(now()) @map("created_at")
-  updatedAt    DateTime @updatedAt @map("updated_at")
+  logoUrl      String?     @map("logo_url")
+  primaryColor String?     @map("primary_color")
+  isActive     Boolean     @default(true) @map("is_active")
+  status       BrandStatus @default(DRAFT)
+  createdAt    DateTime    @default(now()) @map("created_at")
+  updatedAt    DateTime    @updatedAt @map("updated_at")
 
   locations            Location[]
   menuCategories       MenuCategory[]
@@ -104,6 +124,9 @@ model Brand {
   ingredientCategories IngredientCategory[]
   ingredients          Ingredient[]
   deals                Deal[]
+  domains              StoreDomain[]
+  paymentSettings      StorePaymentSettings?
+  memberships          UserStore[]
 
   @@map("brands")
 }
@@ -127,11 +150,67 @@ model Location {
   createdAt                DateTime @default(now()) @map("created_at")
   updatedAt                DateTime @updatedAt @map("updated_at")
 
-  brand  Brand   @relation(fields: [brandId], references: [id], onDelete: Cascade)
-  orders Order[]
+  brand   Brand         @relation(fields: [brandId], references: [id], onDelete: Cascade)
+  orders  Order[]
+  domains StoreDomain[]
 
   @@unique([brandId, slug])
   @@map("locations")
+}
+
+model StoreDomain {
+  id         String   @id @default(uuid()) @db.Uuid
+  storeId    String   @map("store_id") @db.Uuid
+  locationId String?  @map("location_id") @db.Uuid
+  host       String?  @unique
+  pathPrefix String?  @unique @map("path_prefix")
+  isPrimary  Boolean  @default(false) @map("is_primary")
+  isActive   Boolean  @default(true) @map("is_active")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  store    Brand     @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  location Location? @relation(fields: [locationId], references: [id], onDelete: SetNull)
+
+  @@index([storeId])
+  @@map("store_domains")
+}
+
+model StorePaymentSettings {
+  id                     String               @id @default(uuid()) @db.Uuid
+  storeId                String               @unique @map("store_id") @db.Uuid
+  provider               StorePaymentProvider @default(CASH)
+  cashEnabled            Boolean              @default(true) @map("cash_enabled")
+  cardTerminalEnabled    Boolean              @default(false) @map("card_terminal_enabled")
+  cardOnlineEnabled      Boolean              @default(false) @map("card_online_enabled")
+  stripePublishableKey   String?              @map("stripe_publishable_key")
+  stripeSecretKeyRef     String?              @map("stripe_secret_key_ref")
+  stripeWebhookSecretRef String?              @map("stripe_webhook_secret_ref")
+  linklyUsername         String?              @map("linkly_username")
+  linklySecretRef        String?              @map("linkly_secret_ref")
+  createdAt              DateTime             @default(now()) @map("created_at")
+  updatedAt              DateTime             @updatedAt @map("updated_at")
+
+  store Brand @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@map("store_payment_settings")
+}
+
+model UserStore {
+  id        String              @id @default(uuid()) @db.Uuid
+  userId    String              @map("user_id") @db.Uuid
+  storeId   String              @map("store_id") @db.Uuid
+  role      StoreMembershipRole @default(STAFF)
+  isActive  Boolean             @default(true) @map("is_active")
+  createdAt DateTime            @default(now()) @map("created_at")
+  updatedAt DateTime            @updatedAt @map("updated_at")
+
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  store Brand @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, storeId])
+  @@index([storeId])
+  @@map("user_stores")
 }
 
 model MenuCategory {

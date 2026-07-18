@@ -257,6 +257,7 @@ async function ensureBrand(prisma, brand) {
       tagline: brand.tagline,
       primaryColor: brand.primaryColor,
       isActive: true,
+      status: 'LIVE',
     },
     create: {
       id: brand.id,
@@ -264,6 +265,46 @@ async function ensureBrand(prisma, brand) {
       name: brand.name,
       tagline: brand.tagline,
       primaryColor: brand.primaryColor,
+      isActive: true,
+      status: 'LIVE',
+    },
+  });
+}
+
+async function ensurePaymentSettings(prisma, storeId) {
+  return prisma.storePaymentSettings.upsert({
+    where: { storeId },
+    update: {
+      provider: 'CASH',
+      cashEnabled: true,
+    },
+    create: {
+      storeId,
+      provider: 'CASH',
+      cashEnabled: true,
+      cardTerminalEnabled: false,
+      cardOnlineEnabled: false,
+    },
+  });
+}
+
+async function ensurePathDomain(prisma, storeId, pathPrefix, isPrimary = true) {
+  const existing = await prisma.storeDomain.findFirst({
+    where: { storeId, pathPrefix },
+  });
+
+  if (existing) {
+    return prisma.storeDomain.update({
+      where: { id: existing.id },
+      data: { isPrimary, isActive: true },
+    });
+  }
+
+  return prisma.storeDomain.create({
+    data: {
+      storeId,
+      pathPrefix,
+      isPrimary,
       isActive: true,
     },
   });
@@ -337,6 +378,11 @@ async function seedBrandsAndLocations(prisma) {
     deliveryFee: 5,
     minOrderAmount: 0,
   });
+
+  await ensurePaymentSettings(prisma, leovorno.id);
+  await ensurePaymentSettings(prisma, bunnyBoys.id);
+  await ensurePathDomain(prisma, leovorno.id, '/', true);
+  await ensurePathDomain(prisma, bunnyBoys.id, '/bunny-boys', true);
 
   return { leovorno, bunnyBoys };
 }
