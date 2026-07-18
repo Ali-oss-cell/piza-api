@@ -10,6 +10,14 @@ export class UpdateStoreSettingsDto {
   tagline?: string;
 
   @IsOptional()
+  @IsString()
+  logoUrl?: string | null;
+
+  @IsOptional()
+  @IsString()
+  primaryColor?: string | null;
+
+  @IsOptional()
   @IsNumber({ maxDecimalPlaces: 2 })
   @Min(0)
   deliveryFee?: number;

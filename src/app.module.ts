@@ -14,6 +14,7 @@ import { PosModule } from './pos/pos.module';
 import { PricingModule } from './pricing/pricing.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { SettingsModule } from './settings/settings.module';
+import { UploadsModule } from './uploads/uploads.module';
 import { UsersModule } from './users/users.module';
 import { WebhooksModule } from './webhooks/webhooks.module';
 
@@ -36,6 +37,7 @@ import { WebhooksModule } from './webhooks/webhooks.module';
     PaymentsModule,
     PaymentSettingsModule,
     PosModule,
+    UploadsModule,
     WebhooksModule,
   ],
   controllers: [HealthController],

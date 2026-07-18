@@ -75,6 +75,8 @@ services:
       RUN_MIGRATIONS: ${RUN_MIGRATIONS:-true}
       RUN_SEED: ${RUN_SEED:-false}
       CORS_ORIGIN: ${CORS_ORIGIN:-https://marinapizzas.com.au,https://www.marinapizzas.com.au,https://pos.marinapizzas.com.au}
+    volumes:
+      - api_uploads:/app/uploads
     labels:
       - traefik.enable=true
       - traefik.docker.network=piza
@@ -137,3 +139,4 @@ networks:
 volumes:
   traefik_letsencrypt:
   postgres_data:
+  api_uploads:

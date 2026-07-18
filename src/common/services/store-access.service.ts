@@ -12,6 +12,11 @@ const MANAGE_ROLES: StoreMembershipRole[] = [
   StoreMembershipRole.STORE_ADMIN,
 ];
 
+export type BrandListItem = Brand & {
+  pathPrefix: string | null;
+  host: string | null;
+};
+
 @Injectable()
 export class StoreAccessService {
   constructor(private readonly prisma: PrismaService) {}
@@ -86,12 +91,21 @@ export class StoreAccessService {
     }
   }
 
-  async listAccessibleBrands(user: AuthenticatedUser): Promise<Brand[]> {
+  async listAccessibleBrands(user: AuthenticatedUser): Promise<BrandListItem[]> {
     if (await this.isPlatformAdmin(user)) {
-      return this.prisma.brand.findMany({
+      const brands = await this.prisma.brand.findMany({
         where: { isActive: true },
+        include: {
+          domains: {
+            where: { isActive: true },
+            orderBy: [{ isPrimary: 'desc' }, { createdAt: 'asc' }],
+            take: 1,
+          },
+        },
         orderBy: { name: 'asc' },
       });
+
+      return brands.map((brand) => this.toListItem(brand));
     }
 
     const memberships = await this.prisma.userStore.findMany({
@@ -101,10 +115,34 @@ export class StoreAccessService {
         role: { in: MANAGE_ROLES },
         store: { isActive: true },
       },
-      include: { store: true },
+      include: {
+        store: {
+          include: {
+            domains: {
+              where: { isActive: true },
+              orderBy: [{ isPrimary: 'desc' }, { createdAt: 'asc' }],
+              take: 1,
+            },
+          },
+        },
+      },
       orderBy: { createdAt: 'asc' },
     });
 
-    return memberships.map((membership) => membership.store);
+    return memberships.map((membership) => this.toListItem(membership.store));
+  }
+
+  private toListItem(
+    brand: Brand & {
+      domains: Array<{ pathPrefix: string | null; host: string | null }>;
+    },
+  ): BrandListItem {
+    const primary = brand.domains[0];
+    const { domains: _domains, ...rest } = brand;
+    return {
+      ...rest,
+      pathPrefix: primary?.pathPrefix ?? null,
+      host: primary?.host ?? null,
+    };
   }
 }
