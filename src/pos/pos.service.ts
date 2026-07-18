@@ -19,6 +19,7 @@ import {
 import { AuthenticatedUser } from '../auth/interfaces/authenticated-user.interface';
 import { BrandsService } from '../brands/brands.service';
 import { DEFAULT_BRAND_SLUG } from '../common/constants/brands';
+import { PaymentSettingsService } from '../payment-settings/payment-settings.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { PricingService } from '../pricing/pricing.service';
 import { StripeService } from '../payments/stripe.service';
@@ -32,10 +33,15 @@ export class PosService {
     private readonly pricingService: PricingService,
     private readonly stripeService: StripeService,
     private readonly brandsService: BrandsService,
+    private readonly paymentSettingsService: PaymentSettingsService,
   ) {}
 
   quote(dto: QuoteRequestDto) {
     return this.pricingService.quote(dto.items);
+  }
+
+  getPaymentMethods(brandSlug?: string) {
+    return this.paymentSettingsService.getPosMethods(brandSlug);
   }
 
   async createOrder(
@@ -175,17 +181,24 @@ export class PosService {
       throw new BadRequestException('Order is already paid');
     }
 
+    const location = await this.prisma.location.findUnique({
+      where: { id: order.locationId },
+    });
+
+    if (!location) {
+      throw new NotFoundException('Order location not found');
+    }
+
+    await this.paymentSettingsService.assertCardTerminalEnabled(location.brandId);
+
     const amountCents = Math.round(Number(order.total) * 100);
     const paymentIntent = await this.stripeService.createTerminalPaymentIntent(
       order.id,
       amountCents,
     );
 
-    const location = await this.prisma.location.findUnique({
-      where: { id: order.locationId },
-    });
     const resolvedReaderId =
-      readerId ?? location?.stripeTerminalReaderId ?? undefined;
+      readerId ?? location.stripeTerminalReaderId ?? undefined;
 
     await this.stripeService.processTerminalPayment(
       paymentIntent.id,
@@ -216,6 +229,16 @@ export class PosService {
     if (order.paymentStatus === PaymentStatus.PAID) {
       return order;
     }
+
+    const location = await this.prisma.location.findUnique({
+      where: { id: order.locationId },
+    });
+
+    if (!location) {
+      throw new NotFoundException('Order location not found');
+    }
+
+    await this.paymentSettingsService.assertCashEnabled(location.brandId);
 
     return this.prisma.order.update({
       where: { id: orderId },

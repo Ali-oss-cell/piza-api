@@ -228,6 +228,36 @@ export class BrandsService {
     });
   }
 
+  async updateStoreStatus(slug: string, isActive: boolean) {
+    const brandSlug = slug.trim().toLowerCase();
+    const brand = await this.prisma.brand.findUnique({ where: { slug: brandSlug } });
+
+    if (!brand) {
+      throw new NotFoundException(`Brand "${brandSlug}" not found.`);
+    }
+
+    return this.prisma.brand.update({
+      where: { slug: brandSlug },
+      data: { isActive },
+    });
+  }
+
+  async listDomains(slug: string) {
+    const brand = await this.resolveBrand(slug);
+    return this.prisma.storeDomain.findMany({
+      where: { storeId: brand.id },
+      orderBy: [{ isPrimary: 'desc' }, { createdAt: 'asc' }],
+      select: {
+        id: true,
+        host: true,
+        pathPrefix: true,
+        isPrimary: true,
+        isActive: true,
+        locationId: true,
+      },
+    });
+  }
+
   async resolveBrandId(slug?: string): Promise<string> {
     const brand = await this.resolveBrand(slug);
     return brand.id;

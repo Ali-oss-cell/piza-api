@@ -1,9 +1,7 @@
 import { Body, Controller, Get, Put, UseGuards } from '@nestjs/common';
-import { UserRole } from '@prisma/client';
 import { BrandSlug } from '../common/decorators/brand-slug.decorator';
-import { Roles } from '../common/decorators/roles.decorator';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
-import { RolesGuard } from '../common/guards/roles.guard';
+import { StoreManagerGuard } from '../common/guards/store-manager.guard';
 import { UpdateStoreSettingsDto } from './dto/update-store-settings.dto';
 import { SettingsService } from './settings.service';
 
@@ -17,8 +15,7 @@ export class SettingsController {
   }
 
   @Put()
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.ADMIN)
+  @UseGuards(JwtAuthGuard, StoreManagerGuard)
   updateStoreSettings(
     @Body() dto: UpdateStoreSettingsDto,
     @BrandSlug() brandSlug?: string,

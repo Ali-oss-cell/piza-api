@@ -78,6 +78,11 @@ export class PosController {
     return this.posService.updateStatus(id, dto.status);
   }
 
+  @Get('payment-methods')
+  getPaymentMethods(@BrandSlug() brandSlug?: string) {
+    return this.posService.getPaymentMethods(brandSlug);
+  }
+
   @Post('payments/card')
   startCardPayment(@Body() dto: CardPaymentDto) {
     return this.posService.startCardPayment(dto.orderId, dto.readerId);

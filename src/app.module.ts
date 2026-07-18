@@ -9,6 +9,7 @@ import { CustomizationsModule } from './customizations/customizations.module';
 import { MenuModule } from './menu/menu.module';
 import { OrdersModule } from './orders/orders.module';
 import { PaymentsModule } from './payments/payments.module';
+import { PaymentSettingsModule } from './payment-settings/payment-settings.module';
 import { PosModule } from './pos/pos.module';
 import { PricingModule } from './pricing/pricing.module';
 import { PrismaModule } from './prisma/prisma.module';
@@ -33,6 +34,7 @@ import { WebhooksModule } from './webhooks/webhooks.module';
     SettingsModule,
     PricingModule,
     PaymentsModule,
+    PaymentSettingsModule,
     PosModule,
     WebhooksModule,
   ],

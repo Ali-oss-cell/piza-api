@@ -75,6 +75,34 @@ export class AuthService {
   }
 
   private async listAccessibleStores(user: User): Promise<AuthStoreDto[]> {
+    if (user.role === UserRole.ADMIN) {
+      const brands = await this.prisma.brand.findMany({
+        where: { isActive: true },
+        include: {
+          locations: {
+            where: { isActive: true },
+            orderBy: [{ isDefault: 'desc' }, { name: 'asc' }],
+          },
+        },
+        orderBy: { name: 'asc' },
+      });
+
+      return brands.map((brand) => ({
+        id: brand.id,
+        slug: brand.slug,
+        name: brand.name,
+        tagline: brand.tagline,
+        primaryColor: brand.primaryColor,
+        membershipRole: StoreMembershipRole.PLATFORM_ADMIN,
+        locations: brand.locations.map((location) => ({
+          id: location.id,
+          slug: location.slug,
+          name: location.name,
+          isDefault: location.isDefault,
+        })),
+      }));
+    }
+
     const memberships = await this.prisma.userStore.findMany({
       where: { userId: user.id, isActive: true },
       include: {
@@ -90,53 +118,21 @@ export class AuthService {
       orderBy: { createdAt: 'asc' },
     });
 
-    if (memberships.length > 0) {
-      return memberships
-        .filter((membership) => membership.store.isActive)
-        .map((membership) => ({
-          id: membership.store.id,
-          slug: membership.store.slug,
-          name: membership.store.name,
-          tagline: membership.store.tagline,
-          primaryColor: membership.store.primaryColor,
-          membershipRole: membership.role,
-          locations: membership.store.locations.map((location) => ({
-            id: location.id,
-            slug: location.slug,
-            name: location.name,
-            isDefault: location.isDefault,
-          })),
-        }));
-    }
-
-    if (user.role !== UserRole.ADMIN) {
-      return [];
-    }
-
-    const brands = await this.prisma.brand.findMany({
-      where: { isActive: true },
-      include: {
-        locations: {
-          where: { isActive: true },
-          orderBy: [{ isDefault: 'desc' }, { name: 'asc' }],
-        },
-      },
-      orderBy: { name: 'asc' },
-    });
-
-    return brands.map((brand) => ({
-      id: brand.id,
-      slug: brand.slug,
-      name: brand.name,
-      tagline: brand.tagline,
-      primaryColor: brand.primaryColor,
-      membershipRole: StoreMembershipRole.PLATFORM_ADMIN,
-      locations: brand.locations.map((location) => ({
-        id: location.id,
-        slug: location.slug,
-        name: location.name,
-        isDefault: location.isDefault,
-      })),
-    }));
+    return memberships
+      .filter((membership) => membership.store.isActive)
+      .map((membership) => ({
+        id: membership.store.id,
+        slug: membership.store.slug,
+        name: membership.store.name,
+        tagline: membership.store.tagline,
+        primaryColor: membership.store.primaryColor,
+        membershipRole: membership.role,
+        locations: membership.store.locations.map((location) => ({
+          id: location.id,
+          slug: location.slug,
+          name: location.name,
+          isDefault: location.isDefault,
+        })),
+      }));
   }
 }
