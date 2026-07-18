@@ -122,6 +122,7 @@ export class BrandsService {
           name: dto.name.trim(),
           tagline: dto.tagline?.trim() || null,
           logoUrl: dto.logoUrl?.trim() || null,
+          logoDarkUrl: dto.logoDarkUrl?.trim() || null,
           primaryColor: dto.primaryColor?.trim() || null,
           isActive: true,
           status: BrandStatus.LIVE,

@@ -8,6 +8,7 @@ export type StoreSettingsResponse = {
   storeName: string;
   tagline: string | null;
   logoUrl: string | null;
+  logoDarkUrl: string | null;
   primaryColor: string | null;
   deliveryFee: unknown;
   minOrderAmount: unknown;
@@ -34,6 +35,7 @@ export class SettingsService {
       storeName: brandWithLocation.name,
       tagline: brandWithLocation.tagline,
       logoUrl: brandWithLocation.logoUrl,
+      logoDarkUrl: brandWithLocation.logoDarkUrl,
       primaryColor: brandWithLocation.primaryColor,
       deliveryFee: location.deliveryFee,
       minOrderAmount: location.minOrderAmount,
@@ -56,6 +58,7 @@ export class SettingsService {
       dto.storeName !== undefined ||
       dto.tagline !== undefined ||
       dto.logoUrl !== undefined ||
+      dto.logoDarkUrl !== undefined ||
       dto.primaryColor !== undefined
     ) {
       await this.prisma.brand.update({
@@ -65,6 +68,9 @@ export class SettingsService {
           ...(dto.tagline !== undefined ? { tagline: dto.tagline.trim() || null } : {}),
           ...(dto.logoUrl !== undefined
             ? { logoUrl: dto.logoUrl?.trim() || null }
+            : {}),
+          ...(dto.logoDarkUrl !== undefined
+            ? { logoDarkUrl: dto.logoDarkUrl?.trim() || null }
             : {}),
           ...(dto.primaryColor !== undefined
             ? { primaryColor: dto.primaryColor?.trim() || null }
@@ -97,6 +103,7 @@ export class SettingsService {
       storeName: brand.name,
       tagline: brand.tagline,
       logoUrl: brand.logoUrl,
+      logoDarkUrl: brand.logoDarkUrl,
       primaryColor: brand.primaryColor,
       deliveryFee: updatedLocation.deliveryFee,
       minOrderAmount: updatedLocation.minOrderAmount,

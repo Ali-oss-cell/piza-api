@@ -15,6 +15,10 @@ export class UpdateStoreSettingsDto {
 
   @IsOptional()
   @IsString()
+  logoDarkUrl?: string | null;
+
+  @IsOptional()
+  @IsString()
   primaryColor?: string | null;
 
   @IsOptional()

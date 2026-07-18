@@ -73,6 +73,11 @@ export class CreateStoreDto {
 
   @IsOptional()
   @IsString()
+  @MaxLength(500)
+  logoDarkUrl?: string;
+
+  @IsOptional()
+  @IsString()
   @MaxLength(20)
   primaryColor?: string;
 

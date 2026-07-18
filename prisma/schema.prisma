@@ -109,6 +109,7 @@ model Brand {
   name         String
   tagline      String?
   logoUrl      String?     @map("logo_url")
+  logoDarkUrl  String?     @map("logo_dark_url")
   primaryColor String?     @map("primary_color")
   isActive     Boolean     @default(true) @map("is_active")
   status       BrandStatus @default(DRAFT)
