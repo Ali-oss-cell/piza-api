@@ -13,6 +13,8 @@ import { UserRole } from '@prisma/client';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
+import { BrandSlug } from '../common/decorators/brand-slug.decorator';
+import { LocationId } from '../common/decorators/location-id.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { AuthenticatedUser } from '../auth/interfaces/authenticated-user.interface';
 import { QuoteRequestDto } from '../pricing/dto/quote-request.dto';
@@ -36,22 +38,36 @@ export class PosController {
   createOrder(
     @Body() dto: CreatePosOrderDto,
     @CurrentUser() staff: AuthenticatedUser,
+    @BrandSlug() brandSlug?: string,
+    @LocationId() locationId?: string,
   ) {
-    return this.posService.createOrder(dto, staff);
+    return this.posService.createOrder(dto, staff, brandSlug, locationId);
   }
 
   @Get('orders/active')
-  findActiveOrders() {
-    return this.posService.findActiveOrders();
+  findActiveOrders(
+    @CurrentUser() staff: AuthenticatedUser,
+    @BrandSlug() brandSlug?: string,
+    @LocationId() locationId?: string,
+  ) {
+    return this.posService.findActiveOrders(staff, brandSlug, locationId);
   }
 
   @Get('orders/lookup')
   lookupOrder(
+    @CurrentUser() staff: AuthenticatedUser,
     @Query('id') id?: string,
     @Query('ticketNumber', new ParseIntPipe({ optional: true }))
     ticketNumber?: number,
+    @BrandSlug() brandSlug?: string,
+    @LocationId() locationId?: string,
   ) {
-    return this.posService.lookupOrder({ id, ticketNumber });
+    return this.posService.lookupOrder(staff, {
+      id,
+      ticketNumber,
+      brandSlug,
+      locationId,
+    });
   }
 
   @Patch('orders/:id/status')

@@ -3,7 +3,7 @@ import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { AuthenticatedUser } from './interfaces/authenticated-user.interface';
 import { AuthService } from './auth.service';
-import { AuthResponseDto } from './dto/auth-response.dto';
+import { AuthResponseDto, AuthUserDto } from './dto/auth-response.dto';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
 
@@ -23,7 +23,7 @@ export class AuthController {
 
   @Get('me')
   @UseGuards(JwtAuthGuard)
-  me(@CurrentUser() user: AuthenticatedUser): AuthenticatedUser {
-    return user;
+  me(@CurrentUser() user: AuthenticatedUser): Promise<AuthUserDto> {
+    return this.authService.getProfile(user.id);
   }
 }

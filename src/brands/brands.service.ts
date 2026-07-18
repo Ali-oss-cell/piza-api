@@ -81,7 +81,7 @@ export class BrandsService {
     };
   }
 
-  async createStore(dto: CreateStoreDto) {
+  async createStore(dto: CreateStoreDto, creatorUserId?: string) {
     const slug = dto.slug.trim().toLowerCase();
     const pathPrefix = this.normalizePathPrefix(dto.pathPrefix ?? `/${slug}`);
     const host = dto.host?.trim().toLowerCase() || null;
@@ -179,6 +179,27 @@ export class BrandsService {
             },
           });
         }
+      }
+
+      if (creatorUserId) {
+        await tx.userStore.upsert({
+          where: {
+            userId_storeId: {
+              userId: creatorUserId,
+              storeId: store.id,
+            },
+          },
+          update: {
+            role: StoreMembershipRole.STORE_ADMIN,
+            isActive: true,
+          },
+          create: {
+            userId: creatorUserId,
+            storeId: store.id,
+            role: StoreMembershipRole.STORE_ADMIN,
+            isActive: true,
+          },
+        });
       }
 
       return tx.brand.findUniqueOrThrow({

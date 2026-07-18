@@ -1,17 +1,20 @@
 import {
   BadRequestException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
 import {
   DeliveryMode,
   FulfillmentType,
+  Location,
   Order,
   OrderChannel,
   OrderStatus,
   PaymentMethod,
   PaymentStatus,
   Prisma,
+  UserRole,
 } from '@prisma/client';
 import { AuthenticatedUser } from '../auth/interfaces/authenticated-user.interface';
 import { BrandsService } from '../brands/brands.service';
@@ -38,6 +41,8 @@ export class PosService {
   async createOrder(
     dto: CreatePosOrderDto,
     staff: AuthenticatedUser,
+    brandSlug?: string,
+    locationId?: string,
   ): Promise<Order> {
     if (dto.clientRequestId) {
       const existing = await this.prisma.order.findUnique({
@@ -50,9 +55,9 @@ export class PosService {
       }
     }
 
+    const location = await this.resolvePosLocation(staff, brandSlug, locationId);
     const quote = await this.pricingService.quote(dto.items);
-    const ticketNumber = await this.nextTicketNumber();
-    const location = await this.brandsService.resolveDefaultLocation(DEFAULT_BRAND_SLUG);
+    const ticketNumber = await this.nextTicketNumber(location.id);
 
     const data: Prisma.OrderCreateInput = {
       location: { connect: { id: location.id } },
@@ -94,10 +99,17 @@ export class PosService {
     });
   }
 
-  findActiveOrders(): Promise<Order[]> {
+  async findActiveOrders(
+    staff: AuthenticatedUser,
+    brandSlug?: string,
+    locationId?: string,
+  ): Promise<Order[]> {
+    const location = await this.resolvePosLocation(staff, brandSlug, locationId);
+
     return this.prisma.order.findMany({
       where: {
         channel: OrderChannel.POS,
+        locationId: location.id,
         status: {
           in: [
             OrderStatus.PENDING,
@@ -113,13 +125,25 @@ export class PosService {
     });
   }
 
-  async lookupOrder(params: {
-    id?: string;
-    ticketNumber?: number;
-  }): Promise<Order> {
+  async lookupOrder(
+    staff: AuthenticatedUser,
+    params: {
+      id?: string;
+      ticketNumber?: number;
+      brandSlug?: string;
+      locationId?: string;
+    },
+  ): Promise<Order> {
+    const location = await this.resolvePosLocation(
+      staff,
+      params.brandSlug,
+      params.locationId,
+    );
+
     const order = await this.prisma.order.findFirst({
       where: {
         channel: OrderChannel.POS,
+        locationId: location.id,
         ...(params.id ? { id: params.id } : {}),
         ...(params.ticketNumber ? { ticketNumber: params.ticketNumber } : {}),
       },
@@ -157,7 +181,16 @@ export class PosService {
       amountCents,
     );
 
-    await this.stripeService.processTerminalPayment(paymentIntent.id, readerId);
+    const location = await this.prisma.location.findUnique({
+      where: { id: order.locationId },
+    });
+    const resolvedReaderId =
+      readerId ?? location?.stripeTerminalReaderId ?? undefined;
+
+    await this.stripeService.processTerminalPayment(
+      paymentIntent.id,
+      resolvedReaderId,
+    );
 
     return {
       orderId: order.id,
@@ -195,6 +228,58 @@ export class PosService {
     });
   }
 
+  private async resolvePosLocation(
+    staff: AuthenticatedUser,
+    brandSlug?: string,
+    locationId?: string,
+  ): Promise<Location> {
+    const slug = brandSlug?.trim().toLowerCase() || DEFAULT_BRAND_SLUG;
+    await this.assertStaffCanAccessStore(staff, slug);
+
+    if (locationId) {
+      const location = await this.prisma.location.findFirst({
+        where: {
+          id: locationId,
+          isActive: true,
+          brand: { slug, isActive: true },
+        },
+      });
+
+      if (!location) {
+        throw new BadRequestException(
+          'Location is invalid for the selected store.',
+        );
+      }
+
+      return location;
+    }
+
+    return this.brandsService.resolveDefaultLocation(slug);
+  }
+
+  private async assertStaffCanAccessStore(
+    staff: AuthenticatedUser,
+    brandSlug: string,
+  ): Promise<void> {
+    if (staff.role === UserRole.ADMIN) {
+      return;
+    }
+
+    const membership = await this.prisma.userStore.findFirst({
+      where: {
+        userId: staff.id,
+        isActive: true,
+        store: { slug: brandSlug, isActive: true },
+      },
+    });
+
+    if (!membership) {
+      throw new ForbiddenException(
+        `You do not have POS access to store "${brandSlug}".`,
+      );
+    }
+  }
+
   private async ensurePosOrder(orderId: string): Promise<Order> {
     const order = await this.prisma.order.findUnique({ where: { id: orderId } });
 
@@ -205,13 +290,14 @@ export class PosService {
     return order;
   }
 
-  private async nextTicketNumber(): Promise<number> {
+  private async nextTicketNumber(locationId: string): Promise<number> {
     const startOfDay = new Date();
     startOfDay.setHours(0, 0, 0, 0);
 
     const latest = await this.prisma.order.findFirst({
       where: {
         channel: OrderChannel.POS,
+        locationId,
         createdAt: { gte: startOfDay },
         ticketNumber: { not: null },
       },

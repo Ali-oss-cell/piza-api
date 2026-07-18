@@ -584,7 +584,30 @@ async function seedToppings(prisma) {
   }
 }
 
-async function seedAdmin(prisma) {
+async function ensureAdminStoreMemberships(prisma, adminUserId, storeIds) {
+  for (const storeId of storeIds) {
+    await prisma.userStore.upsert({
+      where: {
+        userId_storeId: {
+          userId: adminUserId,
+          storeId,
+        },
+      },
+      update: {
+        role: 'PLATFORM_ADMIN',
+        isActive: true,
+      },
+      create: {
+        userId: adminUserId,
+        storeId,
+        role: 'PLATFORM_ADMIN',
+        isActive: true,
+      },
+    });
+  }
+}
+
+async function seedAdmin(prisma, storeIds = []) {
   const adminEmail = process.env.ADMIN_SEED_EMAIL ?? 'admin@leovorno.com';
   const adminPassword = process.env.ADMIN_SEED_PASSWORD ?? 'ChangeMe!2026';
   const adminFirstName = process.env.ADMIN_SEED_FIRST_NAME ?? 'Leovorno';
@@ -594,25 +617,32 @@ async function seedAdmin(prisma) {
     where: { email: adminEmail },
   });
 
-  if (existingAdmin) {
+  let adminId = existingAdmin?.id;
+
+  if (!existingAdmin) {
+    const passwordHash = await bcrypt.hash(adminPassword, 12);
+
+    const created = await prisma.user.create({
+      data: {
+        email: adminEmail,
+        password: passwordHash,
+        firstName: adminFirstName,
+        lastName: adminLastName,
+        role: UserRole.ADMIN,
+      },
+    });
+    adminId = created.id;
+
+    console.log(`Seeded initial ADMIN account: ${adminEmail}`);
+    console.log('Rotate ADMIN_SEED_PASSWORD immediately in production.');
+  } else {
     console.log(`Admin account already exists for ${adminEmail}.`);
-    return;
   }
 
-  const passwordHash = await bcrypt.hash(adminPassword, 12);
-
-  await prisma.user.create({
-    data: {
-      email: adminEmail,
-      password: passwordHash,
-      firstName: adminFirstName,
-      lastName: adminLastName,
-      role: UserRole.ADMIN,
-    },
-  });
-
-  console.log(`Seeded initial ADMIN account: ${adminEmail}`);
-  console.log('Rotate ADMIN_SEED_PASSWORD immediately in production.');
+  if (adminId && storeIds.length > 0) {
+    await ensureAdminStoreMemberships(prisma, adminId, storeIds);
+    console.log(`Ensured admin store memberships (${storeIds.length}).`);
+  }
 }
 
 async function main() {
@@ -625,8 +655,8 @@ async function main() {
   const adapter = new PrismaPg(pool);
   const prisma = new PrismaClient({ adapter });
   try {
-    const { bunnyBoys } = await seedBrandsAndLocations(prisma);
-    await seedAdmin(prisma);
+    const { leovorno, bunnyBoys } = await seedBrandsAndLocations(prisma);
+    await seedAdmin(prisma, [leovorno.id, bunnyBoys.id]);
     await seedCrusts(prisma);
     await seedToppings(prisma);
     await seedIngredients(prisma);

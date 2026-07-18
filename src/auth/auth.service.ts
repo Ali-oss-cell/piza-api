@@ -1,8 +1,9 @@
 import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
-import { User } from '@prisma/client';
+import { StoreMembershipRole, User, UserRole } from '@prisma/client';
+import { PrismaService } from '../prisma/prisma.service';
 import { UsersService } from '../users/users.service';
-import { AuthResponseDto } from './dto/auth-response.dto';
+import { AuthResponseDto, AuthStoreDto, AuthUserDto } from './dto/auth-response.dto';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
 import { JwtPayload } from './interfaces/jwt-payload.interface';
@@ -12,6 +13,7 @@ export class AuthService {
   constructor(
     private readonly usersService: UsersService,
     private readonly jwtService: JwtService,
+    private readonly prisma: PrismaService,
   ) {}
 
   async login(dto: LoginDto): Promise<AuthResponseDto> {
@@ -38,7 +40,17 @@ export class AuthService {
     return this.buildAuthResponse(user);
   }
 
-  private buildAuthResponse(user: User): AuthResponseDto {
+  async getProfile(userId: string): Promise<AuthUserDto> {
+    const user = await this.usersService.findById(userId);
+
+    if (!user) {
+      throw new UnauthorizedException('User no longer exists');
+    }
+
+    return this.toAuthUser(user);
+  }
+
+  private async buildAuthResponse(user: User): Promise<AuthResponseDto> {
     const payload: JwtPayload = {
       sub: user.id,
       email: user.email,
@@ -47,13 +59,84 @@ export class AuthService {
 
     return {
       accessToken: this.jwtService.sign(payload),
-      user: {
-        id: user.id,
-        email: user.email,
-        firstName: user.firstName,
-        lastName: user.lastName,
-        role: user.role,
-      },
+      user: await this.toAuthUser(user),
     };
+  }
+
+  private async toAuthUser(user: User): Promise<AuthUserDto> {
+    return {
+      id: user.id,
+      email: user.email,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      role: user.role,
+      stores: await this.listAccessibleStores(user),
+    };
+  }
+
+  private async listAccessibleStores(user: User): Promise<AuthStoreDto[]> {
+    const memberships = await this.prisma.userStore.findMany({
+      where: { userId: user.id, isActive: true },
+      include: {
+        store: {
+          include: {
+            locations: {
+              where: { isActive: true },
+              orderBy: [{ isDefault: 'desc' }, { name: 'asc' }],
+            },
+          },
+        },
+      },
+      orderBy: { createdAt: 'asc' },
+    });
+
+    if (memberships.length > 0) {
+      return memberships
+        .filter((membership) => membership.store.isActive)
+        .map((membership) => ({
+          id: membership.store.id,
+          slug: membership.store.slug,
+          name: membership.store.name,
+          tagline: membership.store.tagline,
+          primaryColor: membership.store.primaryColor,
+          membershipRole: membership.role,
+          locations: membership.store.locations.map((location) => ({
+            id: location.id,
+            slug: location.slug,
+            name: location.name,
+            isDefault: location.isDefault,
+          })),
+        }));
+    }
+
+    if (user.role !== UserRole.ADMIN) {
+      return [];
+    }
+
+    const brands = await this.prisma.brand.findMany({
+      where: { isActive: true },
+      include: {
+        locations: {
+          where: { isActive: true },
+          orderBy: [{ isDefault: 'desc' }, { name: 'asc' }],
+        },
+      },
+      orderBy: { name: 'asc' },
+    });
+
+    return brands.map((brand) => ({
+      id: brand.id,
+      slug: brand.slug,
+      name: brand.name,
+      tagline: brand.tagline,
+      primaryColor: brand.primaryColor,
+      membershipRole: StoreMembershipRole.PLATFORM_ADMIN,
+      locations: brand.locations.map((location) => ({
+        id: location.id,
+        slug: location.slug,
+        name: location.name,
+        isDefault: location.isDefault,
+      })),
+    }));
   }
 }
