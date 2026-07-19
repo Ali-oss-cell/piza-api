@@ -3,7 +3,8 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { StorePaymentProvider } from '@prisma/client';
+import { AuditAction, StorePaymentProvider } from '@prisma/client';
+import { AuditService } from '../audit/audit.service';
 import { BrandsService } from '../brands/brands.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { UpdatePaymentSettingsDto } from './dto/update-payment-settings.dto';
@@ -34,6 +35,7 @@ export class PaymentSettingsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly brandsService: BrandsService,
+    private readonly audit: AuditService,
   ) {}
 
   async getForStore(brandSlug?: string): Promise<PaymentSettingsResponse> {
@@ -101,6 +103,19 @@ export class PaymentSettingsService {
         },
       });
     }
+
+    await this.audit.log(
+      null,
+      brand.id,
+      AuditAction.PAYMENT_SETTINGS_UPDATED,
+      `Updated payment settings for ${brand.slug}`,
+      {
+        provider: updated.provider,
+        cashEnabled: updated.cashEnabled,
+        cardTerminalEnabled: updated.cardTerminalEnabled,
+        cardOnlineEnabled: updated.cardOnlineEnabled,
+      },
+    );
 
     return this.toResponse(brand.slug, updated, location);
   }

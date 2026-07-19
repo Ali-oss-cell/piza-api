@@ -4,7 +4,15 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { Brand, BrandStatus, Location, Prisma, StoreMembershipRole } from '@prisma/client';
+import {
+  AuditAction,
+  Brand,
+  BrandStatus,
+  Location,
+  Prisma,
+  StoreMembershipRole,
+} from '@prisma/client';
+import { AuditService } from '../audit/audit.service';
 import { DEFAULT_BRAND_SLUG } from '../common/constants/brands';
 import { DEFAULT_OPENING_HOURS } from '../orders/opening-hours.types';
 import { PrismaService } from '../prisma/prisma.service';
@@ -28,7 +36,10 @@ const STARTER_CATEGORIES = [
 
 @Injectable()
 export class BrandsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly audit: AuditService,
+  ) {}
 
   findAll(): Promise<Brand[]> {
     return this.prisma.brand.findMany({
@@ -116,7 +127,7 @@ export class BrandsService {
 
     const locationSlug = this.slugify(dto.location.suburb || dto.location.name || 'main');
 
-    return this.prisma.$transaction(async (tx) => {
+    const created = await this.prisma.$transaction(async (tx) => {
       const store = await tx.brand.create({
         data: {
           slug,
@@ -215,6 +226,16 @@ export class BrandsService {
         },
       });
     });
+
+    await this.audit.log(
+      creatorUserId ?? null,
+      created.id,
+      AuditAction.STORE_CREATED,
+      `Created store ${created.slug}`,
+      { slug: created.slug },
+    );
+
+    return created;
   }
 
   async assignStoreMembership(
@@ -231,7 +252,7 @@ export class BrandsService {
     });
   }
 
-  async updateStoreStatus(slug: string, isActive: boolean) {
+  async updateStoreStatus(slug: string, isActive: boolean, actorUserId?: string) {
     const brandSlug = slug.trim().toLowerCase();
     const brand = await this.prisma.brand.findUnique({ where: { slug: brandSlug } });
 
@@ -239,10 +260,21 @@ export class BrandsService {
       throw new NotFoundException(`Brand "${brandSlug}" not found.`);
     }
 
-    return this.prisma.brand.update({
+    const updated = await this.prisma.brand.update({
       where: { slug: brandSlug },
       data: { isActive },
     });
+
+    await this.audit.log(
+      actorUserId ?? null,
+      brand.id,
+      isActive ? AuditAction.STORE_ACTIVATED : AuditAction.STORE_SUSPENDED,
+      isActive
+        ? `Activated store ${brandSlug}`
+        : `Suspended store ${brandSlug}`,
+    );
+
+    return updated;
   }
 
   async listDomains(slug: string) {

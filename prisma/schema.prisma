@@ -87,18 +87,40 @@ enum StoreMembershipRole {
   STAFF
 }
 
+enum DealScope {
+  STORE
+  PLATFORM
+}
+
+enum AuditAction {
+  STORE_CREATED
+  STORE_SUSPENDED
+  STORE_ACTIVATED
+  PAYMENT_SETTINGS_UPDATED
+  DOMAIN_CREATED
+  DOMAIN_UPDATED
+  MEMBERSHIP_INVITED
+  MEMBERSHIP_UPDATED
+  MEMBERSHIP_DEACTIVATED
+  MENU_TEMPLATE_APPLIED
+  DEAL_PUSHED
+  LOCATION_CREATED
+  LOCATION_UPDATED
+}
+
 model User {
-  id               String      @id @default(uuid()) @db.Uuid
-  email            String      @unique
+  id               String       @id @default(uuid()) @db.Uuid
+  email            String       @unique
   password         String
-  firstName        String      @map("first_name")
-  lastName         String      @map("last_name")
-  role             UserRole    @default(USER)
-  createdAt        DateTime    @default(now()) @map("created_at")
-  updatedAt        DateTime    @updatedAt @map("updated_at")
-  orders           Order[]     @relation("CustomerOrders")
-  staffedOrders    Order[]     @relation("StaffOrders")
+  firstName        String       @map("first_name")
+  lastName         String       @map("last_name")
+  role             UserRole     @default(USER)
+  createdAt        DateTime     @default(now()) @map("created_at")
+  updatedAt        DateTime     @updatedAt @map("updated_at")
+  orders           Order[]      @relation("CustomerOrders")
+  staffedOrders    Order[]      @relation("StaffOrders")
   storeMemberships UserStore[]
+  auditEvents      AuditEvent[]
 
   @@map("users")
 }
@@ -128,6 +150,8 @@ model Brand {
   domains              StoreDomain[]
   paymentSettings      StorePaymentSettings?
   memberships          UserStore[]
+  auditEvents          AuditEvent[]
+  menuTemplates        MenuTemplate[]        @relation("TemplateSourceBrand")
 
   @@map("brands")
 }
@@ -151,9 +175,10 @@ model Location {
   createdAt                DateTime @default(now()) @map("created_at")
   updatedAt                DateTime @updatedAt @map("updated_at")
 
-  brand   Brand         @relation(fields: [brandId], references: [id], onDelete: Cascade)
-  orders  Order[]
-  domains StoreDomain[]
+  brand        Brand         @relation(fields: [brandId], references: [id], onDelete: Cascade)
+  orders       Order[]
+  domains      StoreDomain[]
+  memberships  UserStore[]
 
   @@unique([brandId, slug])
   @@map("locations")
@@ -198,20 +223,55 @@ model StorePaymentSettings {
 }
 
 model UserStore {
-  id        String              @id @default(uuid()) @db.Uuid
-  userId    String              @map("user_id") @db.Uuid
-  storeId   String              @map("store_id") @db.Uuid
-  role      StoreMembershipRole @default(STAFF)
-  isActive  Boolean             @default(true) @map("is_active")
-  createdAt DateTime            @default(now()) @map("created_at")
-  updatedAt DateTime            @updatedAt @map("updated_at")
+  id         String              @id @default(uuid()) @db.Uuid
+  userId     String              @map("user_id") @db.Uuid
+  storeId    String              @map("store_id") @db.Uuid
+  locationId String?             @map("location_id") @db.Uuid
+  role       StoreMembershipRole @default(STAFF)
+  isActive   Boolean             @default(true) @map("is_active")
+  createdAt  DateTime            @default(now()) @map("created_at")
+  updatedAt  DateTime            @updatedAt @map("updated_at")
 
-  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
-  store Brand @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  store    Brand     @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  location Location? @relation(fields: [locationId], references: [id], onDelete: SetNull)
 
   @@unique([userId, storeId])
   @@index([storeId])
+  @@index([locationId])
   @@map("user_stores")
+}
+
+model AuditEvent {
+  id          String      @id @default(uuid()) @db.Uuid
+  actorUserId String?     @map("actor_user_id") @db.Uuid
+  storeId     String?     @map("store_id") @db.Uuid
+  action      AuditAction
+  message     String
+  payload     Json?
+  createdAt   DateTime    @default(now()) @map("created_at")
+
+  actor User?  @relation(fields: [actorUserId], references: [id], onDelete: SetNull)
+  store Brand? @relation(fields: [storeId], references: [id], onDelete: SetNull)
+
+  @@index([storeId, createdAt])
+  @@index([createdAt])
+  @@map("audit_events")
+}
+
+model MenuTemplate {
+  id              String   @id @default(uuid()) @db.Uuid
+  name            String
+  description     String?
+  sourceBrandId   String?  @map("source_brand_id") @db.Uuid
+  snapshot        Json
+  createdByUserId String?  @map("created_by_user_id") @db.Uuid
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  sourceBrand Brand? @relation("TemplateSourceBrand", fields: [sourceBrandId], references: [id], onDelete: SetNull)
+
+  @@map("menu_templates")
 }
 
 model MenuCategory {
@@ -250,6 +310,7 @@ model MenuItem {
   sizePricing       Json?           @map("size_pricing")
   allowedToppingIds String[]        @default([]) @map("allowed_topping_ids")
   isActive          Boolean         @default(true) @map("is_active")
+  isFranchiseLocked Boolean         @default(false) @map("is_franchise_locked")
   createdAt         DateTime        @default(now()) @map("created_at")
   updatedAt         DateTime        @updatedAt @map("updated_at")
   brand             Brand           @relation(fields: [brandId], references: [id], onDelete: Cascade)
@@ -381,6 +442,7 @@ model Deal {
   sortOrder     Int              @default(0) @map("sort_order")
   isActive      Boolean          @default(true) @map("is_active")
   isFeatured    Boolean          @default(false) @map("is_featured")
+  scope         DealScope        @default(STORE)
   createdAt     DateTime         @default(now()) @map("created_at")
   updatedAt     DateTime         @updatedAt @map("updated_at")
   brand         Brand            @relation(fields: [brandId], references: [id], onDelete: Cascade)

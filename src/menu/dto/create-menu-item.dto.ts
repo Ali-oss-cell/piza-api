@@ -69,4 +69,8 @@ export class CreateMenuItemDto {
   @IsOptional()
   @IsBoolean()
   isActive?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  isFranchiseLocked?: boolean;
 }

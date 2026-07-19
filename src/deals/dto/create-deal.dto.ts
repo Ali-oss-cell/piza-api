@@ -1,4 +1,4 @@
-import { DealDiscountType } from '@prisma/client';
+import { DealDiscountType, DealScope } from '@prisma/client';
 import {
   IsBoolean,
   IsDateString,
@@ -76,4 +76,8 @@ export class CreateDealDto {
   @IsOptional()
   @IsBoolean()
   isFeatured?: boolean;
+
+  @IsOptional()
+  @IsEnum(DealScope)
+  scope?: DealScope;
 }

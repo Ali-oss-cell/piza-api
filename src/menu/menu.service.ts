@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -95,19 +96,38 @@ export class MenuService {
     });
   }
 
-  async update(id: string, dto: UpdateMenuItemDto, brandSlug?: string): Promise<MenuItem> {
+  async update(
+    id: string,
+    dto: UpdateMenuItemDto,
+    brandSlug?: string,
+    options?: { bypassLock?: boolean },
+  ): Promise<MenuItem> {
     const brandId = await this.brandsService.resolveBrandId(brandSlug);
-    await this.ensureExists(id, brandId);
+    const existing = await this.ensureExists(id, brandId);
+    if (existing.isFranchiseLocked && !options?.bypassLock) {
+      throw new ForbiddenException(
+        'This menu item is franchise-locked and cannot be edited by store admins.',
+      );
+    }
 
     return this.prisma.menuItem.update({
       where: { id },
-      data: this.buildUpdateInput(dto, brandId),
+      data: this.buildUpdateInput(dto, brandId, options?.bypassLock === true),
     });
   }
 
-  async remove(id: string, brandSlug?: string): Promise<MenuItem> {
+  async remove(
+    id: string,
+    brandSlug?: string,
+    options?: { bypassLock?: boolean },
+  ): Promise<MenuItem> {
     const brandId = await this.brandsService.resolveBrandId(brandSlug);
-    await this.ensureExists(id, brandId);
+    const item = await this.ensureExists(id, brandId);
+    if (item.isFranchiseLocked && !options?.bypassLock) {
+      throw new ForbiddenException(
+        'This menu item is franchise-locked and cannot be removed.',
+      );
+    }
 
     return this.prisma.menuItem.update({
       where: { id },
@@ -251,6 +271,7 @@ export class MenuService {
   private buildUpdateInput(
     dto: UpdateMenuItemDto,
     brandId: string,
+    allowLockChange = false,
   ): Prisma.MenuItemUpdateInput {
     const sizeOptions =
       dto.sizeOptions === null
@@ -298,6 +319,9 @@ export class MenuService {
               : dto.sizePricing,
       allowedToppingIds: dto.allowedToppingIds,
       isActive: dto.isActive,
+      ...(allowLockChange && dto.isFranchiseLocked !== undefined
+        ? { isFranchiseLocked: dto.isFranchiseLocked }
+        : {}),
     };
   }
 
@@ -329,7 +353,7 @@ export class MenuService {
     };
   }
 
-  private async ensureExists(id: string, brandId: string): Promise<void> {
+  private async ensureExists(id: string, brandId: string): Promise<MenuItem> {
     const item = await this.prisma.menuItem.findFirst({
       where: { id, brandId },
     });
@@ -337,5 +361,7 @@ export class MenuService {
     if (!item) {
       throw new NotFoundException('Menu item not found');
     }
+
+    return item;
   }
 }

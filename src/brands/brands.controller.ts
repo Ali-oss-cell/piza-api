@@ -56,8 +56,9 @@ export class BrandsController {
   updateStatus(
     @Param('slug') slug: string,
     @Body() dto: UpdateStoreStatusDto,
+    @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.brandsService.updateStoreStatus(slug, dto.isActive);
+    return this.brandsService.updateStoreStatus(slug, dto.isActive, user.id);
   }
 
   @Get(':slug/domains')

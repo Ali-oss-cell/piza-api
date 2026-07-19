@@ -4,7 +4,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { Deal, Prisma } from '@prisma/client';
+import { Deal, DealScope, Prisma } from '@prisma/client';
 import { BrandsService } from '../brands/brands.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateDealDto } from './dto/create-deal.dto';
@@ -111,6 +111,7 @@ export class DealsService {
         ...(dto.sortOrder !== undefined ? { sortOrder: dto.sortOrder } : {}),
         ...(dto.isActive !== undefined ? { isActive: dto.isActive } : {}),
         ...(dto.isFeatured !== undefined ? { isFeatured: dto.isFeatured } : {}),
+        ...(dto.scope !== undefined ? { scope: dto.scope } : {}),
       },
     });
   }
@@ -146,6 +147,7 @@ export class DealsService {
       sortOrder: dto.sortOrder ?? 0,
       isActive: dto.isActive ?? true,
       isFeatured: dto.isFeatured ?? false,
+      ...(dto.scope ? { scope: dto.scope } : {}),
     };
   }
 
