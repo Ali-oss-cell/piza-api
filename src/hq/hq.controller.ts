@@ -20,6 +20,7 @@ import { ApplyMenuTemplateDto } from './dto/apply-menu-template.dto';
 import { CreateDomainDto } from './dto/create-domain.dto';
 import { CreateMenuTemplateDto } from './dto/create-menu-template.dto';
 import { PushDealDto } from './dto/push-deal.dto';
+import { TransferMenuDto } from './dto/transfer-menu.dto';
 import { UpdateDomainDto } from './dto/update-domain.dto';
 import { HqService } from './hq.service';
 
@@ -134,6 +135,14 @@ export class HqController {
     @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.hqService.createMenuTemplate(dto, user);
+  }
+
+  @Post('menu-transfer')
+  transferMenu(
+    @Body() dto: TransferMenuDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.hqService.transferMenu(dto, user);
   }
 
   @Post('menu-templates/:id/apply')

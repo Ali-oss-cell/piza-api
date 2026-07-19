@@ -28,6 +28,7 @@ import { ApplyMenuTemplateDto } from './dto/apply-menu-template.dto';
 import { CreateDomainDto } from './dto/create-domain.dto';
 import { CreateMenuTemplateDto } from './dto/create-menu-template.dto';
 import { PushDealDto } from './dto/push-deal.dto';
+import { TransferMenuDto } from './dto/transfer-menu.dto';
 import { UpdateDomainDto } from './dto/update-domain.dto';
 
 const LIVE_STATUSES: OrderStatus[] = [
@@ -876,6 +877,169 @@ export class HqService {
     });
   }
 
+  private buildMenuSnapshot(
+    brand: {
+      menuCategories: Array<{
+        slug: string;
+        label: string;
+        sortOrder: number;
+        supportsSizeOptions: boolean;
+        supportsExtras: boolean;
+        isActive: boolean;
+      }>;
+      menuItems: Array<{
+        slug: string;
+        number: number;
+        name: string;
+        description: string;
+        price: Prisma.Decimal;
+        categorySlug: string;
+        imageUrl: string;
+        imageAlt: string;
+        badges: string[];
+        priceNote: string | null;
+        ingredients: string[];
+        sizeOptions: unknown;
+        sizePricing: unknown;
+        allowedToppingIds: string[];
+        isActive: boolean;
+      }>;
+    },
+    options: { itemSlugs?: string[]; lockItems?: boolean },
+  ): MenuTemplateSnapshot {
+    const filterSlugs =
+      options.itemSlugs && options.itemSlugs.length > 0
+        ? new Set(options.itemSlugs.map((slug) => slug.trim().toLowerCase()).filter(Boolean))
+        : null;
+
+    const items = brand.menuItems
+      .filter((item) => !filterSlugs || filterSlugs.has(item.slug.toLowerCase()))
+      .map((item) => ({
+        slug: item.slug,
+        number: item.number,
+        name: item.name,
+        description: item.description,
+        price: item.price.toString(),
+        categorySlug: item.categorySlug,
+        imageUrl: item.imageUrl,
+        imageAlt: item.imageAlt,
+        badges: item.badges,
+        priceNote: item.priceNote,
+        ingredients: item.ingredients,
+        sizeOptions: item.sizeOptions,
+        sizePricing: item.sizePricing,
+        allowedToppingIds: item.allowedToppingIds,
+        isActive: item.isActive,
+      }));
+
+    if (filterSlugs && items.length === 0) {
+      throw new BadRequestException('No matching menu items found for the selected slugs.');
+    }
+
+    const categorySlugs = new Set(items.map((item) => item.categorySlug));
+    const categories = brand.menuCategories
+      .filter((category) => !filterSlugs || categorySlugs.has(category.slug))
+      .map((category) => ({
+        slug: category.slug,
+        label: category.label,
+        sortOrder: category.sortOrder,
+        supportsSizeOptions: category.supportsSizeOptions,
+        supportsExtras: category.supportsExtras,
+        isActive: category.isActive,
+      }));
+
+    return {
+      lockItems: options.lockItems ?? false,
+      categories,
+      items,
+    };
+  }
+
+  private async applySnapshotToBrand(
+    brandId: string,
+    snapshot: MenuTemplateSnapshot,
+    lockItems: boolean,
+  ): Promise<void> {
+    await this.prisma.$transaction(async (tx) => {
+      for (const category of snapshot.categories) {
+        await tx.menuCategory.upsert({
+          where: { brandId_slug: { brandId, slug: category.slug } },
+          update: {
+            label: category.label,
+            sortOrder: category.sortOrder,
+            supportsSizeOptions: category.supportsSizeOptions,
+            supportsExtras: category.supportsExtras,
+            isActive: category.isActive,
+          },
+          create: {
+            brandId,
+            slug: category.slug,
+            label: category.label,
+            sortOrder: category.sortOrder,
+            supportsSizeOptions: category.supportsSizeOptions,
+            supportsExtras: category.supportsExtras,
+            isActive: category.isActive,
+          },
+        });
+      }
+
+      for (const item of snapshot.items) {
+        const priceValue = new Prisma.Decimal(item.price);
+        await tx.menuItem.upsert({
+          where: { brandId_slug: { brandId, slug: item.slug } },
+          update: {
+            number: item.number,
+            name: item.name,
+            description: item.description,
+            price: priceValue,
+            categorySlug: item.categorySlug,
+            imageUrl: item.imageUrl,
+            imageAlt: item.imageAlt,
+            badges: item.badges as never,
+            priceNote: item.priceNote,
+            ingredients: item.ingredients,
+            sizeOptions:
+              item.sizeOptions === null
+                ? Prisma.JsonNull
+                : (item.sizeOptions as Prisma.InputJsonValue),
+            sizePricing:
+              item.sizePricing === null
+                ? Prisma.JsonNull
+                : (item.sizePricing as Prisma.InputJsonValue),
+            allowedToppingIds: item.allowedToppingIds,
+            isActive: item.isActive,
+            isFranchiseLocked: lockItems,
+          },
+          create: {
+            brandId,
+            slug: item.slug,
+            number: item.number,
+            name: item.name,
+            description: item.description,
+            price: priceValue,
+            categorySlug: item.categorySlug,
+            imageUrl: item.imageUrl,
+            imageAlt: item.imageAlt,
+            badges: item.badges as never,
+            priceNote: item.priceNote,
+            ingredients: item.ingredients,
+            sizeOptions:
+              item.sizeOptions === undefined || item.sizeOptions === null
+                ? undefined
+                : (item.sizeOptions as Prisma.InputJsonValue),
+            sizePricing:
+              item.sizePricing === undefined || item.sizePricing === null
+                ? undefined
+                : (item.sizePricing as Prisma.InputJsonValue),
+            allowedToppingIds: item.allowedToppingIds,
+            isActive: item.isActive,
+            isFranchiseLocked: lockItems,
+          },
+        });
+      }
+    });
+  }
+
   async createMenuTemplate(
     dto: CreateMenuTemplateDto,
     actor: AuthenticatedUser,
@@ -892,34 +1056,10 @@ export class HqService {
       throw new NotFoundException(`Source store "${slug}" not found.`);
     }
 
-    const snapshot: MenuTemplateSnapshot = {
-      lockItems: dto.lockItems ?? false,
-      categories: brand.menuCategories.map((category) => ({
-        slug: category.slug,
-        label: category.label,
-        sortOrder: category.sortOrder,
-        supportsSizeOptions: category.supportsSizeOptions,
-        supportsExtras: category.supportsExtras,
-        isActive: category.isActive,
-      })),
-      items: brand.menuItems.map((item) => ({
-        slug: item.slug,
-        number: item.number,
-        name: item.name,
-        description: item.description,
-        price: item.price.toString(),
-        categorySlug: item.categorySlug,
-        imageUrl: item.imageUrl,
-        imageAlt: item.imageAlt,
-        badges: item.badges,
-        priceNote: item.priceNote,
-        ingredients: item.ingredients,
-        sizeOptions: item.sizeOptions,
-        sizePricing: item.sizePricing,
-        allowedToppingIds: item.allowedToppingIds,
-        isActive: item.isActive,
-      })),
-    };
+    const snapshot = this.buildMenuSnapshot(brand, {
+      itemSlugs: dto.itemSlugs,
+      lockItems: dto.lockItems,
+    });
 
     return this.prisma.menuTemplate.create({
       data: {
@@ -930,6 +1070,93 @@ export class HqService {
         snapshot: snapshot as unknown as Prisma.InputJsonValue,
       },
     });
+  }
+
+  async transferMenu(
+    dto: TransferMenuDto,
+    actor: AuthenticatedUser,
+  ): Promise<{
+    itemCount: number;
+    applied: string[];
+    failed: Array<{ slug: string; reason: string }>;
+    templateId: string | null;
+  }> {
+    const sourceSlug = dto.sourceBrandSlug.trim().toLowerCase();
+    const targetSlugs = [
+      ...new Set(dto.targetBrandSlugs.map((slug) => slug.trim().toLowerCase()).filter(Boolean)),
+    ];
+
+    if (targetSlugs.some((slug) => slug === sourceSlug)) {
+      throw new BadRequestException('Target stores must be different from the source store.');
+    }
+
+    const brand = await this.prisma.brand.findUnique({
+      where: { slug: sourceSlug },
+      include: {
+        menuCategories: true,
+        menuItems: true,
+      },
+    });
+    if (!brand) {
+      throw new NotFoundException(`Source store "${sourceSlug}" not found.`);
+    }
+
+    const lockItems = dto.lockItems ?? false;
+    const snapshot = this.buildMenuSnapshot(brand, {
+      itemSlugs: dto.itemSlugs,
+      lockItems,
+    });
+
+    let templateId: string | null = null;
+    if (dto.saveAsName?.trim()) {
+      const template = await this.prisma.menuTemplate.create({
+        data: {
+          name: dto.saveAsName.trim(),
+          description: dto.saveAsDescription?.trim() || null,
+          sourceBrandId: brand.id,
+          createdByUserId: actor.id,
+          snapshot: snapshot as unknown as Prisma.InputJsonValue,
+        },
+      });
+      templateId = template.id;
+    }
+
+    const applied: string[] = [];
+    const failed: Array<{ slug: string; reason: string }> = [];
+
+    for (const slug of targetSlugs) {
+      try {
+        const target = await this.prisma.brand.findUnique({ where: { slug } });
+        if (!target) {
+          failed.push({ slug, reason: 'Store not found' });
+          continue;
+        }
+
+        await this.applySnapshotToBrand(target.id, snapshot, lockItems);
+        await this.auditService.log(
+          actor.id,
+          target.id,
+          AuditAction.MENU_TEMPLATE_APPLIED,
+          `Transferred ${snapshot.items.length} menu item(s) from ${brand.slug} to ${target.slug}`,
+          {
+            sourceBrandSlug: brand.slug,
+            itemCount: snapshot.items.length,
+            lockItems,
+            templateId,
+          },
+        );
+        applied.push(slug);
+      } catch (error) {
+        failed.push({ slug, reason: (error as Error).message });
+      }
+    }
+
+    return {
+      itemCount: snapshot.items.length,
+      applied,
+      failed,
+      templateId,
+    };
   }
 
   async applyMenuTemplate(
@@ -959,85 +1186,7 @@ export class HqService {
           continue;
         }
 
-        await this.prisma.$transaction(async (tx) => {
-          for (const category of snapshot.categories) {
-            await tx.menuCategory.upsert({
-              where: { brandId_slug: { brandId: brand.id, slug: category.slug } },
-              update: {
-                label: category.label,
-                sortOrder: category.sortOrder,
-                supportsSizeOptions: category.supportsSizeOptions,
-                supportsExtras: category.supportsExtras,
-                isActive: category.isActive,
-              },
-              create: {
-                brandId: brand.id,
-                slug: category.slug,
-                label: category.label,
-                sortOrder: category.sortOrder,
-                supportsSizeOptions: category.supportsSizeOptions,
-                supportsExtras: category.supportsExtras,
-                isActive: category.isActive,
-              },
-            });
-          }
-
-          for (const item of snapshot.items) {
-            const priceValue = new Prisma.Decimal(item.price);
-            await tx.menuItem.upsert({
-              where: { brandId_slug: { brandId: brand.id, slug: item.slug } },
-              update: {
-                number: item.number,
-                name: item.name,
-                description: item.description,
-                price: priceValue,
-                categorySlug: item.categorySlug,
-                imageUrl: item.imageUrl,
-                imageAlt: item.imageAlt,
-                badges: item.badges as never,
-                priceNote: item.priceNote,
-                ingredients: item.ingredients,
-                sizeOptions:
-                  item.sizeOptions === null
-                    ? Prisma.JsonNull
-                    : (item.sizeOptions as Prisma.InputJsonValue),
-                sizePricing:
-                  item.sizePricing === null
-                    ? Prisma.JsonNull
-                    : (item.sizePricing as Prisma.InputJsonValue),
-                allowedToppingIds: item.allowedToppingIds,
-                isActive: item.isActive,
-                isFranchiseLocked: lockItems,
-              },
-              create: {
-                brandId: brand.id,
-                slug: item.slug,
-                number: item.number,
-                name: item.name,
-                description: item.description,
-                price: priceValue,
-                categorySlug: item.categorySlug,
-                imageUrl: item.imageUrl,
-                imageAlt: item.imageAlt,
-                badges: item.badges as never,
-                priceNote: item.priceNote,
-                ingredients: item.ingredients,
-                sizeOptions:
-                  item.sizeOptions === undefined || item.sizeOptions === null
-                    ? undefined
-                    : (item.sizeOptions as Prisma.InputJsonValue),
-                sizePricing:
-                  item.sizePricing === undefined || item.sizePricing === null
-                    ? undefined
-                    : (item.sizePricing as Prisma.InputJsonValue),
-                allowedToppingIds: item.allowedToppingIds,
-                isActive: item.isActive,
-                isFranchiseLocked: lockItems,
-              },
-            });
-          }
-        });
-
+        await this.applySnapshotToBrand(brand.id, snapshot, lockItems);
         await this.auditService.log(
           actor.id,
           brand.id,

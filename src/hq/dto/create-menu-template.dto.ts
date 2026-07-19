@@ -1,4 +1,5 @@
 import {
+  IsArray,
   IsBoolean,
   IsOptional,
   IsString,
@@ -21,6 +22,12 @@ export class CreateMenuTemplateDto {
   @MinLength(1)
   @MaxLength(80)
   sourceBrandSlug!: string;
+
+  /** When set, only these menu item slugs are copied into the template. */
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  itemSlugs?: string[];
 
   @IsOptional()
   @IsBoolean()
