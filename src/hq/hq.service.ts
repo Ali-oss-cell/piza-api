@@ -24,9 +24,12 @@ import {
   parseMelbourneDayEnd,
 } from '../common/utils/melbourne-time';
 import { PrismaService } from '../prisma/prisma.service';
+import { TeamService } from '../team/team.service';
+import { UpdateTeamMemberDto } from '../team/dto/update-team-member.dto';
 import { ApplyMenuTemplateDto } from './dto/apply-menu-template.dto';
 import { CreateDomainDto } from './dto/create-domain.dto';
 import { CreateMenuTemplateDto } from './dto/create-menu-template.dto';
+import { InviteHqMemberDto } from './dto/invite-hq-member.dto';
 import { PushDealDto } from './dto/push-deal.dto';
 import { TransferMenuDto } from './dto/transfer-menu.dto';
 import { UpdateDomainDto } from './dto/update-domain.dto';
@@ -80,7 +83,199 @@ export class HqService {
     private readonly prisma: PrismaService,
     private readonly storeAccess: StoreAccessService,
     private readonly auditService: AuditService,
+    private readonly teamService: TeamService,
   ) {}
+
+  private collectStoreAlerts(brand: {
+    status: string;
+    isActive: boolean;
+    locations: Array<{ openingHours: unknown }>;
+    domains: Array<{ host: string | null; pathPrefix: string | null }>;
+    paymentSettings: {
+      provider: string;
+      cardTerminalEnabled: boolean;
+      cardOnlineEnabled: boolean;
+      stripePublishableKey: string | null;
+      stripeSecretKeyRef: string | null;
+    } | null;
+    _count?: { menuItems: number };
+  }): Array<{ code: string; message: string; severity: 'warning' | 'critical' }> {
+    const alerts: Array<{
+      code: string;
+      message: string;
+      severity: 'warning' | 'critical';
+    }> = [];
+
+    if (!brand.isActive) {
+      alerts.push({
+        code: 'suspended',
+        message: 'Store suspended',
+        severity: 'critical',
+      });
+    }
+
+    if (brand.status === 'DRAFT') {
+      alerts.push({
+        code: 'draft',
+        message: 'Store is still in draft (not live)',
+        severity: 'warning',
+      });
+    }
+
+    const payment = brand.paymentSettings;
+    if (!payment || (!payment.cardTerminalEnabled && !payment.cardOnlineEnabled)) {
+      alerts.push({
+        code: 'cash_only',
+        message: 'Cash-only (no card payments enabled)',
+        severity: 'warning',
+      });
+    } else if (
+      payment.provider === 'STRIPE' &&
+      (!payment.stripePublishableKey || !payment.stripeSecretKeyRef)
+    ) {
+      alerts.push({
+        code: 'stripe_incomplete',
+        message: 'Card enabled but Stripe keys incomplete',
+        severity: 'critical',
+      });
+    }
+
+    if (!brand.locations.some((location) => location.openingHours)) {
+      alerts.push({
+        code: 'hours_missing',
+        message: 'Opening hours missing',
+        severity: 'warning',
+      });
+    }
+
+    if ((brand._count?.menuItems ?? 0) === 0) {
+      alerts.push({
+        code: 'no_menu',
+        message: 'No menu items',
+        severity: 'critical',
+      });
+    }
+
+    if (brand.domains.length === 0) {
+      alerts.push({
+        code: 'no_domain',
+        message: 'No primary domain / path assigned',
+        severity: 'warning',
+      });
+    }
+
+    return alerts;
+  }
+
+  async getStoreHealth(user: AuthenticatedUser): Promise<Record<string, unknown>> {
+    const isPlatform = await this.storeAccess.isPlatformAdmin(user);
+    const brands = isPlatform
+      ? await this.prisma.brand.findMany({
+          include: {
+            locations: true,
+            paymentSettings: true,
+            domains: {
+              where: { isActive: true },
+              orderBy: [{ isPrimary: 'desc' }, { createdAt: 'asc' }],
+              take: 1,
+            },
+            _count: { select: { menuItems: true } },
+          },
+          orderBy: { name: 'asc' },
+        })
+      : await this.prisma.brand.findMany({
+          where: {
+            memberships: {
+              some: {
+                userId: user.id,
+                isActive: true,
+                role: {
+                  in: [
+                    StoreMembershipRole.PLATFORM_ADMIN,
+                    StoreMembershipRole.STORE_ADMIN,
+                  ],
+                },
+              },
+            },
+          },
+          include: {
+            locations: true,
+            paymentSettings: true,
+            domains: {
+              where: { isActive: true },
+              orderBy: [{ isPrimary: 'desc' }, { createdAt: 'asc' }],
+              take: 1,
+            },
+            _count: { select: { menuItems: true } },
+          },
+          orderBy: { name: 'asc' },
+        });
+
+    const stores = brands.map((brand) => {
+      const alerts = this.collectStoreAlerts(brand);
+      const hasCritical = alerts.some((alert) => alert.severity === 'critical');
+      const severity = hasCritical
+        ? 'critical'
+        : alerts.length > 0
+          ? 'warning'
+          : 'ok';
+
+      return {
+        id: brand.id,
+        slug: brand.slug,
+        name: brand.name,
+        status: brand.status,
+        isActive: brand.isActive,
+        severity,
+        alerts,
+      };
+    });
+
+    const critical = stores.filter((store) => store.severity === 'critical').length;
+    const warning = stores.filter((store) => store.severity === 'warning').length;
+    const healthy = stores.filter((store) => store.severity === 'ok').length;
+    const alerts = stores.reduce((sum, store) => sum + store.alerts.length, 0);
+
+    return {
+      totals: {
+        stores: stores.length,
+        healthy,
+        warning,
+        critical,
+        alerts,
+      },
+      stores,
+    };
+  }
+
+  async listMemberships(brand?: string): Promise<unknown[]> {
+    return this.teamService.listAll(brand);
+  }
+
+  async inviteMembership(
+    dto: InviteHqMemberDto,
+    actor: AuthenticatedUser,
+  ): Promise<unknown> {
+    return this.teamService.inviteToStores(
+      {
+        email: dto.email,
+        firstName: dto.firstName,
+        lastName: dto.lastName,
+        role: dto.role,
+        brandSlugs: dto.brandSlugs,
+        temporaryPassword: dto.temporaryPassword,
+      },
+      actor,
+    );
+  }
+
+  async updateMembership(
+    membershipId: string,
+    dto: UpdateTeamMemberDto,
+    actor: AuthenticatedUser,
+  ): Promise<unknown> {
+    return this.teamService.updateMembership(membershipId, dto, actor);
+  }
 
   private toDecimalNumber(value: unknown): number {
     if (value === null || value === undefined) return 0;
@@ -243,20 +438,7 @@ export class HqService {
       const orders = ordersByBrand.get(brand.id) ?? 0;
       const live = liveByBrand.get(brand.id) ?? 0;
 
-      const alerts: string[] = [];
-      if (!brand.isActive) {
-        alerts.push('Store suspended');
-      }
-      const payment = brand.paymentSettings;
-      if (payment && !payment.cardTerminalEnabled && !payment.cardOnlineEnabled) {
-        alerts.push('Cash-only (no card payments enabled)');
-      }
-      if (!brand.locations.some((location) => location.openingHours)) {
-        alerts.push('Opening hours missing');
-      }
-      if ((brand._count?.menuItems ?? 0) === 0) {
-        alerts.push('No menu items');
-      }
+      const alerts = this.collectStoreAlerts(brand).map((alert) => alert.message);
 
       return {
         id: brand.id,

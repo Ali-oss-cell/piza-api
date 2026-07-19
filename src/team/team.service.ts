@@ -37,9 +37,101 @@ export class TeamService {
         location: {
           select: { id: true, name: true, slug: true },
         },
+        store: {
+          select: { id: true, slug: true, name: true },
+        },
       },
       orderBy: [{ isActive: 'desc' }, { createdAt: 'desc' }],
     });
+  }
+
+  async listAll(brandSlug?: string): Promise<unknown[]> {
+    const where = brandSlug
+      ? { store: { slug: brandSlug.trim().toLowerCase() } }
+      : {};
+
+    return this.prisma.userStore.findMany({
+      where,
+      include: {
+        user: {
+          select: {
+            id: true,
+            email: true,
+            firstName: true,
+            lastName: true,
+            role: true,
+          },
+        },
+        location: {
+          select: { id: true, name: true, slug: true },
+        },
+        store: {
+          select: { id: true, slug: true, name: true },
+        },
+      },
+      orderBy: [
+        { store: { name: 'asc' } },
+        { isActive: 'desc' },
+        { createdAt: 'desc' },
+      ],
+    });
+  }
+
+  async inviteToStores(
+    dto: {
+      email: string;
+      firstName: string;
+      lastName: string;
+      role: StoreMembershipRole;
+      brandSlugs: string[];
+      temporaryPassword?: string;
+    },
+    actor: AuthenticatedUser,
+  ): Promise<{
+    invited: unknown[];
+    failed: Array<{ slug: string; reason: string }>;
+    temporaryPassword?: string;
+  }> {
+    const slugs = [
+      ...new Set(dto.brandSlugs.map((slug) => slug.trim().toLowerCase()).filter(Boolean)),
+    ];
+    if (slugs.length === 0) {
+      throw new BadRequestException('At least one store is required.');
+    }
+
+    const temporaryPassword = dto.temporaryPassword ?? this.generateTemporaryPassword();
+    const invited: unknown[] = [];
+    const failed: Array<{ slug: string; reason: string }> = [];
+    let createdNewUser = false;
+
+    for (const slug of slugs) {
+      try {
+        const before = await this.usersService.findByEmail(dto.email.trim().toLowerCase());
+        const membership = await this.invite(
+          {
+            email: dto.email,
+            firstName: dto.firstName,
+            lastName: dto.lastName,
+            role: dto.role as InviteTeamMemberDto['role'],
+            brandSlug: slug,
+            temporaryPassword,
+          },
+          actor,
+        );
+        if (!before) {
+          createdNewUser = true;
+        }
+        invited.push(membership);
+      } catch (error) {
+        failed.push({ slug, reason: (error as Error).message });
+      }
+    }
+
+    return {
+      invited,
+      failed,
+      ...(createdNewUser ? { temporaryPassword } : {}),
+    };
   }
 
   async invite(
@@ -96,6 +188,9 @@ export class TeamService {
         },
         location: {
           select: { id: true, name: true, slug: true },
+        },
+        store: {
+          select: { id: true, slug: true, name: true },
         },
       },
     });
@@ -162,6 +257,9 @@ export class TeamService {
         },
         location: {
           select: { id: true, name: true, slug: true },
+        },
+        store: {
+          select: { id: true, slug: true, name: true },
         },
       },
     });

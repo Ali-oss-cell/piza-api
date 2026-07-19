@@ -19,9 +19,11 @@ import { PlatformAdminGuard } from '../common/guards/platform-admin.guard';
 import { ApplyMenuTemplateDto } from './dto/apply-menu-template.dto';
 import { CreateDomainDto } from './dto/create-domain.dto';
 import { CreateMenuTemplateDto } from './dto/create-menu-template.dto';
+import { InviteHqMemberDto } from './dto/invite-hq-member.dto';
 import { PushDealDto } from './dto/push-deal.dto';
 import { TransferMenuDto } from './dto/transfer-menu.dto';
 import { UpdateDomainDto } from './dto/update-domain.dto';
+import { UpdateTeamMemberDto } from '../team/dto/update-team-member.dto';
 import { HqService } from './hq.service';
 
 @Controller('hq')
@@ -36,6 +38,33 @@ export class HqController {
     @Query('to') to?: string,
   ) {
     return this.hqService.getOverview(user, from, to);
+  }
+
+  @Get('health')
+  health(@CurrentUser() user: AuthenticatedUser) {
+    return this.hqService.getStoreHealth(user);
+  }
+
+  @Get('memberships')
+  memberships(@Query('brand') brand?: string) {
+    return this.hqService.listMemberships(brand);
+  }
+
+  @Post('memberships/invite')
+  inviteMembership(
+    @Body() dto: InviteHqMemberDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.hqService.inviteMembership(dto, user);
+  }
+
+  @Patch('memberships/:membershipId')
+  updateMembership(
+    @Param('membershipId', ParseUUIDPipe) membershipId: string,
+    @Body() dto: UpdateTeamMemberDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.hqService.updateMembership(membershipId, dto, user);
   }
 
   @Get('reports/sales')
