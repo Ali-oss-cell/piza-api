@@ -15,6 +15,9 @@ async function bootstrap(): Promise<void> {
   const uploadsRoot = join(process.cwd(), 'uploads');
   if (!existsSync(uploadsRoot)) {
     mkdirSync(join(uploadsRoot, 'logos'), { recursive: true });
+    mkdirSync(join(uploadsRoot, 'heroes'), { recursive: true });
+  } else if (!existsSync(join(uploadsRoot, 'heroes'))) {
+    mkdirSync(join(uploadsRoot, 'heroes'), { recursive: true });
   }
 
   app.useStaticAssets(uploadsRoot, {

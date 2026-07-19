@@ -22,6 +22,14 @@ export class UpdateStoreSettingsDto {
   primaryColor?: string | null;
 
   @IsOptional()
+  @IsString()
+  secondaryColor?: string | null;
+
+  @IsOptional()
+  @IsString()
+  heroImageUrl?: string | null;
+
+  @IsOptional()
   @IsNumber({ maxDecimalPlaces: 2 })
   @Min(0)
   deliveryFee?: number;

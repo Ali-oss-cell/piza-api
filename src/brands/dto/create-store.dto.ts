@@ -83,6 +83,16 @@ export class CreateStoreDto {
 
   @IsOptional()
   @IsString()
+  @MaxLength(20)
+  secondaryColor?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  heroImageUrl?: string;
+
+  @IsOptional()
+  @IsString()
   @MaxLength(80)
   pathPrefix?: string;
 

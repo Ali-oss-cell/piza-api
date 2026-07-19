@@ -136,6 +136,8 @@ export class BrandsService {
           logoUrl: dto.logoUrl?.trim() || null,
           logoDarkUrl: dto.logoDarkUrl?.trim() || null,
           primaryColor: dto.primaryColor?.trim() || null,
+          secondaryColor: dto.secondaryColor?.trim() || null,
+          heroImageUrl: dto.heroImageUrl?.trim() || null,
           isActive: true,
           status: BrandStatus.LIVE,
         },
