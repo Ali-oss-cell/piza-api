@@ -7,6 +7,7 @@ import {
 import { Order, Prisma, UserRole } from '@prisma/client';
 import { AuthenticatedUser } from '../auth/interfaces/authenticated-user.interface';
 import { BrandsService } from '../brands/brands.service';
+import { CrmService } from '../crm/crm.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { OrderSchedulingService } from './order-scheduling.service';
@@ -18,6 +19,7 @@ export class OrdersService {
     private readonly prisma: PrismaService,
     private readonly orderSchedulingService: OrderSchedulingService,
     private readonly brandsService: BrandsService,
+    private readonly crmService: CrmService,
   ) {}
 
   async create(
@@ -74,8 +76,28 @@ export class OrdersService {
       },
     };
 
-    return this.prisma.order.create({
+    const order = await this.prisma.order.create({
       data,
+      include: { items: true, user: true },
+    });
+
+    const email = order.guestEmail || order.user?.email || dto.guestEmail?.trim() || null;
+    const name =
+      order.guestName ||
+      (order.user
+        ? `${order.user.firstName} ${order.user.lastName}`.trim()
+        : dto.guestName?.trim() || null);
+
+    await this.crmService.upsertFromOrderContact({
+      brandId: location.brandId,
+      orderId: order.id,
+      phone: order.guestPhone,
+      email,
+      name,
+    });
+
+    return this.prisma.order.findUniqueOrThrow({
+      where: { id: order.id },
       include: { items: true, user: true },
     });
   }

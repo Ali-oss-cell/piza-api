@@ -8,6 +8,7 @@ import { ConfigService } from '@nestjs/config';
 import { PaymentMethod, PaymentStatus } from '@prisma/client';
 import StripeLib from 'stripe';
 import { PrismaService } from '../prisma/prisma.service';
+import { CrmService } from '../crm/crm.service';
 
 function createStripeClient(secretKey: string) {
   return new StripeLib(secretKey);
@@ -25,6 +26,7 @@ export class StripeService {
   constructor(
     private readonly configService: ConfigService,
     private readonly prisma: PrismaService,
+    private readonly crmService: CrmService,
   ) {
     const secretKey = this.configService.get<string>('STRIPE_SECRET_KEY');
 
@@ -159,6 +161,8 @@ export class StripeService {
             : paymentIntent.latest_charge?.id,
       },
     });
+
+    await this.crmService.linkOrderById(orderId);
   }
 
   private async markOrderFailedFromIntent(paymentIntent: {

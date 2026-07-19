@@ -4,6 +4,7 @@ import { AuthModule } from './auth/auth.module';
 import { AuditModule } from './audit/audit.module';
 import { BrandsModule } from './brands/brands.module';
 import { DatabaseBootstrapService } from './bootstrap/database-bootstrap.service';
+import { CrmModule } from './crm/crm.module';
 import { HealthController } from './health/health.controller';
 import { DealsModule } from './deals/deals.module';
 import { CustomizationsModule } from './customizations/customizations.module';
@@ -45,6 +46,7 @@ import { WebhooksModule } from './webhooks/webhooks.module';
     UploadsModule,
     WebhooksModule,
     HqModule,
+    CrmModule,
     TeamModule,
     LocationsAdminModule,
   ],

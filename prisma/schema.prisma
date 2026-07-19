@@ -106,6 +106,8 @@ enum AuditAction {
   DEAL_PUSHED
   LOCATION_CREATED
   LOCATION_UPDATED
+  CRM_EXPORT
+  CRM_CUSTOMER_UPDATED
 }
 
 model User {
@@ -152,6 +154,9 @@ model Brand {
   memberships          UserStore[]
   auditEvents          AuditEvent[]
   menuTemplates        MenuTemplate[]        @relation("TemplateSourceBrand")
+  storeCustomers       StoreCustomer[]
+  customerTags         CustomerTag[]
+  customerSegments     CustomerSegment[]
 
   @@map("brands")
 }
@@ -457,6 +462,7 @@ model Order {
   locationId            String          @map("location_id") @db.Uuid
   userId                String?         @map("user_id") @db.Uuid
   staffUserId           String?         @map("staff_user_id") @db.Uuid
+  storeCustomerId       String?         @map("store_customer_id") @db.Uuid
   guestEmail            String?         @map("guest_email")
   guestName             String?         @map("guest_name")
   guestPhone            String?         @map("guest_phone")
@@ -490,15 +496,93 @@ model Order {
   location              Location        @relation(fields: [locationId], references: [id], onDelete: Restrict)
   user                  User?           @relation("CustomerOrders", fields: [userId], references: [id], onDelete: SetNull)
   staffUser             User?           @relation("StaffOrders", fields: [staffUserId], references: [id], onDelete: SetNull)
+  storeCustomer         StoreCustomer?  @relation(fields: [storeCustomerId], references: [id], onDelete: SetNull)
   items                 OrderItem[]
 
   @@index([userId])
   @@index([staffUserId])
   @@index([locationId])
+  @@index([storeCustomerId])
   @@index([status])
   @@index([paymentStatus])
   @@index([channel, ticketNumber])
   @@map("orders")
+}
+
+model StoreCustomer {
+  id                   String    @id @default(uuid()) @db.Uuid
+  brandId              String    @map("brand_id") @db.Uuid
+  identityKey          String    @map("identity_key")
+  phone                String?
+  phoneNormalized      String?   @map("phone_normalized")
+  email                String?
+  emailNormalized      String?   @map("email_normalized")
+  name                 String?
+  notes                String?
+  orderCount           Int       @default(0) @map("order_count")
+  totalSpent           Decimal   @default(0) @map("total_spent") @db.Decimal(12, 2)
+  lastOrderAt          DateTime? @map("last_order_at")
+  firstOrderAt         DateTime? @map("first_order_at")
+  marketingEmailOptIn  Boolean   @default(false) @map("marketing_email_opt_in")
+  marketingSmsOptIn    Boolean   @default(false) @map("marketing_sms_opt_in")
+  consentUpdatedAt     DateTime? @map("consent_updated_at")
+  createdAt            DateTime  @default(now()) @map("created_at")
+  updatedAt            DateTime  @updatedAt @map("updated_at")
+
+  brand  Brand              @relation(fields: [brandId], references: [id], onDelete: Cascade)
+  tags   StoreCustomerTag[]
+  orders Order[]
+
+  @@unique([brandId, identityKey])
+  @@index([brandId, lastOrderAt])
+  @@index([brandId, name])
+  @@index([brandId, phoneNormalized])
+  @@index([brandId, emailNormalized])
+  @@map("store_customers")
+}
+
+model CustomerTag {
+  id        String   @id @default(uuid()) @db.Uuid
+  brandId   String   @map("brand_id") @db.Uuid
+  slug      String
+  label     String
+  color     String?  @default("#d81b60")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  brand      Brand               @relation(fields: [brandId], references: [id], onDelete: Cascade)
+  customers  StoreCustomerTag[]
+
+  @@unique([brandId, slug])
+  @@map("customer_tags")
+}
+
+model StoreCustomerTag {
+  customerId String @map("customer_id") @db.Uuid
+  tagId      String @map("tag_id") @db.Uuid
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  customer StoreCustomer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  tag      CustomerTag   @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([customerId, tagId])
+  @@map("store_customer_tags")
+}
+
+model CustomerSegment {
+  id              String   @id @default(uuid()) @db.Uuid
+  brandId         String   @map("brand_id") @db.Uuid
+  name            String
+  description     String?
+  rules           Json
+  createdByUserId String?  @map("created_by_user_id") @db.Uuid
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  brand Brand @relation(fields: [brandId], references: [id], onDelete: Cascade)
+
+  @@index([brandId])
+  @@map("customer_segments")
 }
 
 model OrderItem {

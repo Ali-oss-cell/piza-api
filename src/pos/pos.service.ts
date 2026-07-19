@@ -19,6 +19,7 @@ import {
 import { AuthenticatedUser } from '../auth/interfaces/authenticated-user.interface';
 import { BrandsService } from '../brands/brands.service';
 import { DEFAULT_BRAND_SLUG } from '../common/constants/brands';
+import { CrmService } from '../crm/crm.service';
 import { PaymentSettingsService } from '../payment-settings/payment-settings.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { PricingService } from '../pricing/pricing.service';
@@ -34,6 +35,7 @@ export class PosService {
     private readonly stripeService: StripeService,
     private readonly brandsService: BrandsService,
     private readonly paymentSettingsService: PaymentSettingsService,
+    private readonly crmService: CrmService,
   ) {}
 
   quote(dto: QuoteRequestDto) {
@@ -240,7 +242,7 @@ export class PosService {
 
     await this.paymentSettingsService.assertCashEnabled(location.brandId);
 
-    return this.prisma.order.update({
+    const updated = await this.prisma.order.update({
       where: { id: orderId },
       data: {
         paymentStatus: PaymentStatus.PAID,
@@ -249,6 +251,9 @@ export class PosService {
       },
       include: { items: true, staffUser: true },
     });
+
+    await this.crmService.linkOrderById(orderId);
+    return updated;
   }
 
   private async resolvePosLocation(
