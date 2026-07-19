@@ -321,11 +321,13 @@ export class HqService {
           to: range.to.toISOString(),
           timezone: MELBOURNE_TZ,
         },
+        store: null,
         totals: {
           revenue: 0,
           orders: 0,
           averageOrderValue: 0,
         },
+        byStore: [],
         days: [],
         paymentMix: [],
         channelMix: [],
@@ -350,6 +352,12 @@ export class HqService {
         channel: true,
         createdAt: true,
         paidAt: true,
+        location: {
+          select: {
+            brandId: true,
+            brand: { select: { id: true, slug: true, name: true } },
+          },
+        },
       },
     });
 
@@ -357,6 +365,10 @@ export class HqService {
     const dayMap = new Map<string, { revenue: number; orders: number }>();
     const paymentMap = new Map<string, { revenue: number; orders: number }>();
     const channelMap = new Map<string, { revenue: number; orders: number }>();
+    const storeMap = new Map<
+      string,
+      { slug: string; name: string; revenue: number; orders: number }
+    >();
 
     for (const order of orders) {
       const total = this.toDecimalNumber(order.total);
@@ -381,6 +393,17 @@ export class HqService {
       channelBucket.revenue += total;
       channelBucket.orders += 1;
       channelMap.set(channelKey, channelBucket);
+
+      const brand = order.location.brand;
+      const storeBucket = storeMap.get(brand.id) ?? {
+        slug: brand.slug,
+        name: brand.name,
+        revenue: 0,
+        orders: 0,
+      };
+      storeBucket.revenue += total;
+      storeBucket.orders += 1;
+      storeMap.set(brand.id, storeBucket);
     }
 
     const days = Array.from(dayMap.entries())
@@ -403,17 +426,39 @@ export class HqService {
       orders: value.orders,
     }));
 
+    const byStore = Array.from(storeMap.values())
+      .map((store) => ({
+        slug: store.slug,
+        name: store.name,
+        revenue: store.revenue,
+        orders: store.orders,
+        averageOrderValue: store.orders > 0 ? store.revenue / store.orders : 0,
+      }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+
+    const selectedStore =
+      brandFilter && byStore.length === 1
+        ? { slug: byStore[0].slug, name: byStore[0].name }
+        : brandFilter
+          ? await this.prisma.brand.findUnique({
+              where: { slug: brandFilter.trim().toLowerCase() },
+              select: { slug: true, name: true },
+            })
+          : null;
+
     return {
       range: {
         from: range.from.toISOString(),
         to: range.to.toISOString(),
         timezone: MELBOURNE_TZ,
       },
+      store: selectedStore,
       totals: {
         revenue,
         orders: orders.length,
         averageOrderValue: orders.length > 0 ? revenue / orders.length : 0,
       },
+      byStore,
       days,
       paymentMix,
       channelMix,
@@ -427,12 +472,31 @@ export class HqService {
     brandFilter?: string,
   ): Promise<string> {
     const report = (await this.getSalesReport(user, from, to, brandFilter)) as {
+      store: { slug: string; name: string } | null;
       days: Array<{ date: string; revenue: number; orders: number }>;
+      byStore: Array<{
+        slug: string;
+        name: string;
+        revenue: number;
+        orders: number;
+        averageOrderValue: number;
+      }>;
     };
 
-    const header = 'date,revenue,orders';
+    if (!brandFilter) {
+      const header = 'store,slug,revenue,orders,average_order_value';
+      const rows = report.byStore.map(
+        (store) =>
+          `"${store.name.replace(/"/g, '""')}",${store.slug},${store.revenue.toFixed(2)},${store.orders},${store.averageOrderValue.toFixed(2)}`,
+      );
+      return [header, ...rows].join('\n');
+    }
+
+    const storeLabel = report.store?.name ?? brandFilter;
+    const header = 'store,date,revenue,orders';
     const rows = report.days.map(
-      (day) => `${day.date},${day.revenue.toFixed(2)},${day.orders}`,
+      (day) =>
+        `"${storeLabel.replace(/"/g, '""')}",${day.date},${day.revenue.toFixed(2)},${day.orders}`,
     );
     return [header, ...rows].join('\n');
   }
