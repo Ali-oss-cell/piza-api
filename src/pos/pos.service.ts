@@ -17,8 +17,6 @@ import {
   UserRole,
 } from '@prisma/client';
 import { AuthenticatedUser } from '../auth/interfaces/authenticated-user.interface';
-import { BrandsService } from '../brands/brands.service';
-import { DEFAULT_BRAND_SLUG } from '../common/constants/brands';
 import { CrmService } from '../crm/crm.service';
 import { PaymentSettingsService } from '../payment-settings/payment-settings.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -33,7 +31,6 @@ export class PosService {
     private readonly prisma: PrismaService,
     private readonly pricingService: PricingService,
     private readonly stripeService: StripeService,
-    private readonly brandsService: BrandsService,
     private readonly paymentSettingsService: PaymentSettingsService,
     private readonly crmService: CrmService,
   ) {}
@@ -43,7 +40,13 @@ export class PosService {
   }
 
   getPaymentMethods(brandSlug?: string) {
-    return this.paymentSettingsService.getPosMethods(brandSlug);
+    const slug = brandSlug?.trim().toLowerCase();
+    if (!slug) {
+      throw new BadRequestException(
+        'Store (brand) is required. Select a store on this POS device.',
+      );
+    }
+    return this.paymentSettingsService.getPosMethods(slug);
   }
 
   async createOrder(
@@ -261,33 +264,43 @@ export class PosService {
     brandSlug?: string,
     locationId?: string,
   ): Promise<Location> {
-    const slug = brandSlug?.trim().toLowerCase() || DEFAULT_BRAND_SLUG;
-    await this.assertStaffCanAccessStore(staff, slug);
-
-    if (locationId) {
-      const location = await this.prisma.location.findFirst({
-        where: {
-          id: locationId,
-          isActive: true,
-          brand: { slug, isActive: true },
-        },
-      });
-
-      if (!location) {
-        throw new BadRequestException(
-          'Location is invalid for the selected store.',
-        );
-      }
-
-      return location;
+    const slug = brandSlug?.trim().toLowerCase();
+    if (!slug) {
+      throw new BadRequestException(
+        'Store (brand) is required. Select a store on this POS device.',
+      );
     }
 
-    return this.brandsService.resolveDefaultLocation(slug);
+    const resolvedLocationId = locationId?.trim();
+    if (!resolvedLocationId) {
+      throw new BadRequestException(
+        'Location is required. Select a location on this POS device.',
+      );
+    }
+
+    await this.assertStaffCanAccessStore(staff, slug, resolvedLocationId);
+
+    const location = await this.prisma.location.findFirst({
+      where: {
+        id: resolvedLocationId,
+        isActive: true,
+        brand: { slug, isActive: true },
+      },
+    });
+
+    if (!location) {
+      throw new BadRequestException(
+        'Location is invalid for the selected store.',
+      );
+    }
+
+    return location;
   }
 
   private async assertStaffCanAccessStore(
     staff: AuthenticatedUser,
     brandSlug: string,
+    locationId?: string,
   ): Promise<void> {
     if (staff.role === UserRole.ADMIN) {
       return;
@@ -304,6 +317,16 @@ export class PosService {
     if (!membership) {
       throw new ForbiddenException(
         `You do not have POS access to store "${brandSlug}".`,
+      );
+    }
+
+    if (
+      membership.locationId &&
+      locationId &&
+      membership.locationId !== locationId
+    ) {
+      throw new ForbiddenException(
+        'You do not have POS access to this location.',
       );
     }
   }

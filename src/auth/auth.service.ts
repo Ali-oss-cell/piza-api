@@ -120,19 +120,27 @@ export class AuthService {
 
     return memberships
       .filter((membership) => membership.store.isActive)
-      .map((membership) => ({
-        id: membership.store.id,
-        slug: membership.store.slug,
-        name: membership.store.name,
-        tagline: membership.store.tagline,
-        primaryColor: membership.store.primaryColor,
-        membershipRole: membership.role,
-        locations: membership.store.locations.map((location) => ({
-          id: location.id,
-          slug: location.slug,
-          name: location.name,
-          isDefault: location.isDefault,
-        })),
-      }));
+      .map((membership) => {
+        const locations = membership.locationId
+          ? membership.store.locations.filter(
+              (location) => location.id === membership.locationId,
+            )
+          : membership.store.locations;
+
+        return {
+          id: membership.store.id,
+          slug: membership.store.slug,
+          name: membership.store.name,
+          tagline: membership.store.tagline,
+          primaryColor: membership.store.primaryColor,
+          membershipRole: membership.role,
+          locations: locations.map((location) => ({
+            id: location.id,
+            slug: location.slug,
+            name: location.name,
+            isDefault: location.isDefault,
+          })),
+        };
+      });
   }
 }
