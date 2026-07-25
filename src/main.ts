@@ -59,6 +59,7 @@ async function bootstrap(): Promise<void> {
       'Content-Type',
       'Authorization',
       'X-Brand-Slug',
+      'X-Location-Id',
       'Accept',
       'Origin',
     ],
