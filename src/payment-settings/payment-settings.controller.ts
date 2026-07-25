@@ -1,7 +1,8 @@
-import { Body, Controller, Get, Put, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Post, Put, UseGuards } from '@nestjs/common';
 import { BrandSlug } from '../common/decorators/brand-slug.decorator';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { StoreManagerGuard } from '../common/guards/store-manager.guard';
+import { PairLinklyDto } from './dto/pair-linkly.dto';
 import { UpdatePaymentSettingsDto } from './dto/update-payment-settings.dto';
 import { PaymentSettingsService } from './payment-settings.service';
 
@@ -21,5 +22,15 @@ export class PaymentSettingsController {
     @BrandSlug() brandSlug?: string,
   ) {
     return this.paymentSettingsService.updateForStore(dto, brandSlug);
+  }
+
+  @Post('linkly/pair')
+  pairLinkly(@Body() dto: PairLinklyDto, @BrandSlug() brandSlug?: string) {
+    return this.paymentSettingsService.pairLinkly(dto, brandSlug);
+  }
+
+  @Post('linkly/unpair')
+  unpairLinkly(@BrandSlug() brandSlug?: string) {
+    return this.paymentSettingsService.unpairLinkly(brandSlug);
   }
 }

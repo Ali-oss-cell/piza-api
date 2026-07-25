@@ -97,6 +97,8 @@ export class HqService {
       cardOnlineEnabled: boolean;
       stripePublishableKey: string | null;
       stripeSecretKeyRef: string | null;
+      linklyPairSecretEnc?: string | null;
+      linklyUsername?: string | null;
     } | null;
     _count?: { menuItems: number };
   }): Array<{ code: string; message: string; severity: 'warning' | 'critical' }> {
@@ -129,13 +131,10 @@ export class HqService {
         message: 'Cash-only (no card payments enabled)',
         severity: 'warning',
       });
-    } else if (
-      payment.provider === 'STRIPE' &&
-      (!payment.stripePublishableKey || !payment.stripeSecretKeyRef)
-    ) {
+    } else if (payment.cardTerminalEnabled && !payment.linklyPairSecretEnc) {
       alerts.push({
-        code: 'stripe_incomplete',
-        message: 'Card enabled but Stripe keys incomplete',
+        code: 'linkly_unpaired',
+        message: 'Card enabled but Linkly pinpad is not paired',
         severity: 'critical',
       });
     }

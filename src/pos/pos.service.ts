@@ -21,7 +21,7 @@ import { CrmService } from '../crm/crm.service';
 import { PaymentSettingsService } from '../payment-settings/payment-settings.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { PricingService } from '../pricing/pricing.service';
-import { StripeService } from '../payments/stripe.service';
+import { LinklyService } from '../payments/linkly.service';
 import { CreatePosOrderDto } from './dto/create-pos-order.dto';
 import { QuoteRequestDto } from '../pricing/dto/quote-request.dto';
 
@@ -30,7 +30,7 @@ export class PosService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly pricingService: PricingService,
-    private readonly stripeService: StripeService,
+    private readonly linklyService: LinklyService,
     private readonly paymentSettingsService: PaymentSettingsService,
     private readonly crmService: CrmService,
   ) {}
@@ -179,7 +179,7 @@ export class PosService {
     });
   }
 
-  async startCardPayment(orderId: string, readerId?: string) {
+  async startCardPayment(orderId: string, _readerId?: string) {
     const order = await this.ensurePosOrder(orderId);
 
     if (order.paymentStatus === PaymentStatus.PAID) {
@@ -196,24 +196,68 @@ export class PosService {
 
     await this.paymentSettingsService.assertCardTerminalEnabled(location.brandId);
 
+    const credentials = await this.paymentSettingsService.getLinklyCredentials(
+      location.brandId,
+    );
     const amountCents = Math.round(Number(order.total) * 100);
-    const paymentIntent = await this.stripeService.createTerminalPaymentIntent(
-      order.id,
+    const txnRef = (order.ticketNumber
+      ? `T${order.ticketNumber}${Date.now().toString().slice(-8)}`
+      : order.id.replace(/-/g, '').slice(0, 16)
+    ).slice(0, 16);
+
+    await this.prisma.order.update({
+      where: { id: orderId },
+      data: {
+        paymentStatus: PaymentStatus.PROCESSING,
+        paymentMethod: PaymentMethod.CARD_TERMINAL,
+      },
+    });
+
+    const result = await this.linklyService.purchase({
+      secret: credentials.secret,
+      posId: credentials.posId,
       amountCents,
-    );
+      txnRef,
+      operatorName: 'POS',
+    });
 
-    const resolvedReaderId =
-      readerId ?? location.stripeTerminalReaderId ?? undefined;
+    if (!result.approved) {
+      await this.prisma.order.update({
+        where: { id: orderId },
+        data: {
+          paymentStatus: PaymentStatus.FAILED,
+        },
+      });
 
-    await this.stripeService.processTerminalPayment(
-      paymentIntent.id,
-      resolvedReaderId,
-    );
+      throw new BadRequestException(
+        result.responseText ||
+          `Card declined (${result.responseCode || 'unknown'})`,
+      );
+    }
+
+    const updated = await this.prisma.order.update({
+      where: { id: orderId },
+      data: {
+        paymentStatus: PaymentStatus.PAID,
+        paymentMethod: PaymentMethod.CARD_TERMINAL,
+        paidAt: new Date(),
+        notes: order.notes
+          ? `${order.notes}\nLinkly REF=${result.hostRef ?? ''} RFN=${result.rfn ?? ''}`
+          : `Linkly REF=${result.hostRef ?? ''} RFN=${result.rfn ?? ''}`,
+      },
+      include: { items: true, staffUser: true },
+    });
+
+    await this.crmService.linkOrderById(orderId);
 
     return {
-      orderId: order.id,
-      paymentIntentId: paymentIntent.id,
-      paymentStatus: PaymentStatus.PROCESSING,
+      orderId: updated.id,
+      ticketNumber: updated.ticketNumber,
+      paymentStatus: updated.paymentStatus,
+      paymentMethod: updated.paymentMethod,
+      linklySessionId: result.sessionId,
+      linklyResponseCode: result.responseCode,
+      linklyResponseText: result.responseText,
     };
   }
 

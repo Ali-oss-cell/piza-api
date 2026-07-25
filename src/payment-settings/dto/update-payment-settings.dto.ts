@@ -47,5 +47,10 @@ export class UpdatePaymentSettingsDto {
   @IsOptional()
   @IsString()
   @MaxLength(120)
+  linklyUsername?: string | null;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
   locationId?: string;
 }

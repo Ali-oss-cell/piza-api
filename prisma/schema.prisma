@@ -221,6 +221,8 @@ model StorePaymentSettings {
   stripeWebhookSecretRef String?              @map("stripe_webhook_secret_ref")
   linklyUsername         String?              @map("linkly_username")
   linklySecretRef        String?              @map("linkly_secret_ref")
+  linklyPairSecretEnc    String?              @map("linkly_pair_secret_enc")
+  linklyPosId            String?              @map("linkly_pos_id")
   createdAt              DateTime             @default(now()) @map("created_at")
   updatedAt              DateTime             @updatedAt @map("updated_at")
 
