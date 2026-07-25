@@ -47,6 +47,7 @@ async function bootstrap(): Promise<void> {
     'http://127.0.0.1:3000',
     'https://marinapizzas.com.au',
     'https://www.marinapizzas.com.au',
+    'https://admin.marinapizzas.com.au',
     'https://pos.marinapizzas.com.au',
   ];
   const allowedOrigins = [...new Set([...baselineOrigins, ...configuredOrigins])];
