@@ -54,6 +54,15 @@ export class InventoryController {
     return this.inventoryService.getSummary(brandSlug);
   }
 
+  @Get('stats')
+  getStats(
+    @BrandSlug() brandSlug?: string,
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+  ) {
+    return this.inventoryService.getStats(brandSlug, from, to);
+  }
+
   @Get('movements')
   listBrandMovements(
     @BrandSlug() brandSlug?: string,

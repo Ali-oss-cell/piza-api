@@ -19,6 +19,11 @@ import {
 } from '@prisma/client';
 import { AuditService } from '../audit/audit.service';
 import { BrandsService } from '../brands/brands.service';
+import {
+  melbourneDayKey,
+  parseMelbourneDay,
+  parseMelbourneDayEnd,
+} from '../common/utils/melbourne-time';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateStockItemDto } from './dto/create-stock-item.dto';
 import {
@@ -66,6 +71,44 @@ export type InventorySummaryResponse = {
   totalItems: number;
   activeItems: number;
   lowStockCount: number;
+};
+
+export type InventoryStatsKpis = {
+  soldQty: number;
+  soldCostEst: number;
+  wasteQty: number;
+  wasteCostEst: number;
+  receiveQty: number;
+  receiveCost: number;
+  refundQty: number;
+  netChange: number;
+  lowStockCount: number;
+  ordersTouched: number;
+};
+
+export type InventoryStatsDailyRow = {
+  date: string;
+  soldQty: number;
+  wasteQty: number;
+  receiveQty: number;
+  receiveCost: number;
+};
+
+export type InventoryStatsSkuRow = {
+  stockItemId: string;
+  name: string;
+  qty: number;
+  costEst: number;
+};
+
+export type InventoryStatsResponse = {
+  range: { from: string; to: string };
+  previousRange: { from: string; to: string };
+  kpis: InventoryStatsKpis;
+  previousKpis: InventoryStatsKpis;
+  daily: InventoryStatsDailyRow[];
+  topSold: InventoryStatsSkuRow[];
+  topWaste: InventoryStatsSkuRow[];
 };
 
 export type RecipeLineResponse = {
@@ -191,6 +234,305 @@ export class InventoryService {
       activeItems,
       lowStockCount,
     };
+  }
+
+  async getStats(
+    brandSlug?: string,
+    from?: string,
+    to?: string,
+  ): Promise<InventoryStatsResponse> {
+    const brandId = await this.brandsService.resolveBrandId(brandSlug);
+    const range = this.resolveStatsRange(from, to);
+    const durationMs = range.to.getTime() - range.from.getTime();
+    const previousRange = {
+      from: new Date(range.from.getTime() - durationMs - 1),
+      to: new Date(range.from.getTime() - 1),
+    };
+
+    const [currentMoves, previousMoves, summary] = await Promise.all([
+      this.loadStatsMovements(brandId, range.from, range.to),
+      this.loadStatsMovements(brandId, previousRange.from, previousRange.to),
+      this.getSummary(brandSlug),
+    ]);
+
+    const kpis = this.aggregateStatsKpis(currentMoves, summary.lowStockCount);
+    const previousKpis = this.aggregateStatsKpis(
+      previousMoves,
+      summary.lowStockCount,
+    );
+
+    return {
+      range: {
+        from: range.from.toISOString(),
+        to: range.to.toISOString(),
+      },
+      previousRange: {
+        from: previousRange.from.toISOString(),
+        to: previousRange.to.toISOString(),
+      },
+      kpis,
+      previousKpis,
+      daily: this.aggregateStatsDaily(currentMoves, range.from, range.to),
+      topSold: this.aggregateTopSkus(currentMoves, StockMovementType.SALE),
+      topWaste: this.aggregateTopSkus(currentMoves, StockMovementType.WASTE),
+    };
+  }
+
+  private resolveStatsRange(
+    from?: string,
+    to?: string,
+  ): { from: Date; to: Date } {
+    const parsedFrom = parseMelbourneDay(from);
+    const parsedTo = parseMelbourneDayEnd(to);
+
+    if (parsedFrom || parsedTo) {
+      const finalFrom = parsedFrom ?? parsedTo!;
+      const finalTo = parsedTo ?? parseMelbourneDayEnd(from) ?? parsedFrom!;
+      if (finalFrom.getTime() > finalTo.getTime()) {
+        throw new BadRequestException('"from" must be on or before "to".');
+      }
+      return { from: finalFrom, to: finalTo };
+    }
+
+    // Default: this Melbourne calendar week (Mon 00:00 → Sun 23:59:59.999).
+    const todayKey = melbourneDayKey(new Date());
+    const [y, m, d] = todayKey.split('-').map(Number);
+    const utcNoon = new Date(Date.UTC(y, m - 1, d, 12, 0, 0));
+    // JS getUTCDay: 0 Sun … 6 Sat. Convert to Mon=0 … Sun=6.
+    const dow = (utcNoon.getUTCDay() + 6) % 7;
+    const monday = new Date(utcNoon);
+    monday.setUTCDate(utcNoon.getUTCDate() - dow);
+    const sunday = new Date(monday);
+    sunday.setUTCDate(monday.getUTCDate() + 6);
+    const mondayKey = monday.toISOString().slice(0, 10);
+    const sundayKey = sunday.toISOString().slice(0, 10);
+    return {
+      from: parseMelbourneDay(mondayKey)!,
+      to: parseMelbourneDayEnd(sundayKey)!,
+    };
+  }
+
+  private async loadStatsMovements(
+    brandId: string,
+    from: Date,
+    to: Date,
+  ): Promise<
+    Array<{
+      type: StockMovementType;
+      deltaQty: Prisma.Decimal;
+      unitCost: Prisma.Decimal | null;
+      orderId: string | null;
+      createdAt: Date;
+      stockItemId: string;
+      stockItemName: string;
+      stockItemCost: Prisma.Decimal | null;
+    }>
+  > {
+    const rows = await this.prisma.stockMovement.findMany({
+      where: {
+        brandId,
+        createdAt: { gte: from, lte: to },
+      },
+      select: {
+        type: true,
+        deltaQty: true,
+        unitCost: true,
+        orderId: true,
+        createdAt: true,
+        stockItemId: true,
+        stockItem: {
+          select: { name: true, costPerUnit: true },
+        },
+      },
+    });
+
+    return rows.map((row) => ({
+      type: row.type,
+      deltaQty: row.deltaQty,
+      unitCost: row.unitCost,
+      orderId: row.orderId,
+      createdAt: row.createdAt,
+      stockItemId: row.stockItemId,
+      stockItemName: row.stockItem.name,
+      stockItemCost: row.stockItem.costPerUnit,
+    }));
+  }
+
+  private aggregateStatsKpis(
+    moves: Array<{
+      type: StockMovementType;
+      deltaQty: Prisma.Decimal;
+      unitCost: Prisma.Decimal | null;
+      orderId: string | null;
+      stockItemCost: Prisma.Decimal | null;
+    }>,
+    lowStockCount: number,
+  ): InventoryStatsKpis {
+    let soldQty = 0;
+    let soldCostEst = 0;
+    let wasteQty = 0;
+    let wasteCostEst = 0;
+    let receiveQty = 0;
+    let receiveCost = 0;
+    let refundQty = 0;
+    let netChange = 0;
+    const orders = new Set<string>();
+
+    for (const move of moves) {
+      const delta = Number(move.deltaQty);
+      const abs = Math.abs(delta);
+      const itemCost = move.stockItemCost ? Number(move.stockItemCost) : 0;
+      netChange += delta;
+
+      switch (move.type) {
+        case StockMovementType.SALE:
+          soldQty += abs;
+          soldCostEst += abs * itemCost;
+          if (move.orderId) {
+            orders.add(move.orderId);
+          }
+          break;
+        case StockMovementType.WASTE:
+          wasteQty += abs;
+          wasteCostEst += abs * itemCost;
+          break;
+        case StockMovementType.RECEIVE:
+          receiveQty += abs;
+          if (move.unitCost != null) {
+            receiveCost += abs * Number(move.unitCost);
+          }
+          break;
+        case StockMovementType.REFUND:
+          refundQty += abs;
+          if (move.orderId) {
+            orders.add(move.orderId);
+          }
+          break;
+        default:
+          break;
+      }
+    }
+
+    return {
+      soldQty: round3(soldQty),
+      soldCostEst: round2(soldCostEst),
+      wasteQty: round3(wasteQty),
+      wasteCostEst: round2(wasteCostEst),
+      receiveQty: round3(receiveQty),
+      receiveCost: round2(receiveCost),
+      refundQty: round3(refundQty),
+      netChange: round3(netChange),
+      lowStockCount,
+      ordersTouched: orders.size,
+    };
+  }
+
+  private aggregateStatsDaily(
+    moves: Array<{
+      type: StockMovementType;
+      deltaQty: Prisma.Decimal;
+      unitCost: Prisma.Decimal | null;
+      createdAt: Date;
+    }>,
+    from: Date,
+    to: Date,
+  ): InventoryStatsDailyRow[] {
+    const byDay = new Map<string, InventoryStatsDailyRow>();
+
+    // Seed every Melbourne day in range so charts have continuous x-axis.
+    const cursor = new Date(from.getTime());
+    while (cursor.getTime() <= to.getTime()) {
+      const key = melbourneDayKey(cursor);
+      if (!byDay.has(key)) {
+        byDay.set(key, {
+          date: key,
+          soldQty: 0,
+          wasteQty: 0,
+          receiveQty: 0,
+          receiveCost: 0,
+        });
+      }
+      cursor.setUTCDate(cursor.getUTCDate() + 1);
+    }
+
+    for (const move of moves) {
+      const key = melbourneDayKey(move.createdAt);
+      let row = byDay.get(key);
+      if (!row) {
+        row = {
+          date: key,
+          soldQty: 0,
+          wasteQty: 0,
+          receiveQty: 0,
+          receiveCost: 0,
+        };
+        byDay.set(key, row);
+      }
+      const abs = Math.abs(Number(move.deltaQty));
+      if (move.type === StockMovementType.SALE) {
+        row.soldQty += abs;
+      } else if (move.type === StockMovementType.WASTE) {
+        row.wasteQty += abs;
+      } else if (move.type === StockMovementType.RECEIVE) {
+        row.receiveQty += abs;
+        if (move.unitCost != null) {
+          row.receiveCost += abs * Number(move.unitCost);
+        }
+      }
+    }
+
+    return [...byDay.values()]
+      .sort((a, b) => a.date.localeCompare(b.date))
+      .map((row) => ({
+        date: row.date,
+        soldQty: round3(row.soldQty),
+        wasteQty: round3(row.wasteQty),
+        receiveQty: round3(row.receiveQty),
+        receiveCost: round2(row.receiveCost),
+      }));
+  }
+
+  private aggregateTopSkus(
+    moves: Array<{
+      type: StockMovementType;
+      deltaQty: Prisma.Decimal;
+      stockItemId: string;
+      stockItemName: string;
+      stockItemCost: Prisma.Decimal | null;
+    }>,
+    type: StockMovementType,
+  ): InventoryStatsSkuRow[] {
+    const map = new Map<
+      string,
+      { stockItemId: string; name: string; qty: number; costEst: number }
+    >();
+
+    for (const move of moves) {
+      if (move.type !== type) {
+        continue;
+      }
+      const abs = Math.abs(Number(move.deltaQty));
+      const cost = move.stockItemCost ? Number(move.stockItemCost) : 0;
+      const current = map.get(move.stockItemId) ?? {
+        stockItemId: move.stockItemId,
+        name: move.stockItemName,
+        qty: 0,
+        costEst: 0,
+      };
+      current.qty += abs;
+      current.costEst += abs * cost;
+      map.set(move.stockItemId, current);
+    }
+
+    return [...map.values()]
+      .sort((a, b) => b.qty - a.qty)
+      .slice(0, 10)
+      .map((row) => ({
+        stockItemId: row.stockItemId,
+        name: row.name,
+        qty: round3(row.qty),
+        costEst: round2(row.costEst),
+      }));
   }
 
   async createItem(
@@ -1416,4 +1758,12 @@ export class InventoryService {
       createdAt: movement.createdAt,
     };
   }
+}
+
+function round2(value: number): number {
+  return Math.round(value * 100) / 100;
+}
+
+function round3(value: number): number {
+  return Math.round(value * 1000) / 1000;
 }
