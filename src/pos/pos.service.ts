@@ -18,6 +18,7 @@ import {
 } from '@prisma/client';
 import { AuthenticatedUser } from '../auth/interfaces/authenticated-user.interface';
 import { CrmService } from '../crm/crm.service';
+import { InventoryService } from '../inventory/inventory.service';
 import { PaymentSettingsService } from '../payment-settings/payment-settings.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { PricingService } from '../pricing/pricing.service';
@@ -33,6 +34,7 @@ export class PosService {
     private readonly linklyService: LinklyService,
     private readonly paymentSettingsService: PaymentSettingsService,
     private readonly crmService: CrmService,
+    private readonly inventoryService: InventoryService,
   ) {}
 
   quote(dto: QuoteRequestDto) {
@@ -249,6 +251,7 @@ export class PosService {
     });
 
     await this.crmService.linkOrderById(orderId);
+    await this.inventoryService.deductForPaidOrder(orderId);
 
     return {
       orderId: updated.id,
@@ -276,6 +279,7 @@ export class PosService {
     const order = await this.ensurePosOrder(orderId);
 
     if (order.paymentStatus === PaymentStatus.PAID) {
+      await this.inventoryService.deductForPaidOrder(orderId);
       return order;
     }
 
@@ -300,6 +304,7 @@ export class PosService {
     });
 
     await this.crmService.linkOrderById(orderId);
+    await this.inventoryService.deductForPaidOrder(orderId);
     return updated;
   }
 

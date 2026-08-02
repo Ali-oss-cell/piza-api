@@ -9,6 +9,7 @@ import { PaymentMethod, PaymentStatus } from '@prisma/client';
 import StripeLib from 'stripe';
 import { PrismaService } from '../prisma/prisma.service';
 import { CrmService } from '../crm/crm.service';
+import { InventoryService } from '../inventory/inventory.service';
 
 function createStripeClient(secretKey: string) {
   return new StripeLib(secretKey);
@@ -27,6 +28,7 @@ export class StripeService {
     private readonly configService: ConfigService,
     private readonly prisma: PrismaService,
     private readonly crmService: CrmService,
+    private readonly inventoryService: InventoryService,
   ) {
     const secretKey = this.configService.get<string>('STRIPE_SECRET_KEY');
 
@@ -145,7 +147,12 @@ export class StripeService {
 
     const order = await this.prisma.order.findUnique({ where: { id: orderId } });
 
-    if (!order || order.paymentStatus === PaymentStatus.PAID) {
+    if (!order) {
+      return;
+    }
+
+    if (order.paymentStatus === PaymentStatus.PAID) {
+      await this.inventoryService.deductForPaidOrder(orderId);
       return;
     }
 
@@ -163,6 +170,7 @@ export class StripeService {
     });
 
     await this.crmService.linkOrderById(orderId);
+    await this.inventoryService.deductForPaidOrder(orderId);
   }
 
   private async markOrderFailedFromIntent(paymentIntent: {

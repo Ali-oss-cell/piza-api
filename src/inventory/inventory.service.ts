@@ -2,13 +2,22 @@ import {
   BadRequestException,
   ConflictException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
-import { Prisma, StockItem, StockMovement, StockMovementType } from '@prisma/client';
+import {
+  Prisma,
+  StockItem,
+  StockMovement,
+  StockMovementType,
+} from '@prisma/client';
 import { BrandsService } from '../brands/brands.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateStockItemDto } from './dto/create-stock-item.dto';
-import { CreateStockMovementDto } from './dto/create-stock-movement.dto';
+import {
+  CreateStockMovementDto,
+  ReplaceRecipeDto,
+} from './dto/create-stock-movement.dto';
 import { UpdateStockItemDto } from './dto/update-stock-item.dto';
 
 export type StockItemResponse = {
@@ -36,6 +45,9 @@ export type StockMovementResponse = {
   deltaQty: string;
   qtyAfter: string;
   reason: string | null;
+  unitCost: string | null;
+  receivedAt: Date | null;
+  orderId: string | null;
   createdById: string | null;
   createdByName: string | null;
   createdAt: Date;
@@ -47,8 +59,26 @@ export type InventorySummaryResponse = {
   lowStockCount: number;
 };
 
+export type RecipeLineResponse = {
+  id: string;
+  stockItemId: string;
+  stockItemName: string;
+  stockItemUnit: string;
+  qtyPerUnit: string;
+};
+
+export type MenuItemRecipeResponse = {
+  menuItemId: string;
+  menuItemName: string;
+  menuItemNumber: number;
+  categorySlug: string;
+  lines: RecipeLineResponse[];
+};
+
 @Injectable()
 export class InventoryService {
+  private readonly logger = new Logger(InventoryService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly brandsService: BrandsService,
@@ -125,6 +155,11 @@ export class InventoryService {
     }
 
     const qtyOnHand = new Prisma.Decimal(dto.qtyOnHand ?? 0);
+    const openingCost =
+      dto.costPerUnit === undefined || dto.costPerUnit === null
+        ? null
+        : new Prisma.Decimal(dto.costPerUnit);
+
     const item = await this.prisma.$transaction(async (tx) => {
       const created = await tx.stockItem.create({
         data: {
@@ -138,10 +173,7 @@ export class InventoryService {
             dto.lowStockAt === undefined || dto.lowStockAt === null
               ? null
               : new Prisma.Decimal(dto.lowStockAt),
-          costPerUnit:
-            dto.costPerUnit === undefined || dto.costPerUnit === null
-              ? null
-              : new Prisma.Decimal(dto.costPerUnit),
+          costPerUnit: openingCost,
           notes: dto.notes?.trim() || null,
           isActive: dto.isActive ?? true,
         },
@@ -156,6 +188,8 @@ export class InventoryService {
             deltaQty: qtyOnHand,
             qtyAfter: qtyOnHand,
             reason: 'Opening stock',
+            unitCost: openingCost,
+            receivedAt: new Date(),
           },
         });
       }
@@ -282,6 +316,12 @@ export class InventoryService {
     userId: string | undefined,
     brandSlug?: string,
   ): Promise<{ item: StockItemResponse; movement: StockMovementResponse }> {
+    if (dto.type === StockMovementType.SALE) {
+      throw new BadRequestException(
+        'SALE movements are created automatically when orders are paid.',
+      );
+    }
+
     const brandId = await this.brandsService.resolveBrandId(brandSlug);
 
     const result = await this.prisma.$transaction(async (tx) => {
@@ -294,11 +334,36 @@ export class InventoryService {
 
       const currentQty = new Prisma.Decimal(item.qtyOnHand);
       let delta: Prisma.Decimal;
+      let unitCost: Prisma.Decimal | null = null;
+      let receivedAt: Date | null = null;
+      let nextCostPerUnit: Prisma.Decimal | null | undefined;
 
       switch (dto.type) {
         case StockMovementType.RECEIVE: {
           const amount = this.requirePositiveQty(dto.qty, 'Receive quantity');
+          if (
+            dto.unitCost === undefined ||
+            Number.isNaN(Number(dto.unitCost))
+          ) {
+            throw new BadRequestException(
+              'Unit cost (AUD) is required when receiving stock.',
+            );
+          }
+          unitCost = new Prisma.Decimal(dto.unitCost);
+          if (unitCost.isNegative()) {
+            throw new BadRequestException('Unit cost cannot be negative.');
+          }
+          receivedAt = dto.receivedAt ? new Date(dto.receivedAt) : new Date();
+          if (Number.isNaN(receivedAt.getTime())) {
+            throw new BadRequestException('Receive date is invalid.');
+          }
           delta = amount;
+          nextCostPerUnit = this.weightedAverageCost(
+            currentQty,
+            item.costPerUnit,
+            amount,
+            unitCost,
+          );
           break;
         }
         case StockMovementType.WASTE: {
@@ -337,15 +402,30 @@ export class InventoryService {
       }
 
       const qtyAfter = currentQty.plus(delta);
-      if (qtyAfter.isNegative()) {
-        throw new BadRequestException(
-          `Insufficient stock. On hand: ${currentQty.toString()}, change: ${delta.toString()}.`,
-        );
+      if (
+        qtyAfter.isNegative() &&
+        dto.type !== StockMovementType.RECEIVE
+      ) {
+        // Allow COUNT/ADJUST/WASTE to fail if overdrawn — staff corrections
+        // should not silently invent stock. SALE path allows negative.
+        if (
+          dto.type === StockMovementType.WASTE ||
+          dto.type === StockMovementType.ADJUST
+        ) {
+          throw new BadRequestException(
+            `Insufficient stock. On hand: ${currentQty.toString()}, change: ${delta.toString()}.`,
+          );
+        }
       }
 
       const updated = await tx.stockItem.update({
         where: { id: itemId },
-        data: { qtyOnHand: qtyAfter },
+        data: {
+          qtyOnHand: qtyAfter,
+          ...(nextCostPerUnit !== undefined
+            ? { costPerUnit: nextCostPerUnit }
+            : {}),
+        },
       });
 
       const movement = await tx.stockMovement.create({
@@ -356,6 +436,8 @@ export class InventoryService {
           deltaQty: delta,
           qtyAfter,
           reason: dto.reason?.trim() || null,
+          unitCost,
+          receivedAt,
           createdById: userId ?? null,
         },
         include: {
@@ -374,6 +456,197 @@ export class InventoryService {
     };
   }
 
+  async listRecipes(brandSlug?: string): Promise<MenuItemRecipeResponse[]> {
+    const brandId = await this.brandsService.resolveBrandId(brandSlug);
+    const menuItems = await this.prisma.menuItem.findMany({
+      where: { brandId, isActive: true },
+      orderBy: [{ categorySlug: 'asc' }, { number: 'asc' }, { name: 'asc' }],
+      include: {
+        recipeLines: {
+          include: {
+            stockItem: { select: { id: true, name: true, unit: true } },
+          },
+          orderBy: { stockItem: { name: 'asc' } },
+        },
+      },
+    });
+
+    return menuItems.map((item) => ({
+      menuItemId: item.id,
+      menuItemName: item.name,
+      menuItemNumber: item.number,
+      categorySlug: item.categorySlug,
+      lines: item.recipeLines.map((line) => ({
+        id: line.id,
+        stockItemId: line.stockItemId,
+        stockItemName: line.stockItem.name,
+        stockItemUnit: line.stockItem.unit,
+        qtyPerUnit: line.qtyPerUnit.toString(),
+      })),
+    }));
+  }
+
+  async replaceRecipe(
+    menuItemId: string,
+    dto: ReplaceRecipeDto,
+    brandSlug?: string,
+  ): Promise<MenuItemRecipeResponse> {
+    const brandId = await this.brandsService.resolveBrandId(brandSlug);
+    const menuItem = await this.prisma.menuItem.findFirst({
+      where: { id: menuItemId, brandId },
+    });
+    if (!menuItem) {
+      throw new NotFoundException('Menu item not found.');
+    }
+
+    const stockIds = dto.lines.map((line) => line.stockItemId);
+    if (new Set(stockIds).size !== stockIds.length) {
+      throw new BadRequestException('Duplicate stock items in recipe.');
+    }
+
+    if (stockIds.length > 0) {
+      const stockItems = await this.prisma.stockItem.findMany({
+        where: { brandId, id: { in: stockIds } },
+        select: { id: true },
+      });
+      if (stockItems.length !== stockIds.length) {
+        throw new BadRequestException(
+          'One or more stock items are invalid for this store.',
+        );
+      }
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.menuItemRecipeLine.deleteMany({
+        where: { menuItemId, brandId },
+      });
+      if (dto.lines.length > 0) {
+        await tx.menuItemRecipeLine.createMany({
+          data: dto.lines.map((line) => ({
+            brandId,
+            menuItemId,
+            stockItemId: line.stockItemId,
+            qtyPerUnit: new Prisma.Decimal(line.qtyPerUnit),
+          })),
+        });
+      }
+    });
+
+    const recipes = await this.listRecipes(brandSlug);
+    const updated = recipes.find((entry) => entry.menuItemId === menuItemId);
+    if (!updated) {
+      throw new NotFoundException('Menu item not found after save.');
+    }
+    return updated;
+  }
+
+  /**
+   * Deduct recipe stock for a paid order. Never throws to callers that
+   * should keep payment success — logs and swallows unexpected errors.
+   */
+  async deductForPaidOrder(orderId: string): Promise<void> {
+    try {
+      await this.prisma.$transaction(async (tx) => {
+        const existing = await tx.stockMovement.findFirst({
+          where: { orderId, type: StockMovementType.SALE },
+          select: { id: true },
+        });
+        if (existing) {
+          return;
+        }
+
+        const order = await tx.order.findUnique({
+          where: { id: orderId },
+          include: {
+            items: true,
+            location: { select: { brandId: true } },
+          },
+        });
+        if (!order) {
+          return;
+        }
+
+        const brandId = order.location.brandId;
+        const usage = new Map<string, Prisma.Decimal>();
+
+        for (const line of order.items) {
+          if (!line.menuItemId || line.quantity <= 0) {
+            continue;
+          }
+          const recipeLines = await tx.menuItemRecipeLine.findMany({
+            where: { menuItemId: line.menuItemId, brandId },
+          });
+          for (const recipe of recipeLines) {
+            const add = recipe.qtyPerUnit.mul(line.quantity);
+            const current = usage.get(recipe.stockItemId) ?? new Prisma.Decimal(0);
+            usage.set(recipe.stockItemId, current.plus(add));
+          }
+        }
+
+        if (usage.size === 0) {
+          return;
+        }
+
+        const ticketLabel =
+          order.ticketNumber != null
+            ? `Order #${order.ticketNumber}`
+            : `Order ${order.id.slice(0, 8)}`;
+
+        for (const [stockItemId, consumeQty] of usage.entries()) {
+          if (consumeQty.lte(0)) {
+            continue;
+          }
+          const item = await tx.stockItem.findFirst({
+            where: { id: stockItemId, brandId },
+          });
+          if (!item) {
+            continue;
+          }
+
+          const qtyAfter = item.qtyOnHand.minus(consumeQty);
+          await tx.stockItem.update({
+            where: { id: stockItemId },
+            data: { qtyOnHand: qtyAfter },
+          });
+          await tx.stockMovement.create({
+            data: {
+              stockItemId,
+              brandId,
+              type: StockMovementType.SALE,
+              deltaQty: consumeQty.negated(),
+              qtyAfter,
+              reason: ticketLabel,
+              orderId: order.id,
+            },
+          });
+        }
+      });
+    } catch (error) {
+      this.logger.error(
+        `Failed to deduct inventory for order ${orderId}`,
+        error instanceof Error ? error.stack : String(error),
+      );
+    }
+  }
+
+  private weightedAverageCost(
+    oldQty: Prisma.Decimal,
+    oldCost: Prisma.Decimal | null,
+    recvQty: Prisma.Decimal,
+    unitCost: Prisma.Decimal,
+  ): Prisma.Decimal {
+    const safeOldQty = oldQty.isNegative() ? new Prisma.Decimal(0) : oldQty;
+    if (safeOldQty.isZero() || oldCost == null) {
+      return unitCost;
+    }
+    const numerator = safeOldQty.mul(oldCost).plus(recvQty.mul(unitCost));
+    const denominator = safeOldQty.plus(recvQty);
+    if (denominator.isZero()) {
+      return unitCost;
+    }
+    return numerator.div(denominator).toDecimalPlaces(2);
+  }
+
   private requirePositiveQty(
     qty: number | undefined,
     label: string,
@@ -389,8 +662,6 @@ export class InventoryService {
   }
 
   private toItemResponse(item: StockItem): StockItemResponse {
-    const qtyOnHand = item.qtyOnHand.toString();
-    const lowStockAt = item.lowStockAt?.toString() ?? null;
     const isLowStock =
       item.isActive &&
       item.lowStockAt != null &&
@@ -403,8 +674,8 @@ export class InventoryService {
       sku: item.sku,
       category: item.category,
       unit: item.unit,
-      qtyOnHand,
-      lowStockAt,
+      qtyOnHand: item.qtyOnHand.toString(),
+      lowStockAt: item.lowStockAt?.toString() ?? null,
       costPerUnit: item.costPerUnit?.toString() ?? null,
       notes: item.notes,
       isActive: item.isActive,
@@ -431,6 +702,9 @@ export class InventoryService {
       deltaQty: movement.deltaQty.toString(),
       qtyAfter: movement.qtyAfter.toString(),
       reason: movement.reason,
+      unitCost: movement.unitCost?.toString() ?? null,
+      receivedAt: movement.receivedAt,
+      orderId: movement.orderId,
       createdById: movement.createdById,
       createdByName,
       createdAt: movement.createdAt,

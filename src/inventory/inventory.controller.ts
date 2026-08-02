@@ -7,6 +7,7 @@ import {
   ParseUUIDPipe,
   Patch,
   Post,
+  Put,
   Query,
   UseGuards,
 } from '@nestjs/common';
@@ -18,7 +19,10 @@ import { Roles } from '../common/decorators/roles.decorator';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { CreateStockItemDto } from './dto/create-stock-item.dto';
-import { CreateStockMovementDto } from './dto/create-stock-movement.dto';
+import {
+  CreateStockMovementDto,
+  ReplaceRecipeDto,
+} from './dto/create-stock-movement.dto';
 import { UpdateStockItemDto } from './dto/update-stock-item.dto';
 import { InventoryService } from './inventory.service';
 
@@ -92,5 +96,19 @@ export class InventoryController {
     @BrandSlug() brandSlug?: string,
   ) {
     return this.inventoryService.createMovement(id, dto, user.id, brandSlug);
+  }
+
+  @Get('recipes')
+  listRecipes(@BrandSlug() brandSlug?: string) {
+    return this.inventoryService.listRecipes(brandSlug);
+  }
+
+  @Put('recipes/:menuItemId')
+  replaceRecipe(
+    @Param('menuItemId', ParseUUIDPipe) menuItemId: string,
+    @Body() dto: ReplaceRecipeDto,
+    @BrandSlug() brandSlug?: string,
+  ) {
+    return this.inventoryService.replaceRecipe(menuItemId, dto, brandSlug);
   }
 }
