@@ -46,6 +46,8 @@ export type StockItemResponse = {
 export type StockMovementResponse = {
   id: string;
   stockItemId: string;
+  stockItemName?: string;
+  stockItemUnit?: string;
   brandId: string;
   type: string;
   deltaQty: string;
@@ -354,6 +356,42 @@ export class InventoryService {
       orderBy: { createdAt: 'desc' },
       take: Math.min(Math.max(take, 1), 200),
       include: {
+        stockItem: { select: { name: true, unit: true } },
+        createdBy: {
+          select: { firstName: true, lastName: true },
+        },
+      },
+    });
+
+    return movements.map((movement) => this.toMovementResponse(movement));
+  }
+
+  async listBrandMovements(
+    brandSlug?: string,
+    options?: { take?: number; type?: string; stockItemId?: string },
+  ): Promise<StockMovementResponse[]> {
+    const brandId = await this.brandsService.resolveBrandId(brandSlug);
+    const take = Math.min(Math.max(options?.take ?? 100, 1), 300);
+    const typeFilter =
+      options?.type &&
+      Object.values(StockMovementType).includes(
+        options.type as StockMovementType,
+      )
+        ? (options.type as StockMovementType)
+        : undefined;
+
+    const movements = await this.prisma.stockMovement.findMany({
+      where: {
+        brandId,
+        ...(typeFilter ? { type: typeFilter } : {}),
+        ...(options?.stockItemId
+          ? { stockItemId: options.stockItemId }
+          : {}),
+      },
+      orderBy: { createdAt: 'desc' },
+      take,
+      include: {
+        stockItem: { select: { name: true, unit: true } },
         createdBy: {
           select: { firstName: true, lastName: true },
         },
@@ -1208,6 +1246,7 @@ export class InventoryService {
 
   private toMovementResponse(
     movement: StockMovement & {
+      stockItem?: { name: string; unit: string } | null;
       createdBy?: { firstName: string; lastName: string } | null;
     },
   ): StockMovementResponse {
@@ -1218,6 +1257,8 @@ export class InventoryService {
     return {
       id: movement.id,
       stockItemId: movement.stockItemId,
+      stockItemName: movement.stockItem?.name,
+      stockItemUnit: movement.stockItem?.unit,
       brandId: movement.brandId,
       type: movement.type,
       deltaQty: movement.deltaQty.toString(),

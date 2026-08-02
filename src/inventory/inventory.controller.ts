@@ -53,6 +53,20 @@ export class InventoryController {
     return this.inventoryService.getSummary(brandSlug);
   }
 
+  @Get('movements')
+  listBrandMovements(
+    @BrandSlug() brandSlug?: string,
+    @Query('take') take?: string,
+    @Query('type') type?: string,
+    @Query('stockItemId') stockItemId?: string,
+  ) {
+    return this.inventoryService.listBrandMovements(brandSlug, {
+      take: take ? Number(take) : undefined,
+      type,
+      stockItemId,
+    });
+  }
+
   @Get('items')
   listItems(
     @BrandSlug() brandSlug?: string,
