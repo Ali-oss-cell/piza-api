@@ -22,6 +22,7 @@ import { Roles } from '../common/decorators/roles.decorator';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { CreateStockItemDto } from './dto/create-stock-item.dto';
+import { BulkCreateStockItemsDto } from './dto/bulk-create-stock-items.dto';
 import {
   CreateStockMovementDto,
   ReplaceRecipeDto,
@@ -86,6 +87,14 @@ export class InventoryController {
     @BrandSlug() brandSlug?: string,
   ) {
     return this.inventoryService.createItem(dto, brandSlug);
+  }
+
+  @Post('items/bulk')
+  createItemsBulk(
+    @Body() dto: BulkCreateStockItemsDto,
+    @BrandSlug() brandSlug?: string,
+  ) {
+    return this.inventoryService.createItemsBulk(dto.items, brandSlug);
   }
 
   @Patch('items/:id')

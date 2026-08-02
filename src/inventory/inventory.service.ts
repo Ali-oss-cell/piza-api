@@ -14,6 +14,7 @@ import {
   StockItem,
   StockMovement,
   StockMovementType,
+  StockUnit,
   UserRole,
 } from '@prisma/client';
 import { AuditService } from '../audit/audit.service';
@@ -253,6 +254,149 @@ export class InventoryService {
     });
 
     return this.toItemResponse(item);
+  }
+
+  async createItemsBulk(
+    dtos: CreateStockItemDto[],
+    brandSlug?: string,
+  ): Promise<{
+    created: StockItemResponse[];
+    skipped: Array<{ name: string; reason: string }>;
+  }> {
+    if (!Array.isArray(dtos) || dtos.length === 0) {
+      throw new BadRequestException('At least one stock item is required.');
+    }
+    if (dtos.length > 500) {
+      throw new BadRequestException('Maximum 500 stock items per bulk create.');
+    }
+
+    const brandId = await this.brandsService.resolveBrandId(brandSlug);
+    const existing = await this.prisma.stockItem.findMany({
+      where: { brandId },
+      select: { name: true },
+    });
+    const existingNames = new Set(
+      existing.map((item) => item.name.trim().toLowerCase()),
+    );
+
+    const skipped: Array<{ name: string; reason: string }> = [];
+    const toCreate: Array<{
+      name: string;
+      sku: string | null;
+      category: string | null;
+      unit: StockUnit;
+      qtyOnHand: Prisma.Decimal;
+      lowStockAt: Prisma.Decimal | null;
+      costPerUnit: Prisma.Decimal | null;
+      notes: string | null;
+      isActive: boolean;
+    }> = [];
+    const batchNames = new Set<string>();
+
+    for (const dto of dtos) {
+      const name = dto.name?.trim() ?? '';
+      if (!name) {
+        skipped.push({ name: dto.name ?? '', reason: 'Name is required.' });
+        continue;
+      }
+      const nameKey = name.toLowerCase();
+      if (existingNames.has(nameKey) || batchNames.has(nameKey)) {
+        skipped.push({ name, reason: 'Already exists.' });
+        continue;
+      }
+      batchNames.add(nameKey);
+
+      const qtyOnHand = new Prisma.Decimal(dto.qtyOnHand ?? 0);
+      const openingCost =
+        dto.costPerUnit === undefined || dto.costPerUnit === null
+          ? null
+          : new Prisma.Decimal(dto.costPerUnit);
+
+      toCreate.push({
+        name,
+        sku: dto.sku?.trim() || null,
+        category: dto.category?.trim() || null,
+        unit: dto.unit ?? StockUnit.EACH,
+        qtyOnHand,
+        lowStockAt:
+          dto.lowStockAt === undefined || dto.lowStockAt === null
+            ? null
+            : new Prisma.Decimal(dto.lowStockAt),
+        costPerUnit: openingCost,
+        notes: dto.notes?.trim() || null,
+        isActive: dto.isActive ?? true,
+      });
+    }
+
+    if (toCreate.length === 0) {
+      return { created: [], skipped };
+    }
+
+    const createdRows = await this.prisma.$transaction(async (tx) => {
+      await tx.stockItem.createMany({
+        data: toCreate.map((row) => ({
+          brandId,
+          name: row.name,
+          sku: row.sku,
+          category: row.category,
+          unit: row.unit,
+          qtyOnHand: row.qtyOnHand,
+          lowStockAt: row.lowStockAt,
+          costPerUnit: row.costPerUnit,
+          notes: row.notes,
+          isActive: row.isActive,
+        })),
+        skipDuplicates: true,
+      });
+
+      const created = await tx.stockItem.findMany({
+        where: {
+          brandId,
+          name: { in: toCreate.map((row) => row.name) },
+        },
+      });
+
+      const byName = new Map(created.map((item) => [item.name, item]));
+      const openingMoves = toCreate
+        .filter((row) => !row.qtyOnHand.isZero())
+        .map((row) => {
+          const item = byName.get(row.name);
+          if (!item) {
+            return null;
+          }
+          return {
+            stockItemId: item.id,
+            brandId,
+            type: StockMovementType.RECEIVE,
+            deltaQty: row.qtyOnHand,
+            qtyAfter: row.qtyOnHand,
+            reason: 'Opening stock',
+            unitCost: row.costPerUnit,
+            receivedAt: new Date(),
+          };
+        })
+        .filter(Boolean) as Array<{
+        stockItemId: string;
+        brandId: string;
+        type: typeof StockMovementType.RECEIVE;
+        deltaQty: Prisma.Decimal;
+        qtyAfter: Prisma.Decimal;
+        reason: string;
+        unitCost: Prisma.Decimal | null;
+        receivedAt: Date;
+      }>;
+
+      if (openingMoves.length > 0) {
+        await tx.stockMovement.createMany({ data: openingMoves });
+      }
+
+      return created;
+    });
+
+    return {
+      created: createdRows.map((item) => this.toItemResponse(item)),
+      skipped,
+    };
   }
 
   async updateItem(
