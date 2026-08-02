@@ -203,9 +203,18 @@ export class StripeService {
       return;
     }
 
+    const orders = await this.prisma.order.findMany({
+      where: { stripePaymentIntentId: paymentIntentId },
+      select: { id: true },
+    });
+
     await this.prisma.order.updateMany({
       where: { stripePaymentIntentId: paymentIntentId },
       data: { paymentStatus: PaymentStatus.REFUNDED },
     });
+
+    for (const order of orders) {
+      await this.inventoryService.restockForRefundedOrder(order.id);
+    }
   }
 }

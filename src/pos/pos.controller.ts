@@ -84,8 +84,16 @@ export class PosController {
   }
 
   @Post('payments/card')
-  startCardPayment(@Body() dto: CardPaymentDto) {
-    return this.posService.startCardPayment(dto.orderId, dto.readerId);
+  startCardPayment(
+    @Body() dto: CardPaymentDto,
+    @CurrentUser() staff: AuthenticatedUser,
+  ) {
+    return this.posService.startCardPayment(
+      dto.orderId,
+      dto.readerId,
+      staff,
+      dto.inventoryOverrideReason,
+    );
   }
 
   @Get('payments/:orderId/status')
@@ -94,7 +102,14 @@ export class PosController {
   }
 
   @Post('payments/cash')
-  markCashPaid(@Body() dto: CashPaymentDto) {
-    return this.posService.markCashPaid(dto.orderId);
+  markCashPaid(
+    @Body() dto: CashPaymentDto,
+    @CurrentUser() staff: AuthenticatedUser,
+  ) {
+    return this.posService.markCashPaid(
+      dto.orderId,
+      staff,
+      dto.inventoryOverrideReason,
+    );
   }
 }

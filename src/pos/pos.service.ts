@@ -181,7 +181,12 @@ export class PosService {
     });
   }
 
-  async startCardPayment(orderId: string, _readerId?: string) {
+  async startCardPayment(
+    orderId: string,
+    _readerId?: string,
+    staff?: AuthenticatedUser,
+    inventoryOverrideReason?: string,
+  ) {
     const order = await this.ensurePosOrder(orderId);
 
     if (order.paymentStatus === PaymentStatus.PAID) {
@@ -195,6 +200,12 @@ export class PosService {
     if (!location) {
       throw new NotFoundException('Order location not found');
     }
+
+    await this.inventoryService.assertCanFulfillOrder(orderId, {
+      overrideReason: inventoryOverrideReason,
+      userId: staff?.id,
+      userRole: staff?.role,
+    });
 
     await this.paymentSettingsService.assertCardTerminalEnabled(location.brandId);
 
@@ -275,7 +286,11 @@ export class PosService {
     };
   }
 
-  async markCashPaid(orderId: string): Promise<Order> {
+  async markCashPaid(
+    orderId: string,
+    staff?: AuthenticatedUser,
+    inventoryOverrideReason?: string,
+  ): Promise<Order> {
     const order = await this.ensurePosOrder(orderId);
 
     if (order.paymentStatus === PaymentStatus.PAID) {
@@ -290,6 +305,12 @@ export class PosService {
     if (!location) {
       throw new NotFoundException('Order location not found');
     }
+
+    await this.inventoryService.assertCanFulfillOrder(orderId, {
+      overrideReason: inventoryOverrideReason,
+      userId: staff?.id,
+      userRole: staff?.role,
+    });
 
     await this.paymentSettingsService.assertCashEnabled(location.brandId);
 

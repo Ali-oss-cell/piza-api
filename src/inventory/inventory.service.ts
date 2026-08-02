@@ -1,16 +1,22 @@
 import {
   BadRequestException,
-  ConflictException,
+  ForbiddenException,
+  HttpException,
+  HttpStatus,
   Injectable,
   Logger,
   NotFoundException,
+  ConflictException,
 } from '@nestjs/common';
 import {
+  AuditAction,
   Prisma,
   StockItem,
   StockMovement,
   StockMovementType,
+  UserRole,
 } from '@prisma/client';
+import { AuditService } from '../audit/audit.service';
 import { BrandsService } from '../brands/brands.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateStockItemDto } from './dto/create-stock-item.dto';
@@ -65,6 +71,7 @@ export type RecipeLineResponse = {
   stockItemName: string;
   stockItemUnit: string;
   qtyPerUnit: string;
+  sizeKey: string;
 };
 
 export type MenuItemRecipeResponse = {
@@ -75,6 +82,40 @@ export type MenuItemRecipeResponse = {
   lines: RecipeLineResponse[];
 };
 
+export type ToppingRecipeResponse = {
+  toppingId: string;
+  toppingLabel: string;
+  categorySlug: string;
+  lines: RecipeLineResponse[];
+};
+
+export type CrustRecipeResponse = {
+  crustOptionId: string;
+  crustLabel: string;
+  lines: RecipeLineResponse[];
+};
+
+export type UsagePreviewRow = {
+  stockItemId: string;
+  name: string;
+  unit: string;
+  required: string;
+  onHand: string;
+  shortfall: string;
+};
+
+type OrderForUsage = {
+  id: string;
+  location: { brandId: string };
+  items: Array<{
+    menuItemId: string | null;
+    quantity: number;
+    size: string | null;
+    crust: string | null;
+    toppings: Prisma.JsonValue;
+  }>;
+};
+
 @Injectable()
 export class InventoryService {
   private readonly logger = new Logger(InventoryService.name);
@@ -82,7 +123,19 @@ export class InventoryService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly brandsService: BrandsService,
+    private readonly auditService: AuditService,
   ) {}
+
+  normalizeSizeKey(size: string): 'small' | 'large' | 'family' {
+    const normalized = size.toLowerCase();
+    if (normalized.startsWith('s')) {
+      return 'small';
+    }
+    if (normalized.startsWith('f')) {
+      return 'family';
+    }
+    return 'large';
+  }
 
   async listItems(
     brandSlug?: string,
@@ -406,8 +459,6 @@ export class InventoryService {
         qtyAfter.isNegative() &&
         dto.type !== StockMovementType.RECEIVE
       ) {
-        // Allow COUNT/ADJUST/WASTE to fail if overdrawn — staff corrections
-        // should not silently invent stock. SALE path allows negative.
         if (
           dto.type === StockMovementType.WASTE ||
           dto.type === StockMovementType.ADJUST
@@ -466,7 +517,7 @@ export class InventoryService {
           include: {
             stockItem: { select: { id: true, name: true, unit: true } },
           },
-          orderBy: { stockItem: { name: 'asc' } },
+          orderBy: [{ sizeKey: 'asc' }, { stockItem: { name: 'asc' } }],
         },
       },
     });
@@ -476,13 +527,7 @@ export class InventoryService {
       menuItemName: item.name,
       menuItemNumber: item.number,
       categorySlug: item.categorySlug,
-      lines: item.recipeLines.map((line) => ({
-        id: line.id,
-        stockItemId: line.stockItemId,
-        stockItemName: line.stockItem.name,
-        stockItemUnit: line.stockItem.unit,
-        qtyPerUnit: line.qtyPerUnit.toString(),
-      })),
+      lines: item.recipeLines.map((line) => this.toRecipeLineResponse(line)),
     }));
   }
 
@@ -499,33 +544,35 @@ export class InventoryService {
       throw new NotFoundException('Menu item not found.');
     }
 
-    const stockIds = dto.lines.map((line) => line.stockItemId);
-    if (new Set(stockIds).size !== stockIds.length) {
-      throw new BadRequestException('Duplicate stock items in recipe.');
+    const normalized = dto.lines.map((line) => ({
+      stockItemId: line.stockItemId,
+      qtyPerUnit: line.qtyPerUnit,
+      sizeKey: (line.sizeKey ?? '').trim().toLowerCase(),
+    }));
+
+    const keys = normalized.map((l) => `${l.stockItemId}:${l.sizeKey}`);
+    if (new Set(keys).size !== keys.length) {
+      throw new BadRequestException(
+        'Duplicate stock items for the same size in recipe.',
+      );
     }
 
-    if (stockIds.length > 0) {
-      const stockItems = await this.prisma.stockItem.findMany({
-        where: { brandId, id: { in: stockIds } },
-        select: { id: true },
-      });
-      if (stockItems.length !== stockIds.length) {
-        throw new BadRequestException(
-          'One or more stock items are invalid for this store.',
-        );
-      }
-    }
+    await this.assertStockItemsBelongToBrand(
+      brandId,
+      normalized.map((l) => l.stockItemId),
+    );
 
     await this.prisma.$transaction(async (tx) => {
       await tx.menuItemRecipeLine.deleteMany({
         where: { menuItemId, brandId },
       });
-      if (dto.lines.length > 0) {
+      if (normalized.length > 0) {
         await tx.menuItemRecipeLine.createMany({
-          data: dto.lines.map((line) => ({
+          data: normalized.map((line) => ({
             brandId,
             menuItemId,
             stockItemId: line.stockItemId,
+            sizeKey: line.sizeKey,
             qtyPerUnit: new Prisma.Decimal(line.qtyPerUnit),
           })),
         });
@@ -538,6 +585,246 @@ export class InventoryService {
       throw new NotFoundException('Menu item not found after save.');
     }
     return updated;
+  }
+
+  async listToppingRecipes(
+    brandSlug?: string,
+  ): Promise<ToppingRecipeResponse[]> {
+    const brandId = await this.brandsService.resolveBrandId(brandSlug);
+    const toppings = await this.prisma.extraTopping.findMany({
+      where: { brandId, isActive: true },
+      orderBy: [{ categorySlug: 'asc' }, { sortOrder: 'asc' }, { label: 'asc' }],
+      include: {
+        recipeLines: {
+          include: {
+            stockItem: { select: { id: true, name: true, unit: true } },
+          },
+          orderBy: { stockItem: { name: 'asc' } },
+        },
+      },
+    });
+
+    return toppings.map((topping) => ({
+      toppingId: topping.id,
+      toppingLabel: topping.label,
+      categorySlug: topping.categorySlug,
+      lines: topping.recipeLines.map((line) =>
+        this.toRecipeLineResponse({ ...line, sizeKey: '' }),
+      ),
+    }));
+  }
+
+  async replaceToppingRecipe(
+    toppingId: string,
+    dto: ReplaceRecipeDto,
+    brandSlug?: string,
+  ): Promise<ToppingRecipeResponse> {
+    const brandId = await this.brandsService.resolveBrandId(brandSlug);
+    const topping = await this.prisma.extraTopping.findFirst({
+      where: { id: toppingId, brandId },
+    });
+    if (!topping) {
+      throw new NotFoundException('Topping not found.');
+    }
+
+    const stockIds = dto.lines.map((line) => line.stockItemId);
+    if (new Set(stockIds).size !== stockIds.length) {
+      throw new BadRequestException('Duplicate stock items in recipe.');
+    }
+    await this.assertStockItemsBelongToBrand(brandId, stockIds);
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.extraToppingRecipeLine.deleteMany({
+        where: { toppingId, brandId },
+      });
+      if (dto.lines.length > 0) {
+        await tx.extraToppingRecipeLine.createMany({
+          data: dto.lines.map((line) => ({
+            brandId,
+            toppingId,
+            stockItemId: line.stockItemId,
+            qtyPerUnit: new Prisma.Decimal(line.qtyPerUnit),
+          })),
+        });
+      }
+    });
+
+    const recipes = await this.listToppingRecipes(brandSlug);
+    const updated = recipes.find((entry) => entry.toppingId === toppingId);
+    if (!updated) {
+      throw new NotFoundException('Topping not found after save.');
+    }
+    return updated;
+  }
+
+  async listCrustRecipes(brandSlug?: string): Promise<CrustRecipeResponse[]> {
+    const brandId = await this.brandsService.resolveBrandId(brandSlug);
+    const crusts = await this.prisma.crustOption.findMany({
+      where: { brandId, isActive: true },
+      orderBy: [{ sortOrder: 'asc' }, { label: 'asc' }],
+      include: {
+        recipeLines: {
+          include: {
+            stockItem: { select: { id: true, name: true, unit: true } },
+          },
+          orderBy: { stockItem: { name: 'asc' } },
+        },
+      },
+    });
+
+    return crusts.map((crust) => ({
+      crustOptionId: crust.id,
+      crustLabel: crust.label,
+      lines: crust.recipeLines.map((line) =>
+        this.toRecipeLineResponse({ ...line, sizeKey: '' }),
+      ),
+    }));
+  }
+
+  async replaceCrustRecipe(
+    crustOptionId: string,
+    dto: ReplaceRecipeDto,
+    brandSlug?: string,
+  ): Promise<CrustRecipeResponse> {
+    const brandId = await this.brandsService.resolveBrandId(brandSlug);
+    const crust = await this.prisma.crustOption.findFirst({
+      where: { id: crustOptionId, brandId },
+    });
+    if (!crust) {
+      throw new NotFoundException('Crust option not found.');
+    }
+
+    const stockIds = dto.lines.map((line) => line.stockItemId);
+    if (new Set(stockIds).size !== stockIds.length) {
+      throw new BadRequestException('Duplicate stock items in recipe.');
+    }
+    await this.assertStockItemsBelongToBrand(brandId, stockIds);
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.crustOptionRecipeLine.deleteMany({
+        where: { crustOptionId, brandId },
+      });
+      if (dto.lines.length > 0) {
+        await tx.crustOptionRecipeLine.createMany({
+          data: dto.lines.map((line) => ({
+            brandId,
+            crustOptionId,
+            stockItemId: line.stockItemId,
+            qtyPerUnit: new Prisma.Decimal(line.qtyPerUnit),
+          })),
+        });
+      }
+    });
+
+    const recipes = await this.listCrustRecipes(brandSlug);
+    const updated = recipes.find(
+      (entry) => entry.crustOptionId === crustOptionId,
+    );
+    if (!updated) {
+      throw new NotFoundException('Crust option not found after save.');
+    }
+    return updated;
+  }
+
+  async previewUsageForOrder(orderId: string): Promise<UsagePreviewRow[]> {
+    const order = await this.prisma.order.findUnique({
+      where: { id: orderId },
+      include: {
+        items: true,
+        location: { select: { brandId: true } },
+      },
+    });
+    if (!order) {
+      throw new NotFoundException('Order not found.');
+    }
+
+    const usage = await this.buildUsageMap(this.prisma, order);
+    if (usage.size === 0) {
+      return [];
+    }
+
+    const stockItems = await this.prisma.stockItem.findMany({
+      where: {
+        brandId: order.location.brandId,
+        id: { in: [...usage.keys()] },
+      },
+    });
+    const byId = new Map(stockItems.map((item) => [item.id, item]));
+
+    const rows: UsagePreviewRow[] = [];
+    for (const [stockItemId, required] of usage.entries()) {
+      const item = byId.get(stockItemId);
+      if (!item) {
+        continue;
+      }
+      const onHand = new Prisma.Decimal(item.qtyOnHand);
+      const shortfall = required.gt(onHand)
+        ? required.minus(onHand)
+        : new Prisma.Decimal(0);
+      rows.push({
+        stockItemId,
+        name: item.name,
+        unit: item.unit,
+        required: required.toString(),
+        onHand: onHand.toString(),
+        shortfall: shortfall.toString(),
+      });
+    }
+
+    return rows.sort((a, b) => a.name.localeCompare(b.name));
+  }
+
+  async assertCanFulfillOrder(
+    orderId: string,
+    options?: {
+      overrideReason?: string;
+      userId?: string;
+      userRole?: UserRole;
+    },
+  ): Promise<void> {
+    const preview = await this.previewUsageForOrder(orderId);
+    const shortages = preview.filter((row) =>
+      new Prisma.Decimal(row.shortfall).gt(0),
+    );
+    if (shortages.length === 0) {
+      return;
+    }
+
+    const overrideReason = options?.overrideReason?.trim();
+    if (!overrideReason) {
+      throw new HttpException(
+        {
+          message: 'Insufficient inventory to fulfill this order.',
+          code: 'INVENTORY_SHORTAGE',
+          shortages,
+        },
+        HttpStatus.CONFLICT,
+      );
+    }
+
+    const role = options?.userRole;
+    if (role !== UserRole.ADMIN && role !== UserRole.MANAGER) {
+      throw new ForbiddenException(
+        'Only managers or admins can override inventory shortages.',
+      );
+    }
+
+    const order = await this.prisma.order.findUnique({
+      where: { id: orderId },
+      include: { location: { select: { brandId: true } } },
+    });
+
+    await this.auditService.log(
+      options?.userId,
+      order?.location.brandId ?? null,
+      AuditAction.INVENTORY_OVERRIDE,
+      `Inventory override for order ${orderId}: ${overrideReason}`,
+      {
+        orderId,
+        reason: overrideReason,
+        shortages,
+      },
+    );
   }
 
   /**
@@ -567,22 +854,7 @@ export class InventoryService {
         }
 
         const brandId = order.location.brandId;
-        const usage = new Map<string, Prisma.Decimal>();
-
-        for (const line of order.items) {
-          if (!line.menuItemId || line.quantity <= 0) {
-            continue;
-          }
-          const recipeLines = await tx.menuItemRecipeLine.findMany({
-            where: { menuItemId: line.menuItemId, brandId },
-          });
-          for (const recipe of recipeLines) {
-            const add = recipe.qtyPerUnit.mul(line.quantity);
-            const current = usage.get(recipe.stockItemId) ?? new Prisma.Decimal(0);
-            usage.set(recipe.stockItemId, current.plus(add));
-          }
-        }
-
+        const usage = await this.buildUsageMap(tx, order);
         if (usage.size === 0) {
           return;
         }
@@ -629,7 +901,66 @@ export class InventoryService {
     }
   }
 
-  private weightedAverageCost(
+  /**
+   * Reverse SALE movements for a refunded order. Idempotent on REFUND+orderId.
+   * Swallows errors so refund webhooks stay reliable.
+   */
+  async restockForRefundedOrder(orderId: string): Promise<void> {
+    try {
+      await this.prisma.$transaction(async (tx) => {
+        const existingRefund = await tx.stockMovement.findFirst({
+          where: { orderId, type: StockMovementType.REFUND },
+          select: { id: true },
+        });
+        if (existingRefund) {
+          return;
+        }
+
+        const sales = await tx.stockMovement.findMany({
+          where: { orderId, type: StockMovementType.SALE },
+        });
+        if (sales.length === 0) {
+          return;
+        }
+
+        for (const sale of sales) {
+          const item = await tx.stockItem.findUnique({
+            where: { id: sale.stockItemId },
+          });
+          if (!item) {
+            continue;
+          }
+
+          const delta = sale.deltaQty.negated();
+          const qtyAfter = item.qtyOnHand.plus(delta);
+          await tx.stockItem.update({
+            where: { id: item.id },
+            data: { qtyOnHand: qtyAfter },
+          });
+          await tx.stockMovement.create({
+            data: {
+              stockItemId: item.id,
+              brandId: sale.brandId,
+              type: StockMovementType.REFUND,
+              deltaQty: delta,
+              qtyAfter,
+              reason: sale.reason
+                ? `Refund: ${sale.reason}`
+                : `Refund order ${orderId.slice(0, 8)}`,
+              orderId,
+            },
+          });
+        }
+      });
+    } catch (error) {
+      this.logger.error(
+        `Failed to restock inventory for refunded order ${orderId}`,
+        error instanceof Error ? error.stack : String(error),
+      );
+    }
+  }
+
+  weightedAverageCost(
     oldQty: Prisma.Decimal,
     oldCost: Prisma.Decimal | null,
     recvQty: Prisma.Decimal,
@@ -647,6 +978,179 @@ export class InventoryService {
     return numerator.div(denominator).toDecimalPlaces(2);
   }
 
+  private async buildUsageMap(
+    tx: Prisma.TransactionClient | PrismaService,
+    order: OrderForUsage,
+  ): Promise<Map<string, Prisma.Decimal>> {
+    const brandId = order.location.brandId;
+    const usage = new Map<string, Prisma.Decimal>();
+
+    const add = (stockItemId: string, qty: Prisma.Decimal) => {
+      if (qty.lte(0)) {
+        return;
+      }
+      const current = usage.get(stockItemId) ?? new Prisma.Decimal(0);
+      usage.set(stockItemId, current.plus(qty));
+    };
+
+    const menuItemIds = [
+      ...new Set(
+        order.items
+          .filter((item) => item.menuItemId && item.quantity > 0)
+          .map((item) => item.menuItemId as string),
+      ),
+    ];
+
+    const menuRecipeLines =
+      menuItemIds.length > 0
+        ? await tx.menuItemRecipeLine.findMany({
+            where: { brandId, menuItemId: { in: menuItemIds } },
+          })
+        : [];
+
+    const recipesByMenuItem = new Map<string, typeof menuRecipeLines>();
+    for (const line of menuRecipeLines) {
+      const list = recipesByMenuItem.get(line.menuItemId) ?? [];
+      list.push(line);
+      recipesByMenuItem.set(line.menuItemId, list);
+    }
+
+    const [toppings, crusts] = await Promise.all([
+      tx.extraTopping.findMany({
+        where: { brandId },
+        include: { recipeLines: true },
+      }),
+      tx.crustOption.findMany({
+        where: { brandId },
+        include: { recipeLines: true },
+      }),
+    ]);
+
+    const toppingById = new Map(toppings.map((t) => [t.id, t]));
+    const toppingByLabel = new Map(
+      toppings.map((t) => [t.label.trim().toLowerCase(), t]),
+    );
+    const toppingBySlug = new Map(
+      toppings.map((t) => [t.slug.trim().toLowerCase(), t]),
+    );
+    const crustById = new Map(crusts.map((c) => [c.id, c]));
+    const crustByLabel = new Map(
+      crusts.map((c) => [c.label.trim().toLowerCase(), c]),
+    );
+    const crustBySlug = new Map(
+      crusts.map((c) => [c.slug.trim().toLowerCase(), c]),
+    );
+
+    for (const item of order.items) {
+      if (item.quantity <= 0) {
+        continue;
+      }
+
+      if (item.menuItemId) {
+        const lines = recipesByMenuItem.get(item.menuItemId) ?? [];
+        const sizeKey = item.size?.trim()
+          ? this.normalizeSizeKey(item.size)
+          : null;
+        const chosen = new Map<
+          string,
+          (typeof menuRecipeLines)[number]
+        >();
+
+        for (const line of lines) {
+          const matchesDefault = line.sizeKey === '';
+          const matchesSize =
+            sizeKey != null && line.sizeKey === sizeKey;
+          if (!matchesDefault && !matchesSize) {
+            continue;
+          }
+          const existing = chosen.get(line.stockItemId);
+          if (!existing) {
+            chosen.set(line.stockItemId, line);
+          } else if (line.sizeKey !== '' && existing.sizeKey === '') {
+            chosen.set(line.stockItemId, line);
+          }
+        }
+
+        for (const line of chosen.values()) {
+          add(line.stockItemId, line.qtyPerUnit.mul(item.quantity));
+        }
+      }
+
+      for (const ref of this.parseToppingRefs(item.toppings)) {
+        const topping =
+          toppingById.get(ref) ??
+          toppingByLabel.get(ref.trim().toLowerCase()) ??
+          toppingBySlug.get(ref.trim().toLowerCase());
+        if (!topping) {
+          continue;
+        }
+        for (const line of topping.recipeLines) {
+          add(line.stockItemId, line.qtyPerUnit.mul(item.quantity));
+        }
+      }
+
+      if (item.crust?.trim()) {
+        const ref = item.crust.trim();
+        const crust =
+          crustById.get(ref) ??
+          crustByLabel.get(ref.toLowerCase()) ??
+          crustBySlug.get(ref.toLowerCase());
+        if (crust) {
+          for (const line of crust.recipeLines) {
+            add(line.stockItemId, line.qtyPerUnit.mul(item.quantity));
+          }
+        }
+      }
+    }
+
+    return usage;
+  }
+
+  private parseToppingRefs(toppings: Prisma.JsonValue): string[] {
+    if (!toppings || !Array.isArray(toppings)) {
+      return [];
+    }
+    const refs: string[] = [];
+    for (const entry of toppings) {
+      if (typeof entry === 'string' && entry.trim()) {
+        refs.push(entry.trim());
+        continue;
+      }
+      if (entry && typeof entry === 'object' && !Array.isArray(entry)) {
+        const obj = entry as Record<string, unknown>;
+        if (typeof obj.id === 'string' && obj.id.trim()) {
+          refs.push(obj.id.trim());
+        } else if (typeof obj.label === 'string' && obj.label.trim()) {
+          refs.push(obj.label.trim());
+        } else if (typeof obj.name === 'string' && obj.name.trim()) {
+          refs.push(obj.name.trim());
+        } else if (typeof obj.slug === 'string' && obj.slug.trim()) {
+          refs.push(obj.slug.trim());
+        }
+      }
+    }
+    return refs;
+  }
+
+  private async assertStockItemsBelongToBrand(
+    brandId: string,
+    stockIds: string[],
+  ): Promise<void> {
+    const unique = [...new Set(stockIds)];
+    if (unique.length === 0) {
+      return;
+    }
+    const stockItems = await this.prisma.stockItem.findMany({
+      where: { brandId, id: { in: unique } },
+      select: { id: true },
+    });
+    if (stockItems.length !== unique.length) {
+      throw new BadRequestException(
+        'One or more stock items are invalid for this store.',
+      );
+    }
+  }
+
   private requirePositiveQty(
     qty: number | undefined,
     label: string,
@@ -659,6 +1163,23 @@ export class InventoryService {
       throw new BadRequestException(`${label} must be greater than zero.`);
     }
     return value;
+  }
+
+  private toRecipeLineResponse(line: {
+    id: string;
+    stockItemId: string;
+    qtyPerUnit: Prisma.Decimal;
+    sizeKey?: string;
+    stockItem: { name: string; unit: string };
+  }): RecipeLineResponse {
+    return {
+      id: line.id,
+      stockItemId: line.stockItemId,
+      stockItemName: line.stockItem.name,
+      stockItemUnit: line.stockItem.unit,
+      qtyPerUnit: line.qtyPerUnit.toString(),
+      sizeKey: line.sizeKey ?? '',
+    };
   }
 
   private toItemResponse(item: StockItem): StockItemResponse {

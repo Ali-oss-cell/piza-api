@@ -108,6 +108,7 @@ enum AuditAction {
   LOCATION_UPDATED
   CRM_EXPORT
   CRM_CUSTOMER_UPDATED
+  INVENTORY_OVERRIDE
 }
 
 enum StockUnit {
@@ -127,6 +128,15 @@ enum StockMovementType {
   WASTE
   COUNT
   SALE
+  REFUND
+}
+
+enum PurchaseOrderStatus {
+  DRAFT
+  SENT
+  PARTIAL
+  RECEIVED
+  CANCELLED
 }
 
 model User {
@@ -143,6 +153,7 @@ model User {
   storeMemberships UserStore[]
   auditEvents      AuditEvent[]
   stockMovements   StockMovement[]
+  purchaseOrders   PurchaseOrder[]
 
   @@map("users")
 }
@@ -172,6 +183,10 @@ model Brand {
   ingredients          Ingredient[]
   stockItems           StockItem[]
   recipeLines          MenuItemRecipeLine[]
+  toppingRecipeLines   ExtraToppingRecipeLine[]
+  crustRecipeLines     CrustOptionRecipeLine[]
+  suppliers            Supplier[]
+  purchaseOrders       PurchaseOrder[]
   deals                Deal[]
   domains              StoreDomain[]
   paymentSettings      StorePaymentSettings?
@@ -383,6 +398,7 @@ model ExtraTopping {
   updatedAt     DateTime        @updatedAt @map("updated_at")
   brand         Brand           @relation(fields: [brandId], references: [id], onDelete: Cascade)
   category      ToppingCategory @relation(fields: [brandId, categorySlug], references: [brandId, slug], onUpdate: Cascade)
+  recipeLines   ExtraToppingRecipeLine[]
 
   @@unique([brandId, slug])
   @@index([brandId, categorySlug, sortOrder])
@@ -390,16 +406,17 @@ model ExtraTopping {
 }
 
 model CrustOption {
-  id         String   @id @default(uuid()) @db.Uuid
-  brandId    String   @map("brand_id") @db.Uuid
-  slug       String
-  label      String
-  priceDelta Decimal  @map("price_delta") @db.Decimal(10, 2)
-  sortOrder  Int      @default(0) @map("sort_order")
-  isActive   Boolean  @default(true) @map("is_active")
-  createdAt  DateTime @default(now()) @map("created_at")
-  updatedAt  DateTime @updatedAt @map("updated_at")
-  brand      Brand    @relation(fields: [brandId], references: [id], onDelete: Cascade)
+  id          String   @id @default(uuid()) @db.Uuid
+  brandId     String   @map("brand_id") @db.Uuid
+  slug        String
+  label       String
+  priceDelta  Decimal  @map("price_delta") @db.Decimal(10, 2)
+  sortOrder   Int      @default(0) @map("sort_order")
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+  brand       Brand    @relation(fields: [brandId], references: [id], onDelete: Cascade)
+  recipeLines CrustOptionRecipeLine[]
 
   @@unique([brandId, slug])
   @@map("crust_options")
@@ -648,9 +665,12 @@ model StockItem {
   createdAt   DateTime  @default(now()) @map("created_at")
   updatedAt   DateTime  @updatedAt @map("updated_at")
 
-  brand       Brand               @relation(fields: [brandId], references: [id], onDelete: Cascade)
-  movements   StockMovement[]
-  recipeLines MenuItemRecipeLine[]
+  brand              Brand                    @relation(fields: [brandId], references: [id], onDelete: Cascade)
+  movements          StockMovement[]
+  recipeLines        MenuItemRecipeLine[]
+  toppingRecipeLines ExtraToppingRecipeLine[]
+  crustRecipeLines   CrustOptionRecipeLine[]
+  purchaseOrderLines PurchaseOrderLine[]
 
   @@unique([brandId, name])
   @@index([brandId, isActive])
@@ -658,35 +678,39 @@ model StockItem {
 }
 
 model StockMovement {
-  id          String            @id @default(uuid()) @db.Uuid
-  stockItemId String            @map("stock_item_id") @db.Uuid
-  brandId     String            @map("brand_id") @db.Uuid
-  type        StockMovementType
-  deltaQty    Decimal           @map("delta_qty") @db.Decimal(12, 3)
-  qtyAfter    Decimal           @map("qty_after") @db.Decimal(12, 3)
-  reason      String?
-  unitCost    Decimal?          @map("unit_cost") @db.Decimal(10, 2)
-  receivedAt  DateTime?         @map("received_at")
-  orderId     String?           @map("order_id") @db.Uuid
-  createdById String?           @map("created_by_id") @db.Uuid
-  createdAt   DateTime          @default(now()) @map("created_at")
+  id              String            @id @default(uuid()) @db.Uuid
+  stockItemId     String            @map("stock_item_id") @db.Uuid
+  brandId         String            @map("brand_id") @db.Uuid
+  type            StockMovementType
+  deltaQty        Decimal           @map("delta_qty") @db.Decimal(12, 3)
+  qtyAfter        Decimal           @map("qty_after") @db.Decimal(12, 3)
+  reason          String?
+  unitCost        Decimal?          @map("unit_cost") @db.Decimal(10, 2)
+  receivedAt      DateTime?         @map("received_at")
+  orderId         String?           @map("order_id") @db.Uuid
+  purchaseOrderId String?           @map("purchase_order_id") @db.Uuid
+  createdById     String?           @map("created_by_id") @db.Uuid
+  createdAt       DateTime          @default(now()) @map("created_at")
 
-  stockItem StockItem @relation(fields: [stockItemId], references: [id], onDelete: Cascade)
-  createdBy User?     @relation(fields: [createdById], references: [id], onDelete: SetNull)
-  order     Order?    @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  stockItem     StockItem      @relation(fields: [stockItemId], references: [id], onDelete: Cascade)
+  createdBy     User?          @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  order         Order?         @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  purchaseOrder PurchaseOrder? @relation(fields: [purchaseOrderId], references: [id], onDelete: SetNull)
 
   @@index([brandId, createdAt])
   @@index([stockItemId, createdAt])
   @@index([orderId])
+  @@index([purchaseOrderId])
   @@map("stock_movements")
 }
 
 model MenuItemRecipeLine {
-  id          String  @id @default(uuid()) @db.Uuid
-  brandId     String  @map("brand_id") @db.Uuid
-  menuItemId  String  @map("menu_item_id") @db.Uuid
-  stockItemId String  @map("stock_item_id") @db.Uuid
-  qtyPerUnit  Decimal @map("qty_per_unit") @db.Decimal(12, 3)
+  id          String   @id @default(uuid()) @db.Uuid
+  brandId     String   @map("brand_id") @db.Uuid
+  menuItemId  String   @map("menu_item_id") @db.Uuid
+  stockItemId String   @map("stock_item_id") @db.Uuid
+  sizeKey     String   @default("") @map("size_key")
+  qtyPerUnit  Decimal  @map("qty_per_unit") @db.Decimal(12, 3)
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
 
@@ -694,7 +718,104 @@ model MenuItemRecipeLine {
   menuItem  MenuItem  @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
   stockItem StockItem @relation(fields: [stockItemId], references: [id], onDelete: Cascade)
 
-  @@unique([menuItemId, stockItemId])
+  @@unique([menuItemId, stockItemId, sizeKey])
   @@index([brandId, menuItemId])
   @@map("menu_item_recipe_lines")
+}
+
+model ExtraToppingRecipeLine {
+  id          String   @id @default(uuid()) @db.Uuid
+  brandId     String   @map("brand_id") @db.Uuid
+  toppingId   String   @map("topping_id") @db.Uuid
+  stockItemId String   @map("stock_item_id") @db.Uuid
+  qtyPerUnit  Decimal  @map("qty_per_unit") @db.Decimal(12, 3)
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  brand     Brand        @relation(fields: [brandId], references: [id], onDelete: Cascade)
+  topping   ExtraTopping @relation(fields: [toppingId], references: [id], onDelete: Cascade)
+  stockItem StockItem    @relation(fields: [stockItemId], references: [id], onDelete: Cascade)
+
+  @@unique([toppingId, stockItemId])
+  @@index([brandId, toppingId])
+  @@map("extra_topping_recipe_lines")
+}
+
+model CrustOptionRecipeLine {
+  id            String   @id @default(uuid()) @db.Uuid
+  brandId       String   @map("brand_id") @db.Uuid
+  crustOptionId String   @map("crust_option_id") @db.Uuid
+  stockItemId   String   @map("stock_item_id") @db.Uuid
+  qtyPerUnit    Decimal  @map("qty_per_unit") @db.Decimal(12, 3)
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  brand       Brand       @relation(fields: [brandId], references: [id], onDelete: Cascade)
+  crustOption CrustOption @relation(fields: [crustOptionId], references: [id], onDelete: Cascade)
+  stockItem   StockItem   @relation(fields: [stockItemId], references: [id], onDelete: Cascade)
+
+  @@unique([crustOptionId, stockItemId])
+  @@index([brandId, crustOptionId])
+  @@map("crust_option_recipe_lines")
+}
+
+model Supplier {
+  id        String   @id @default(uuid()) @db.Uuid
+  brandId   String   @map("brand_id") @db.Uuid
+  name      String
+  phone     String?
+  email     String?
+  abn       String?
+  address   String?
+  notes     String?
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  brand          Brand           @relation(fields: [brandId], references: [id], onDelete: Cascade)
+  purchaseOrders PurchaseOrder[]
+
+  @@unique([brandId, name])
+  @@index([brandId, isActive])
+  @@map("suppliers")
+}
+
+model PurchaseOrder {
+  id           String              @id @default(uuid()) @db.Uuid
+  brandId      String              @map("brand_id") @db.Uuid
+  supplierId   String              @map("supplier_id") @db.Uuid
+  number       Int
+  status       PurchaseOrderStatus @default(DRAFT)
+  orderedAt    DateTime            @default(now()) @map("ordered_at")
+  expectedAt   DateTime?           @map("expected_at")
+  receivedAt   DateTime?           @map("received_at")
+  notes        String?
+  createdById  String?             @map("created_by_id") @db.Uuid
+  createdAt    DateTime            @default(now()) @map("created_at")
+  updatedAt    DateTime            @updatedAt @map("updated_at")
+
+  brand      Brand               @relation(fields: [brandId], references: [id], onDelete: Cascade)
+  supplier   Supplier            @relation(fields: [supplierId], references: [id], onDelete: Restrict)
+  createdBy  User?               @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  lines      PurchaseOrderLine[]
+  movements  StockMovement[]
+
+  @@unique([brandId, number])
+  @@index([brandId, status])
+  @@map("purchase_orders")
+}
+
+model PurchaseOrderLine {
+  id              String  @id @default(uuid()) @db.Uuid
+  purchaseOrderId String  @map("purchase_order_id") @db.Uuid
+  stockItemId     String  @map("stock_item_id") @db.Uuid
+  qtyOrdered      Decimal @map("qty_ordered") @db.Decimal(12, 3)
+  qtyReceived     Decimal @default(0) @map("qty_received") @db.Decimal(12, 3)
+  unitCost        Decimal @map("unit_cost") @db.Decimal(10, 2)
+
+  purchaseOrder PurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+  stockItem     StockItem     @relation(fields: [stockItemId], references: [id], onDelete: Restrict)
+
+  @@unique([purchaseOrderId, stockItemId])
+  @@map("purchase_order_lines")
 }

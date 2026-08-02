@@ -61,6 +61,12 @@ export class RecipeLineDto {
   @IsNumber({ maxDecimalPlaces: 3 })
   @Min(0.001)
   qtyPerUnit!: number;
+
+  /** Menu-item recipes only. "" = default (all sizes). */
+  @IsOptional()
+  @IsString()
+  @MaxLength(20)
+  sizeKey?: string;
 }
 
 export class ReplaceRecipeDto {
