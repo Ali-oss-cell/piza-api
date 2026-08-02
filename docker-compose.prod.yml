@@ -94,6 +94,7 @@ services:
       dockerfile: Dockerfile
       args:
         NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
+        NEXT_PUBLIC_ADMIN_HOST_SPLIT: ${ADMIN_HOST_SPLIT:-false}
         NEXT_PUBLIC_ADMIN_HOST: ${ADMIN_DOMAIN:-admin.marinapizzas.com.au}
         NEXT_PUBLIC_ADMIN_ORIGIN: https://${ADMIN_DOMAIN:-admin.marinapizzas.com.au}
         NEXT_PUBLIC_WEB_ORIGIN: https://${WEB_DOMAIN:-marinapizzas.com.au}
