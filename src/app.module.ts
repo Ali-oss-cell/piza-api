@@ -9,6 +9,7 @@ import { HealthController } from './health/health.controller';
 import { DealsModule } from './deals/deals.module';
 import { CustomizationsModule } from './customizations/customizations.module';
 import { HqModule } from './hq/hq.module';
+import { InventoryModule } from './inventory/inventory.module';
 import { LocationsAdminModule } from './locations-admin/locations-admin.module';
 import { MenuModule } from './menu/menu.module';
 import { OrdersModule } from './orders/orders.module';
@@ -49,6 +50,7 @@ import { WebhooksModule } from './webhooks/webhooks.module';
     CrmModule,
     TeamModule,
     LocationsAdminModule,
+    InventoryModule,
   ],
   controllers: [HealthController],
   providers: [DatabaseBootstrapService],

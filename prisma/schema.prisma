@@ -110,6 +110,24 @@ enum AuditAction {
   CRM_CUSTOMER_UPDATED
 }
 
+enum StockUnit {
+  EACH
+  KG
+  G
+  L
+  ML
+  CARTON
+  PACK
+  BAG
+}
+
+enum StockMovementType {
+  RECEIVE
+  ADJUST
+  WASTE
+  COUNT
+}
+
 model User {
   id               String       @id @default(uuid()) @db.Uuid
   email            String       @unique
@@ -123,6 +141,7 @@ model User {
   staffedOrders    Order[]      @relation("StaffOrders")
   storeMemberships UserStore[]
   auditEvents      AuditEvent[]
+  stockMovements   StockMovement[]
 
   @@map("users")
 }
@@ -150,6 +169,7 @@ model Brand {
   crustOptions         CrustOption[]
   ingredientCategories IngredientCategory[]
   ingredients          Ingredient[]
+  stockItems           StockItem[]
   deals                Deal[]
   domains              StoreDomain[]
   paymentSettings      StorePaymentSettings?
@@ -607,4 +627,46 @@ model OrderItem {
 
   @@index([orderId])
   @@map("order_items")
+}
+
+model StockItem {
+  id          String    @id @default(uuid()) @db.Uuid
+  brandId     String    @map("brand_id") @db.Uuid
+  name        String
+  sku         String?
+  category    String?
+  unit        StockUnit @default(EACH)
+  qtyOnHand   Decimal   @default(0) @map("qty_on_hand") @db.Decimal(12, 3)
+  lowStockAt  Decimal?  @map("low_stock_at") @db.Decimal(12, 3)
+  costPerUnit Decimal?  @map("cost_per_unit") @db.Decimal(10, 2)
+  notes       String?
+  isActive    Boolean   @default(true) @map("is_active")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  brand     Brand           @relation(fields: [brandId], references: [id], onDelete: Cascade)
+  movements StockMovement[]
+
+  @@unique([brandId, name])
+  @@index([brandId, isActive])
+  @@map("stock_items")
+}
+
+model StockMovement {
+  id          String            @id @default(uuid()) @db.Uuid
+  stockItemId String            @map("stock_item_id") @db.Uuid
+  brandId     String            @map("brand_id") @db.Uuid
+  type        StockMovementType
+  deltaQty    Decimal           @map("delta_qty") @db.Decimal(12, 3)
+  qtyAfter    Decimal           @map("qty_after") @db.Decimal(12, 3)
+  reason      String?
+  createdById String?           @map("created_by_id") @db.Uuid
+  createdAt   DateTime          @default(now()) @map("created_at")
+
+  stockItem StockItem @relation(fields: [stockItemId], references: [id], onDelete: Cascade)
+  createdBy User?     @relation(fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([brandId, createdAt])
+  @@index([stockItemId, createdAt])
+  @@map("stock_movements")
 }
