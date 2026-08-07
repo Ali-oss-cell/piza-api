@@ -36,6 +36,12 @@ export class BrandsController {
     });
   }
 
+  /** Alias for storefront host lookup (same as GET /brands/resolve?host=). */
+  @Get('by-host')
+  resolveStoreByHost(@Query('host') host?: string) {
+    return this.brandsService.resolveStore({ host });
+  }
+
   @Get()
   @UseGuards(JwtAuthGuard)
   findAll(@CurrentUser() user: AuthenticatedUser) {

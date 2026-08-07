@@ -5,12 +5,14 @@ import { NestExpressApplication } from '@nestjs/platform-express';
 import { existsSync, mkdirSync } from 'fs';
 import { join } from 'path';
 import { AppModule } from './app.module';
+import { CorsOriginsService } from './hq/cors-origins.service';
 
 async function bootstrap(): Promise<void> {
   const app = await NestFactory.create<NestExpressApplication>(AppModule, {
     rawBody: true,
   });
   const configService = app.get(ConfigService);
+  const corsOrigins = app.get(CorsOriginsService);
 
   const uploadsRoot = join(process.cwd(), 'uploads');
   if (!existsSync(uploadsRoot)) {
@@ -34,26 +36,16 @@ async function bootstrap(): Promise<void> {
     }),
   );
 
-  const corsOrigin = configService.get<string>(
-    'CORS_ORIGIN',
-    'http://localhost:3000',
-  );
-  const configuredOrigins = corsOrigin
-    .split(',')
-    .map((origin) => origin.trim())
-    .filter(Boolean);
-  const baselineOrigins = [
-    'http://localhost:3000',
-    'http://127.0.0.1:3000',
-    'https://marinapizzas.com.au',
-    'https://www.marinapizzas.com.au',
-    'https://admin.marinapizzas.com.au',
-    'https://pos.marinapizzas.com.au',
-  ];
-  const allowedOrigins = [...new Set([...baselineOrigins, ...configuredOrigins])];
+  await corsOrigins.refresh();
 
   app.enableCors({
-    origin: allowedOrigins.length === 1 ? allowedOrigins[0] : allowedOrigins,
+    origin: (origin, callback) => {
+      if (!origin || corsOrigins.isAllowed(origin)) {
+        callback(null, true);
+        return;
+      }
+      callback(null, false);
+    },
     credentials: true,
     methods: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: [

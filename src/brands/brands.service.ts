@@ -61,25 +61,9 @@ export class BrandsService {
       throw new BadRequestException('Provide pathPrefix or host to resolve a store.');
     }
 
-    const domain = await this.prisma.storeDomain.findFirst({
-      where: {
-        isActive: true,
-        ...(host ? { host } : {}),
-        ...(pathPrefix ? { pathPrefix } : {}),
-        store: { isActive: true },
-      },
-      include: {
-        store: {
-          include: {
-            locations: {
-              where: { isActive: true },
-              orderBy: [{ isDefault: 'desc' }, { name: 'asc' }],
-              take: 1,
-            },
-          },
-        },
-      },
-    });
+    const domain =
+      (await this.findActiveDomain({ host, pathPrefix })) ??
+      (host ? await this.findActiveDomainWithWwwFallback(host) : null);
 
     if (!domain) {
       throw new NotFoundException('Store not found for the given path or host.');
@@ -342,6 +326,41 @@ export class BrandsService {
     }
 
     return brand;
+  }
+
+  private async findActiveDomain(params: {
+    host?: string;
+    pathPrefix?: string;
+  }) {
+    if (!params.host && !params.pathPrefix) {
+      return null;
+    }
+    return this.prisma.storeDomain.findFirst({
+      where: {
+        isActive: true,
+        ...(params.host ? { host: params.host } : {}),
+        ...(params.pathPrefix ? { pathPrefix: params.pathPrefix } : {}),
+        store: { isActive: true },
+      },
+      include: {
+        store: {
+          include: {
+            locations: {
+              where: { isActive: true },
+              orderBy: [{ isDefault: 'desc' }, { name: 'asc' }],
+              take: 1,
+            },
+          },
+        },
+      },
+    });
+  }
+
+  private async findActiveDomainWithWwwFallback(host: string) {
+    if (host.startsWith('www.')) {
+      return this.findActiveDomain({ host: host.slice(4) });
+    }
+    return this.findActiveDomain({ host: `www.${host}` });
   }
 
   private normalizePathPrefix(value: string): string {

@@ -6,7 +6,11 @@
 #
 #   cp .env.production.example .env
 #   # edit .env — POSTGRES_PASSWORD, JWT_SECRET, ACME_EMAIL, etc.
+#   mkdir -p traefik/dynamic
 #   docker compose -f docker-compose.prod.yml up -d --build
+#
+# Custom storefront domains: HQ Domains → StoreDomain.host → API syncs
+# traefik/dynamic/storefronts.yml (one web container, many Host rules).
 
 services:
   traefik:
@@ -18,6 +22,8 @@ services:
       - --providers.docker=true
       - --providers.docker.exposedbydefault=false
       - --providers.docker.network=piza
+      - --providers.file.directory=/etc/traefik/dynamic
+      - --providers.file.watch=true
       - --entrypoints.web.address=:80
       - --entrypoints.websecure.address=:443
       - --entrypoints.web.http.redirections.entrypoint.to=websecure
@@ -31,6 +37,7 @@ services:
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - traefik_letsencrypt:/letsencrypt
+      - ./traefik/dynamic:/etc/traefik/dynamic:ro
     networks:
       - piza
 
@@ -75,8 +82,15 @@ services:
       RUN_MIGRATIONS: ${RUN_MIGRATIONS:-true}
       RUN_SEED: ${RUN_SEED:-false}
       CORS_ORIGIN: ${CORS_ORIGIN:-https://marinapizzas.com.au,https://www.marinapizzas.com.au,https://admin.marinapizzas.com.au,https://pos.marinapizzas.com.au}
+      TRAEFIK_DYNAMIC_DIR: /app/traefik-dynamic
+      WEB_DOMAIN: ${WEB_DOMAIN:-marinapizzas.com.au}
+      WEB_WWW_DOMAIN: ${WEB_WWW_DOMAIN:-www.marinapizzas.com.au}
+      ADMIN_DOMAIN: ${ADMIN_DOMAIN:-admin.marinapizzas.com.au}
+      API_DOMAIN: ${API_DOMAIN:-api.marinapizzas.com.au}
+      POS_DOMAIN: ${POS_DOMAIN:-pos.marinapizzas.com.au}
     volumes:
       - api_uploads:/app/uploads
+      - ./traefik/dynamic:/app/traefik-dynamic
     labels:
       - traefik.enable=true
       - traefik.docker.network=piza

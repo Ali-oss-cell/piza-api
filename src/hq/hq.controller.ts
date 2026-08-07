@@ -136,6 +136,11 @@ export class HqController {
     return this.hqService.listDomains();
   }
 
+  @Post('domains/sync-traefik')
+  syncTraefikDomains() {
+    return this.hqService.syncTraefikDomains();
+  }
+
   @Post('domains')
   createDomain(
     @Body() dto: CreateDomainDto,

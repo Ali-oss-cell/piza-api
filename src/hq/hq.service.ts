@@ -25,7 +25,6 @@ import {
 } from '../common/utils/melbourne-time';
 import { PrismaService } from '../prisma/prisma.service';
 import { TeamService } from '../team/team.service';
-import { UpdateTeamMemberDto } from '../team/dto/update-team-member.dto';
 import { ApplyMenuTemplateDto } from './dto/apply-menu-template.dto';
 import { CreateDomainDto } from './dto/create-domain.dto';
 import { CreateMenuTemplateDto } from './dto/create-menu-template.dto';
@@ -33,6 +32,8 @@ import { InviteHqMemberDto } from './dto/invite-hq-member.dto';
 import { PushDealDto } from './dto/push-deal.dto';
 import { TransferMenuDto } from './dto/transfer-menu.dto';
 import { UpdateDomainDto } from './dto/update-domain.dto';
+import { TraefikDomainsSyncService } from './traefik-domains-sync.service';
+import { UpdateTeamMemberDto } from '../team/dto/update-team-member.dto';
 
 const LIVE_STATUSES: OrderStatus[] = [
   OrderStatus.PENDING,
@@ -84,6 +85,7 @@ export class HqService {
     private readonly storeAccess: StoreAccessService,
     private readonly auditService: AuditService,
     private readonly teamService: TeamService,
+    private readonly traefikDomainsSync: TraefikDomainsSyncService,
   ) {}
 
   private collectStoreAlerts(brand: {
@@ -1041,6 +1043,8 @@ export class HqService {
       { domainId: domain.id, host, pathPrefix, isPrimary },
     );
 
+    await this.safeSyncTraefik();
+
     return domain;
   }
 
@@ -1110,7 +1114,21 @@ export class HqService {
       { domainId, ...dto },
     );
 
+    await this.safeSyncTraefik();
+
     return updated;
+  }
+
+  async syncTraefikDomains(): Promise<{ hosts: string[]; path: string }> {
+    return this.traefikDomainsSync.syncOrThrow();
+  }
+
+  private async safeSyncTraefik(): Promise<void> {
+    try {
+      await this.traefikDomainsSync.sync();
+    } catch {
+      // Domain CRUD must succeed even if Traefik dir is missing locally.
+    }
   }
 
   async listMenuTemplates(): Promise<unknown[]> {
