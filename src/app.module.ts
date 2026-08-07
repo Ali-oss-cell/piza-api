@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { ScheduleModule } from '@nestjs/schedule';
 import { AuthModule } from './auth/auth.module';
 import { AuditModule } from './audit/audit.module';
 import { BrandsModule } from './brands/brands.module';
@@ -11,6 +12,7 @@ import { CustomizationsModule } from './customizations/customizations.module';
 import { HqModule } from './hq/hq.module';
 import { InventoryModule } from './inventory/inventory.module';
 import { LocationsAdminModule } from './locations-admin/locations-admin.module';
+import { MailModule } from './mail/mail.module';
 import { MenuModule } from './menu/menu.module';
 import { OrdersModule } from './orders/orders.module';
 import { PaymentsModule } from './payments/payments.module';
@@ -30,7 +32,9 @@ import { WebhooksModule } from './webhooks/webhooks.module';
       isGlobal: true,
       envFilePath: ['.env'],
     }),
+    ScheduleModule.forRoot(),
     PrismaModule,
+    MailModule,
     AuditModule,
     BrandsModule,
     UsersModule,

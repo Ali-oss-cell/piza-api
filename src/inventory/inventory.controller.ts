@@ -37,6 +37,7 @@ import {
   UpdateSupplierDto,
 } from './dto/supplier.dto';
 import { UpdateStockItemDto } from './dto/update-stock-item.dto';
+import { InventoryAlertsService } from './inventory-alerts.service';
 import { InventoryPurchasingService } from './inventory-purchasing.service';
 import { InventoryService } from './inventory.service';
 
@@ -47,11 +48,17 @@ export class InventoryController {
   constructor(
     private readonly inventoryService: InventoryService,
     private readonly purchasingService: InventoryPurchasingService,
+    private readonly alertsService: InventoryAlertsService,
   ) {}
 
   @Get('summary')
   getSummary(@BrandSlug() brandSlug?: string) {
     return this.inventoryService.getSummary(brandSlug);
+  }
+
+  @Post('alerts/low-stock')
+  sendLowStockAlerts(@BrandSlug() brandSlug?: string) {
+    return this.alertsService.sendLowStockAlerts(brandSlug);
   }
 
   @Get('stats')

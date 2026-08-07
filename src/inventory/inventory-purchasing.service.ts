@@ -11,6 +11,7 @@ import {
 } from '@prisma/client';
 import PDFDocument from 'pdfkit';
 import { BrandsService } from '../brands/brands.service';
+import { MailService } from '../mail/mail.service';
 import { PrismaService } from '../prisma/prisma.service';
 import {
   CreatePurchaseOrderDto,
@@ -72,6 +73,7 @@ export class InventoryPurchasingService {
     private readonly prisma: PrismaService,
     private readonly brandsService: BrandsService,
     private readonly inventoryService: InventoryService,
+    private readonly mailService: MailService,
   ) {}
 
   async listSuppliers(
@@ -328,7 +330,7 @@ export class InventoryPurchasingService {
   async sendPurchaseOrder(
     id: string,
     brandSlug?: string,
-  ): Promise<PurchaseOrderResponse> {
+  ): Promise<PurchaseOrderResponse & { emailedTo: string }> {
     const existing = await this.findPurchaseOrder(id, brandSlug);
     if (existing.status !== PurchaseOrderStatus.DRAFT) {
       throw new BadRequestException('Only draft purchase orders can be sent.');
@@ -336,6 +338,57 @@ export class InventoryPurchasingService {
     if (existing.lines.length === 0) {
       throw new BadRequestException('Cannot send a purchase order with no lines.');
     }
+
+    const supplierEmail = existing.supplier.email?.trim() || null;
+    if (!supplierEmail) {
+      throw new BadRequestException(
+        'Add an email on this supplier before sending the purchase order.',
+      );
+    }
+    if (!this.mailService.isConfigured()) {
+      throw new BadRequestException(
+        'Email is not configured on the server (MAIL_FROM + RESEND_API_KEY or SMTP).',
+      );
+    }
+
+    const brand = await this.brandsService.resolveBrand(brandSlug);
+    const pdf = await this.buildPdf(id, brandSlug);
+    const subject = `${brand.name} — Purchase Order #${existing.number}`;
+    const text = [
+      `Hello ${existing.supplier.name},`,
+      '',
+      `Please find purchase order #${existing.number} attached.`,
+      existing.expectedAt
+        ? `Expected by: ${existing.expectedAt.toISOString().slice(0, 10)}`
+        : null,
+      existing.notes ? `Notes: ${existing.notes}` : null,
+      '',
+      `— ${brand.name}`,
+    ]
+      .filter(Boolean)
+      .join('\n');
+
+    await this.mailService.send({
+      to: supplierEmail,
+      subject,
+      text,
+      html: `<p>Hello ${escapeHtml(existing.supplier.name)},</p>
+        <p>Please find purchase order <strong>#${existing.number}</strong> attached.</p>
+        ${
+          existing.expectedAt
+            ? `<p>Expected by: ${existing.expectedAt.toISOString().slice(0, 10)}</p>`
+            : ''
+        }
+        ${existing.notes ? `<p>Notes: ${escapeHtml(existing.notes)}</p>` : ''}
+        <p>— ${escapeHtml(brand.name)}</p>`,
+      attachments: [
+        {
+          filename: `PO-${existing.number}.pdf`,
+          content: pdf,
+          contentType: 'application/pdf',
+        },
+      ],
+    });
 
     const updated = await this.prisma.purchaseOrder.update({
       where: { id },
@@ -345,7 +398,11 @@ export class InventoryPurchasingService {
       },
       include: this.poInclude(),
     });
-    return this.toPurchaseOrderResponse(updated);
+
+    return {
+      ...this.toPurchaseOrderResponse(updated),
+      emailedTo: supplierEmail,
+    };
   }
 
   async cancelPurchaseOrder(
@@ -762,4 +819,12 @@ export class InventoryPurchasingService {
       total,
     };
   }
+}
+
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
 }
