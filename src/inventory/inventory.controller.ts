@@ -298,17 +298,17 @@ export class InventoryController {
   }
 
   @Get('purchase-orders/:id/pdf')
-  @Header('Content-Type', 'application/pdf')
   async getPurchaseOrderPdf(
     @Param('id', ParseUUIDPipe) id: string,
-    @Res({ passthrough: true }) res: Response,
+    @Res() res: Response,
     @BrandSlug() brandSlug?: string,
-  ): Promise<Buffer> {
+  ): Promise<void> {
     const pdf = await this.purchasingService.buildPdf(id, brandSlug);
+    res.setHeader('Content-Type', 'application/pdf');
     res.setHeader(
       'Content-Disposition',
       `attachment; filename="purchase-order-${id}.pdf"`,
     );
-    return pdf;
+    res.send(pdf);
   }
 }
