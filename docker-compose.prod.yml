@@ -88,6 +88,9 @@ services:
       ADMIN_DOMAIN: ${ADMIN_DOMAIN:-admin.marinapizzas.com.au}
       API_DOMAIN: ${API_DOMAIN:-api.marinapizzas.com.au}
       POS_DOMAIN: ${POS_DOMAIN:-pos.marinapizzas.com.au}
+      SENTRY_DSN: ${SENTRY_DSN:-}
+      SENTRY_ENVIRONMENT: ${SENTRY_ENVIRONMENT:-production}
+      SENTRY_TRACES_SAMPLE_RATE: ${SENTRY_TRACES_SAMPLE_RATE:-0.1}
     volumes:
       - api_uploads:/app/uploads
       - ./traefik/dynamic:/app/traefik-dynamic
@@ -112,11 +115,16 @@ services:
         NEXT_PUBLIC_ADMIN_HOST: ${ADMIN_DOMAIN:-admin.marinapizzas.com.au}
         NEXT_PUBLIC_ADMIN_ORIGIN: https://${ADMIN_DOMAIN:-admin.marinapizzas.com.au}
         NEXT_PUBLIC_WEB_ORIGIN: https://${WEB_DOMAIN:-marinapizzas.com.au}
+        NEXT_PUBLIC_SENTRY_DSN: ${NEXT_PUBLIC_SENTRY_DSN:-}
+        SENTRY_DSN: ${NEXT_PUBLIC_SENTRY_DSN:-${SENTRY_DSN_FRONT:-}}
+        SENTRY_ENVIRONMENT: ${SENTRY_ENVIRONMENT:-production}
     container_name: piza-front
     restart: unless-stopped
     environment:
       NODE_ENV: production
       PORT: 3000
+      SENTRY_DSN: ${NEXT_PUBLIC_SENTRY_DSN:-${SENTRY_DSN_FRONT:-}}
+      SENTRY_ENVIRONMENT: ${SENTRY_ENVIRONMENT:-production}
     labels:
       - traefik.enable=true
       - traefik.docker.network=piza

@@ -1,6 +1,8 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { APP_FILTER } from '@nestjs/core';
 import { ScheduleModule } from '@nestjs/schedule';
+import { SentryGlobalFilter, SentryModule } from '@sentry/nestjs/setup';
 import { AuthModule } from './auth/auth.module';
 import { AuditModule } from './audit/audit.module';
 import { BrandsModule } from './brands/brands.module';
@@ -32,6 +34,7 @@ import { WebhooksModule } from './webhooks/webhooks.module';
       isGlobal: true,
       envFilePath: ['.env'],
     }),
+    SentryModule.forRoot(),
     ScheduleModule.forRoot(),
     PrismaModule,
     MailModule,
@@ -57,6 +60,12 @@ import { WebhooksModule } from './webhooks/webhooks.module';
     InventoryModule,
   ],
   controllers: [HealthController],
-  providers: [DatabaseBootstrapService],
+  providers: [
+    {
+      provide: APP_FILTER,
+      useClass: SentryGlobalFilter,
+    },
+    DatabaseBootstrapService,
+  ],
 })
 export class AppModule {}
