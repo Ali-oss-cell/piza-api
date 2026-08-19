@@ -253,6 +253,11 @@ export class PaymentSettingsService {
     }
   }
 
+  /**
+   * Assert that card-terminal is enabled for the store.
+   * Checks the active provider: LINKLY requires a paired secret,
+   * STRIPE requires a secret key saved in the DB.
+   */
   async assertCardTerminalEnabled(storeId: string): Promise<void> {
     const settings = await this.ensureSettings(storeId);
     if (!settings.cardTerminalEnabled) {
@@ -260,11 +265,28 @@ export class PaymentSettingsService {
         'Card terminal payments are disabled for this store.',
       );
     }
+
+    if (settings.provider === 'STRIPE') {
+      if (!settings.stripeSecretKeyRef) {
+        throw new BadRequestException(
+          'Stripe is not configured for this store. Add a secret key in Advanced Settings → Stripe Terminal.',
+        );
+      }
+      return;
+    }
+
+    // Default: LINKLY
     if (!settings.linklyPairSecretEnc) {
       throw new BadRequestException(
         'Linkly pinpad is not paired for this store.',
       );
     }
+  }
+
+  /** Returns the active card-terminal provider for a store. */
+  async getCardTerminalProvider(storeId: string): Promise<StorePaymentProvider> {
+    const settings = await this.ensureSettings(storeId);
+    return settings.provider;
   }
 
   private async ensureSettings(storeId: string) {

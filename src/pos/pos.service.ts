@@ -23,6 +23,7 @@ import { PaymentSettingsService } from '../payment-settings/payment-settings.ser
 import { PrismaService } from '../prisma/prisma.service';
 import { PricingService } from '../pricing/pricing.service';
 import { LinklyService } from '../payments/linkly.service';
+import { StripeService } from '../payments/stripe.service';
 import { CreatePosOrderDto } from './dto/create-pos-order.dto';
 import { QuoteRequestDto } from '../pricing/dto/quote-request.dto';
 
@@ -32,6 +33,7 @@ export class PosService {
     private readonly prisma: PrismaService,
     private readonly pricingService: PricingService,
     private readonly linklyService: LinklyService,
+    private readonly stripeService: StripeService,
     private readonly paymentSettingsService: PaymentSettingsService,
     private readonly crmService: CrmService,
     private readonly inventoryService: InventoryService,
@@ -209,10 +211,38 @@ export class PosService {
 
     await this.paymentSettingsService.assertCardTerminalEnabled(location.brandId);
 
-    const credentials = await this.paymentSettingsService.getLinklyCredentials(
+    const provider = await this.paymentSettingsService.getCardTerminalProvider(
       location.brandId,
     );
     const amountCents = Math.round(Number(order.total) * 100);
+
+    /* ── Stripe Terminal path ── */
+    if (provider === 'STRIPE') {
+      const paymentIntent = await this.stripeService.createTerminalPaymentIntent(
+        orderId,
+        amountCents,
+      );
+
+      await this.stripeService.processTerminalPayment(paymentIntent.id);
+
+      const updated = await this.prisma.order.findUniqueOrThrow({
+        where: { id: orderId },
+        include: { items: true, staffUser: true },
+      });
+
+      return {
+        orderId: updated.id,
+        ticketNumber: updated.ticketNumber,
+        paymentStatus: updated.paymentStatus,
+        paymentMethod: updated.paymentMethod,
+        stripePaymentIntentId: paymentIntent.id,
+      };
+    }
+
+    /* ── Linkly path (default) ── */
+    const credentials = await this.paymentSettingsService.getLinklyCredentials(
+      location.brandId,
+    );
     const txnRef = (order.ticketNumber
       ? `T${order.ticketNumber}${Date.now().toString().slice(-8)}`
       : order.id.replace(/-/g, '').slice(0, 16)
@@ -237,9 +267,7 @@ export class PosService {
     if (!result.approved) {
       await this.prisma.order.update({
         where: { id: orderId },
-        data: {
-          paymentStatus: PaymentStatus.FAILED,
-        },
+        data: { paymentStatus: PaymentStatus.FAILED },
       });
 
       throw new BadRequestException(
