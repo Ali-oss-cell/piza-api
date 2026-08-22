@@ -1,0 +1,565 @@
+{
+  "store": {
+    "name": "Benny Boy's Pizza (Wantirna South)",
+    "sourceUrl": "https://www.ubereats.com/au/store/benny-boys-pizza-wantirna-south/rgyrBHsKQZulwCJPb5rXfg",
+    "bannerImage": "https://tb-static.uber.com/prod/image-proc/processed_images/790f43895e92f1c3a5ad85f7c02f30ab/ec1689ae3a25695f1b8e25c59bec5034.jpeg",
+    "localBannerImage": "bunny-boys-images/banner.jpeg",
+    "scrapedAt": "2026-08-20"
+  },
+  "items": [
+    {
+      "name": "Double Deal",
+      "price": 38.8,
+      "rating": "86%",
+      "ratingCount": 89,
+      "description": null,
+      "imageUrl": "https://tb-static.uber.com/prod/image-proc/processed_images/da0989ef6a4f16cc22cbb69440a9558e/5954bcb006b10dbfd0bc160f6370faf3.jpeg",
+      "localImage": "bunny-boys-images/double-deal.jpeg"
+    },
+    {
+      "name": "Family Deal",
+      "price": 51.8,
+      "rating": "98%",
+      "ratingCount": 56,
+      "description": null,
+      "imageUrl": "https://tb-static.uber.com/prod/image-proc/processed_images/3eb01c6ac1350d5870510c94e422b1ce/5954bcb006b10dbfd0bc160f6370faf3.jpeg",
+      "localImage": "bunny-boys-images/family-deal.jpeg"
+    },
+    {
+      "name": "Margherita Pizza",
+      "price": 10.24,
+      "rating": "92%",
+      "ratingCount": 54,
+      "description": null,
+      "imageUrl": "https://tb-static.uber.com/prod/image-proc/processed_images/abc9e13659f80820e610200b25eeea2f/5954bcb006b10dbfd0bc160f6370faf3.jpeg",
+      "localImage": "bunny-boys-images/margherita-pizza.jpeg"
+    },
+    {
+      "name": "Hawaiian Pizza",
+      "price": 12.8,
+      "rating": "96%",
+      "ratingCount": 56,
+      "description": null,
+      "imageUrl": "https://tb-static.uber.com/prod/image-proc/processed_images/67820cd6793c593d62fe280fc3894745/5954bcb006b10dbfd0bc160f6370faf3.jpeg",
+      "localImage": "bunny-boys-images/hawaiian-pizza.jpeg"
+    },
+    {
+      "name": "Super Supreme Pizza",
+      "price": 14,
+      "rating": "95%",
+      "ratingCount": 60,
+      "description": null,
+      "imageUrl": "https://tb-static.uber.com/prod/image-proc/processed_images/bfc4edc6604a207c0c7ef9a880e333d7/5954bcb006b10dbfd0bc160f6370faf3.jpeg",
+      "localImage": "bunny-boys-images/super-supreme-pizza.jpeg"
+    },
+    {
+      "name": "Aussie Pizza",
+      "price": 12.8,
+      "rating": "97%",
+      "ratingCount": 44,
+      "description": null,
+      "imageUrl": "https://tb-static.uber.com/prod/image-proc/processed_images/d0a98d2036dc6f81c7abb6fcf87036f4/5954bcb006b10dbfd0bc160f6370faf3.jpeg",
+      "localImage": "bunny-boys-images/aussie-pizza.jpeg"
+    },
+    {
+      "name": "Meat Supreme",
+      "price": 14,
+      "rating": "97%",
+      "ratingCount": 37,
+      "description": null,
+      "imageUrl": "https://tb-static.uber.com/prod/image-proc/processed_images/421e823350ddbdaffa6332028f10e782/5954bcb006b10dbfd0bc160f6370faf3.jpeg",
+      "localImage": "bunny-boys-images/meat-supreme.jpeg"
+    },
+    {
+      "name": "Pepperoni Pizza",
+      "price": 12.8,
+      "rating": "90%",
+      "ratingCount": 42,
+      "description": null,
+      "imageUrl": "https://tb-static.uber.com/prod/image-proc/processed_images/0986b73b9ee116b0b14a1af540315d03/5954bcb006b10dbfd0bc160f6370faf3.jpeg",
+      "localImage": "bunny-boys-images/pepperoni-pizza.jpeg"
+    },
+    {
+      "name": "Party Deal",
+      "price": 90.8,
+      "rating": "75%",
+      "ratingCount": 4,
+      "description": null,
+      "imageUrl": "https://tb-static.uber.com/prod/image-proc/processed_images/44a0c6571eac7e72b1f4296e24c410d5/5954bcb006b10dbfd0bc160f6370faf3.jpeg",
+      "localImage": "bunny-boys-images/party-deal.jpeg"
+    },
+    {
+      "name": "Benny Boy's Supreme Pizza",
+      "price": 14,
+      "rating": "96%",
+      "ratingCount": 32,
+      "description": null,
+      "imageUrl": "https://tb-static.uber.com/prod/image-proc/processed_images/2981febb5bb58c0046e554d02e9dc9e2/5954bcb006b10dbfd0bc160f6370faf3.jpeg",
+      "localImage": "bunny-boys-images/benny-boy-s-supreme-pizza.jpeg"
+    },
+    {
+      "name": "Garlic Pizza",
+      "price": 12.8,
+      "rating": "100%",
+      "ratingCount": 23,
+      "description": null,
+      "imageUrl": "https://tb-static.uber.com/prod/image-proc/processed_images/5659ebeeca2ec506693b3609c0956dfe/5954bcb006b10dbfd0bc160f6370faf3.jpeg",
+      "localImage": "bunny-boys-images/garlic-pizza.jpeg"
+    },
+    {
+      "name": "American Style Pizza",
+      "price": 12.8,
+      "rating": "96%",
+      "ratingCount": 25,
+      "description": null,
+      "imageUrl": "https://tb-static.uber.com/prod/image-proc/processed_images/7ef0c94d03f5abf6fad94e59b346ec41/5954bcb006b10dbfd0bc160f6370faf3.jpeg",
+      "localImage": "bunny-boys-images/american-style-pizza.jpeg"
+    },
+    {
+      "name": "Mexicana Pizza",
+      "price": 12.8,
+      "rating": "96%",
+      "ratingCount": 30,
+      "description": null,
+      "imageUrl": "https://tb-static.uber.com/prod/image-proc/processed_images/b5d71fba1facd4203514f18a6bd4ddb3/5954bcb006b10dbfd0bc160f6370faf3.jpeg",
+      "localImage": "bunny-boys-images/mexicana-pizza.jpeg"
+    },
+    {
+      "name": "Seasoned Potato Wedges w Sour Cream",
+      "price": 11.7,
+      "rating": "88%",
+      "ratingCount": 17,
+      "description": null,
+      "imageUrl": "https://tb-static.uber.com/prod/image-proc/processed_images/fb89adf612aeecc76555b045be880571/5954bcb006b10dbfd0bc160f6370faf3.jpeg",
+      "localImage": "bunny-boys-images/seasoned-potato-wedges-w-sour-cream.jpeg"
+    },
+    {
+      "name": "Capricciosa Pizza",
+      "price": 12.8,
+      "rating": "100%",
+      "ratingCount": 9,
+      "description": null,
+      "imageUrl": "https://tb-static.uber.com/prod/image-proc/processed_images/3ac6e504d215274149bbc4965ac1870d/5954bcb006b10dbfd0bc160f6370faf3.jpeg",
+      "localImage": "bunny-boys-images/capricciosa-pizza.jpeg"
+    },
+    {
+      "name": "BBQ Chicken Pizza",
+      "price": 14,
+      "rating": "80%",
+      "ratingCount": 21,
+      "description": null,
+      "imageUrl": "https://tb-static.uber.com/prod/image-proc/processed_images/a732aa48e42fedd53e68f4e306db0c14/5954bcb006b10dbfd0bc160f6370faf3.jpeg",
+      "localImage": "bunny-boys-images/bbq-chicken-pizza.jpeg"
+    },
+    {
+      "name": "Garlic Bread Loaf",
+      "price": 3.12,
+      "rating": "96%",
+      "ratingCount": 79,
+      "description": "\u2022 96%\u00a0(79) 20% off",
+      "imageUrl": "https://tb-static.uber.com/prod/image-proc/processed_images/29090f840f973f14e8fde5f139f7e7fc/5954bcb006b10dbfd0bc160f6370faf3.jpeg",
+      "localImage": "bunny-boys-images/garlic-bread-loaf.jpeg"
+    },
+    {
+      "name": "Vegetarian Pizza",
+      "price": 12.8,
+      "rating": "93%",
+      "ratingCount": 16,
+      "description": "93%\u00a0(16) Mushroom, onion, capsicum and olives. Tomato base and cheese on top.",
+      "imageUrl": "https://tb-static.uber.com/prod/image-proc/processed_images/877659bb96dea55a51c9519defc28050/5954bcb006b10dbfd0bc160f6370faf3.jpeg",
+      "localImage": "bunny-boys-images/vegetarian-pizza.jpeg"
+    },
+    {
+      "name": "Napolitana",
+      "price": 12.8,
+      "rating": "66%",
+      "ratingCount": 3,
+      "description": "66%\u00a0(3) Anchovies, olives and garlic on Top. Tomato base, and cheese on top",
+      "imageUrl": "https://tb-static.uber.com/prod/image-proc/processed_images/effc709488faaf80c319a094a4adcf6c/5954bcb006b10dbfd0bc160f6370faf3.jpeg",
+      "localImage": "bunny-boys-images/napolitana.jpeg"
+    },
+    {
+      "name": "Marinara Pizza",
+      "price": 12.8,
+      "rating": "85%",
+      "ratingCount": 7,
+      "description": "85%\u00a0(7) Mixed seafood, garlic and oregano. Tomato base and cheese on top.",
+      "imageUrl": "https://tb-static.uber.com/prod/image-proc/processed_images/47a125b1a505b34ed040c3fbd01050a7/5954bcb006b10dbfd0bc160f6370faf3.jpeg",
+      "localImage": "bunny-boys-images/marinara-pizza.jpeg"
+    },
+    {
+      "name": "Half n Half Pizza",
+      "price": 13.8,
+      "rating": "89%",
+      "ratingCount": 19,
+      "description": "89%\u00a0(19)",
+      "imageUrl": "https://tb-static.uber.com/prod/image-proc/processed_images/abc9e13659f80820e610200b25eeea2f/5954bcb006b10dbfd0bc160f6370faf3.jpeg",
+      "localImage": "bunny-boys-images/half-n-half-pizza.jpeg"
+    },
+    {
+      "name": "Tomato Supreme",
+      "price": 14,
+      "rating": "88%",
+      "ratingCount": 9,
+      "description": "88%\u00a0(9) Mushroom, salami, onion, capsicum, fresh sliced tomato and beef. Tomato base, and cheese on top",
+      "imageUrl": "https://tb-static.uber.com/prod/image-proc/processed_images/050835661af0f30f46900f210c7e3ff5/5954bcb006b10dbfd0bc160f6370faf3.jpeg",
+      "localImage": "bunny-boys-images/tomato-supreme.jpeg"
+    },
+    {
+      "name": "Tandoori Chicken",
+      "price": 14,
+      "rating": "100%",
+      "ratingCount": 6,
+      "description": "100%\u00a0(6) Chicken, onion, capsicum, home-made tandoori Sauce. Tomato base and cheese on top.",
+      "imageUrl": "https://tb-static.uber.com/prod/image-proc/processed_images/511c055e3be0fffb52d730453210bfaf/5954bcb006b10dbfd0bc160f6370faf3.jpeg",
+      "localImage": "bunny-boys-images/tandoori-chicken.jpeg"
+    },
+    {
+      "name": "Pesto Chicken",
+      "price": 14,
+      "rating": null,
+      "ratingCount": null,
+      "description": null,
+      "imageUrl": "https://tb-static.uber.com/prod/image-proc/processed_images/99455f7a8555aaea5e2cd67525ade265/5954bcb006b10dbfd0bc160f6370faf3.jpeg",
+      "localImage": "bunny-boys-images/pesto-chicken.jpeg"
+    },
+    {
+      "name": "Chicken Supreme Pizza",
+      "price": 14,
+      "rating": "100%",
+      "ratingCount": 12,
+      "description": "100%\u00a0(12) Chicken, pineapple, onion, mushroom and oregano and garlic. Tomato base and cheese on top.",
+      "imageUrl": "https://tb-static.uber.com/prod/image-proc/processed_images/260edfd0a939c9c36e8e985c0d5781e7/5954bcb006b10dbfd0bc160f6370faf3.jpeg",
+      "localImage": "bunny-boys-images/chicken-supreme-pizza.jpeg"
+    },
+    {
+      "name": "Satay Chicken Pizza",
+      "price": 14,
+      "rating": "100%",
+      "ratingCount": 4,
+      "description": "100%\u00a0(4) Chicken, onion, capsicum and satay sauce, Tomato base, and cheese on top",
+      "imageUrl": "https://tb-static.uber.com/prod/image-proc/processed_images/e7ba30fa2503f3862f4c582789de29b5/5954bcb006b10dbfd0bc160f6370faf3.jpeg",
+      "localImage": "bunny-boys-images/satay-chicken-pizza.jpeg"
+    },
+    {
+      "name": "Hot and Spicy Chicken Pizza",
+      "price": 14,
+      "rating": "88%",
+      "ratingCount": 9,
+      "description": "88%\u00a0(9) Chicken, red pepper, onion, jalapenos and chilli sauce. and BBQ sauce. Tomato base and cheese on top.",
+      "imageUrl": "https://tb-static.uber.com/prod/image-proc/processed_images/7278276d898249f613c28ceb51e6fb0d/5954bcb006b10dbfd0bc160f6370faf3.jpeg",
+      "localImage": "bunny-boys-images/hot-and-spicy-chicken-pizza.jpeg"
+    },
+    {
+      "name": "Gourmet Vegetarian Pizza",
+      "price": 14,
+      "rating": "100%",
+      "ratingCount": 15,
+      "description": "100%\u00a0(15) Baby spinach, mushroom, fresh capsicum, pineapple, spanish onion and kalamata olives and feta cheese. Tomato base and cheese on top.",
+      "imageUrl": "https://tb-static.uber.com/prod/image-proc/processed_images/94831e5f7afb61334013309594ec2b06/5954bcb006b10dbfd0bc160f6370faf3.jpeg",
+      "localImage": "bunny-boys-images/gourmet-vegetarian-pizza.jpeg"
+    },
+    {
+      "name": "Mediterranean Pizza",
+      "price": 14,
+      "rating": "100%",
+      "ratingCount": 8,
+      "description": "100%\u00a0(8) Baby spinach, fresh tomato, red pepper, olives and feta cheese and topped with basil pesto",
+      "imageUrl": "https://tb-static.uber.com/prod/image-proc/processed_images/c4d8ee71b8365c8b700f9de5ccc60739/5954bcb006b10dbfd0bc160f6370faf3.jpeg",
+      "localImage": "bunny-boys-images/mediterranean-pizza.jpeg"
+    },
+    {
+      "name": "Red Devil Pizza",
+      "price": 14,
+      "rating": null,
+      "ratingCount": null,
+      "description": null,
+      "imageUrl": "https://tb-static.uber.com/prod/image-proc/processed_images/f6b7c206e227af5250d8ed036db87b9b/5954bcb006b10dbfd0bc160f6370faf3.jpeg",
+      "localImage": "bunny-boys-images/red-devil-pizza.jpeg"
+    },
+    {
+      "name": "Bolognese Pasta",
+      "price": 19.9,
+      "rating": "60%",
+      "ratingCount": 5,
+      "description": "60%\u00a0(5) Combination of premium beef balance with onion, carrot and celery, cooked with crushed tomato and red wine.",
+      "imageUrl": "https://tb-static.uber.com/prod/image-proc/processed_images/6a6619664ae38a3326abb2305bdc3537/5954bcb006b10dbfd0bc160f6370faf3.jpeg",
+      "localImage": "bunny-boys-images/bolognese-pasta.jpeg"
+    },
+    {
+      "name": "Marinara Pasta",
+      "price": 19.9,
+      "rating": "75%",
+      "ratingCount": 4,
+      "description": "75%\u00a0(4) Selected seafood stir fried and cooked with Napoli sauce",
+      "imageUrl": "https://tb-static.uber.com/prod/image-proc/processed_images/b2237c309e6270a1dfb1ba5a532d258d/5954bcb006b10dbfd0bc160f6370faf3.jpeg",
+      "localImage": "bunny-boys-images/marinara-pasta.jpeg"
+    },
+    {
+      "name": "Vegetarian Pasta",
+      "price": 19.9,
+      "rating": null,
+      "ratingCount": null,
+      "description": null,
+      "imageUrl": "https://tb-static.uber.com/prod/image-proc/processed_images/24bc5c439db4c24b4046d974890b17ba/5954bcb006b10dbfd0bc160f6370faf3.jpeg",
+      "localImage": "bunny-boys-images/vegetarian-pasta.jpeg"
+    },
+    {
+      "name": "Carbonara Pasta",
+      "price": 19.9,
+      "rating": "71%",
+      "ratingCount": 21,
+      "description": "71%\u00a0(21) Saut\u00e9ed bacon with a thicken cream sauce, drizzled with a freshly cracked egg",
+      "imageUrl": "https://tb-static.uber.com/prod/image-proc/processed_images/6a6619664ae38a3326abb2305bdc3537/5954bcb006b10dbfd0bc160f6370faf3.jpeg",
+      "localImage": "bunny-boys-images/carbonara-pasta.jpeg"
+    },
+    {
+      "name": "Chicken Pollo Pasta",
+      "price": 19.9,
+      "rating": "77%",
+      "ratingCount": 9,
+      "description": "77%\u00a0(9) Chicken, mushroom, with a rich creamy white sauce",
+      "imageUrl": "https://tb-static.uber.com/prod/image-proc/processed_images/6a6619664ae38a3326abb2305bdc3537/5954bcb006b10dbfd0bc160f6370faf3.jpeg",
+      "localImage": "bunny-boys-images/chicken-pollo-pasta.jpeg"
+    },
+    {
+      "name": "Lasagne",
+      "price": 19.9,
+      "rating": "71%",
+      "ratingCount": 7,
+      "description": "71%\u00a0(7) Cheese and home-made Bolognese sauce",
+      "imageUrl": "https://tb-static.uber.com/prod/image-proc/processed_images/6a6619664ae38a3326abb2305bdc3537/5954bcb006b10dbfd0bc160f6370faf3.jpeg",
+      "localImage": "bunny-boys-images/lasagne.jpeg"
+    },
+    {
+      "name": "Matriciana Pasta",
+      "price": 19.9,
+      "rating": "83%",
+      "ratingCount": 6,
+      "description": "83%\u00a0(6) Salami, red pepper, olives and chili",
+      "imageUrl": "https://tb-static.uber.com/prod/image-proc/processed_images/6a6619664ae38a3326abb2305bdc3537/5954bcb006b10dbfd0bc160f6370faf3.jpeg",
+      "localImage": "bunny-boys-images/matriciana-pasta.jpeg"
+    },
+    {
+      "name": "Rose Pasta",
+      "price": 19.9,
+      "rating": "75%",
+      "ratingCount": 4,
+      "description": "75%\u00a0(4) Green capsicum, red pepper and oven roasted chicken, with a creamy white sauce and a touch of Napoli Sauce",
+      "imageUrl": "https://tb-static.uber.com/prod/image-proc/processed_images/6a6619664ae38a3326abb2305bdc3537/5954bcb006b10dbfd0bc160f6370faf3.jpeg",
+      "localImage": "bunny-boys-images/rose-pasta.jpeg"
+    },
+    {
+      "name": "BBQ Chicken Wings",
+      "price": 19.5,
+      "rating": null,
+      "ratingCount": null,
+      "description": null,
+      "imageUrl": "https://tb-static.uber.com/prod/image-proc/processed_images/10bf664ec2749a4fecafb708f9d12391/5954bcb006b10dbfd0bc160f6370faf3.jpeg",
+      "localImage": "bunny-boys-images/bbq-chicken-wings.jpeg"
+    },
+    {
+      "name": "Chicken Parmigiana with chips",
+      "price": 24.7,
+      "rating": "70%",
+      "ratingCount": 10,
+      "description": "70%\u00a0(10) Freshly prepare by our chef, crumbed and baked with Mozzarella Cheese, homemade sauce, Tender and Yummy",
+      "imageUrl": "https://tb-static.uber.com/prod/image-proc/processed_images/0a6ca54ff26471d8c83d3ac1e7dc6d56/5954bcb006b10dbfd0bc160f6370faf3.jpeg",
+      "localImage": "bunny-boys-images/chicken-parmigiana-with-chips.jpeg"
+    },
+    {
+      "name": "Boneless chicken 2 Big pcs with chips",
+      "price": 19.8,
+      "rating": null,
+      "ratingCount": null,
+      "description": null,
+      "imageUrl": "https://tb-static.uber.com/prod/image-proc/processed_images/67d900f933be9b2838f02a002f07e51e/0fb376d1da56c05644450062d25c5c84.jpeg",
+      "localImage": "bunny-boys-images/boneless-chicken-2-big-pcs-with-chips.jpeg"
+    },
+    {
+      "name": "Chips Loaded w Cheese and Bacon",
+      "price": 11.5,
+      "rating": "88%",
+      "ratingCount": 9,
+      "description": "88%\u00a0(9)",
+      "imageUrl": "https://tb-static.uber.com/prod/image-proc/processed_images/9134c490d3bf3a1a6dfad803e38e0fa9/5954bcb006b10dbfd0bc160f6370faf3.jpeg",
+      "localImage": "bunny-boys-images/chips-loaded-w-cheese-and-bacon.jpeg"
+    },
+    {
+      "name": "Boneless chicken 1 pcs with chips",
+      "price": 9.9,
+      "rating": "80%",
+      "ratingCount": 10,
+      "description": "80%\u00a0(10)",
+      "imageUrl": "https://tb-static.uber.com/prod/image-proc/processed_images/44693a2fa95dd2704b3afbbfc155a279/5954bcb006b10dbfd0bc160f6370faf3.jpeg",
+      "localImage": "bunny-boys-images/boneless-chicken-1-pcs-with-chips.jpeg"
+    },
+    {
+      "name": "Hot Jam Donuts",
+      "price": 2.5,
+      "rating": "100%",
+      "ratingCount": 20,
+      "description": "100%\u00a0(20) 1 Piece",
+      "imageUrl": "https://tb-static.uber.com/prod/image-proc/processed_images/b0ebcbbab000fbdcb542d3178372bbaa/5954bcb006b10dbfd0bc160f6370faf3.jpeg",
+      "localImage": "bunny-boys-images/hot-jam-donuts.jpeg"
+    },
+    {
+      "name": "Gelato",
+      "price": 8,
+      "rating": "85%",
+      "ratingCount": 7,
+      "description": "85%\u00a0(7)",
+      "imageUrl": "https://tb-static.uber.com/prod/image-proc/processed_images/aed1a5ea09e3b837ebd331e37cdfe7c7/5954bcb006b10dbfd0bc160f6370faf3.jpeg",
+      "localImage": "bunny-boys-images/gelato.jpeg"
+    },
+    {
+      "name": "Chocolate Pizza",
+      "price": 11.9,
+      "rating": null,
+      "ratingCount": null,
+      "description": null,
+      "imageUrl": "https://tb-static.uber.com/prod/image-proc/processed_images/8dd8260363c0e18c4b42d7242f0ac95e/5954bcb006b10dbfd0bc160f6370faf3.jpeg",
+      "localImage": "bunny-boys-images/chocolate-pizza.jpeg"
+    },
+    {
+      "name": "Chocolate Mousse",
+      "price": 5.8,
+      "rating": "87%",
+      "ratingCount": 24,
+      "description": "87%\u00a0(24)",
+      "imageUrl": "https://tb-static.uber.com/prod/image-proc/processed_images/f2729e431a7cd241cec547c14783fcbc/5954bcb006b10dbfd0bc160f6370faf3.jpeg",
+      "localImage": "bunny-boys-images/chocolate-mousse.jpeg"
+    },
+    {
+      "name": "Cheese Cake",
+      "price": 5.8,
+      "rating": "100%",
+      "ratingCount": 5,
+      "description": "100%\u00a0(5)",
+      "imageUrl": "https://tb-static.uber.com/prod/image-proc/processed_images/b0ebcbbab000fbdcb542d3178372bbaa/5954bcb006b10dbfd0bc160f6370faf3.jpeg",
+      "localImage": "bunny-boys-images/cheese-cake.jpeg"
+    },
+    {
+      "name": "Solo 1.25L",
+      "price": 5.5,
+      "rating": "88%",
+      "ratingCount": 9,
+      "description": "88%\u00a0(9)",
+      "imageUrl": null,
+      "localImage": null
+    },
+    {
+      "name": "Sunkist 375ML",
+      "price": 3,
+      "rating": "100%",
+      "ratingCount": 5,
+      "description": "100%\u00a0(5)",
+      "imageUrl": null,
+      "localImage": null
+    },
+    {
+      "name": "Pepsi Max 375ML",
+      "price": 3,
+      "rating": "100%",
+      "ratingCount": 7,
+      "description": "100%\u00a0(7)",
+      "imageUrl": null,
+      "localImage": null
+    },
+    {
+      "name": "Pepsi Max 1.25L",
+      "price": 5.5,
+      "rating": null,
+      "ratingCount": null,
+      "description": null,
+      "imageUrl": null,
+      "localImage": null
+    },
+    {
+      "name": "Lemonade 1.25L",
+      "price": 5.5,
+      "rating": "100%",
+      "ratingCount": 4,
+      "description": "100%\u00a0(4)",
+      "imageUrl": null,
+      "localImage": null
+    },
+    {
+      "name": "Pepsi 1.25L",
+      "price": 5.5,
+      "rating": "100%",
+      "ratingCount": 10,
+      "description": "100%\u00a0(10)",
+      "imageUrl": null,
+      "localImage": null
+    },
+    {
+      "name": "Sunkist 1.25L",
+      "price": 5.5,
+      "rating": "100%",
+      "ratingCount": 3,
+      "description": "100%\u00a0(3)",
+      "imageUrl": null,
+      "localImage": null
+    },
+    {
+      "name": "Mountain Dew 375ML",
+      "price": 3,
+      "rating": null,
+      "ratingCount": null,
+      "description": null,
+      "imageUrl": null,
+      "localImage": null
+    },
+    {
+      "name": "Lemonade 375ML",
+      "price": 3,
+      "rating": null,
+      "ratingCount": null,
+      "description": null,
+      "imageUrl": null,
+      "localImage": null
+    },
+    {
+      "name": "Pepsi 375ML",
+      "price": 3,
+      "rating": null,
+      "ratingCount": null,
+      "description": null,
+      "imageUrl": null,
+      "localImage": null
+    },
+    {
+      "name": "Mountain Dew 1.25L",
+      "price": 5.5,
+      "rating": null,
+      "ratingCount": null,
+      "description": null,
+      "imageUrl": null,
+      "localImage": null
+    },
+    {
+      "name": "Solo 375ML",
+      "price": 3,
+      "rating": "100%",
+      "ratingCount": 4,
+      "description": "100%\u00a0(4)",
+      "imageUrl": null,
+      "localImage": null
+    },
+    {
+      "name": "Single Deal",
+      "price": 20.6,
+      "rating": "100%",
+      "ratingCount": 5,
+      "description": "100%\u00a0(5) 1 Small Pizza, 1 Garlic Bread, 1 Can Drink",
+      "imageUrl": "https://tb-static.uber.com/prod/image-proc/processed_images/3a23891b65b64f30d5ed3825d0729967/5954bcb006b10dbfd0bc160f6370faf3.jpeg",
+      "localImage": "bunny-boys-images/single-deal.jpeg"
+    }
+  ],
+  "stats": {
+    "totalItems": 61,
+    "itemsWithImages": 49,
+    "itemsMissingImages": 12
+  }
+}
