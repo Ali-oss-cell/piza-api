@@ -85,6 +85,12 @@ enum StoreMembershipRole {
   PLATFORM_ADMIN
   STORE_ADMIN
   STAFF
+  SEO
+}
+
+enum BlogPostStatus {
+  DRAFT
+  PUBLISHED
 }
 
 enum DealScope {
@@ -196,6 +202,9 @@ model Brand {
   storeCustomers       StoreCustomer[]
   customerTags         CustomerTag[]
   customerSegments     CustomerSegment[]
+  seoContent           SeoContent[]
+  seoImages            SeoImage[]
+  blogPosts            BlogPost[]
 
   @@map("brands")
 }
@@ -239,8 +248,11 @@ model StoreDomain {
   createdAt  DateTime @default(now()) @map("created_at")
   updatedAt  DateTime @updatedAt @map("updated_at")
 
-  store    Brand     @relation(fields: [storeId], references: [id], onDelete: Cascade)
-  location Location? @relation(fields: [locationId], references: [id], onDelete: SetNull)
+  store      Brand        @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  location   Location?    @relation(fields: [locationId], references: [id], onDelete: SetNull)
+  seoContent SeoContent[]
+  seoImages  SeoImage[]
+  blogPosts  BlogPost[]
 
   @@index([storeId])
   @@map("store_domains")
@@ -818,4 +830,73 @@ model PurchaseOrderLine {
 
   @@unique([purchaseOrderId, stockItemId])
   @@map("purchase_order_lines")
+}
+
+model SeoContent {
+  id              String   @id @default(uuid()) @db.Uuid
+  storeId         String   @map("store_id") @db.Uuid
+  domainId        String?  @map("domain_id") @db.Uuid
+  page            String
+  section         String
+  content         String   @default("") @db.Text
+  metaTitle       String?  @map("meta_title")
+  metaDescription String?  @map("meta_description") @db.Text
+  metaKeywords    String?  @map("meta_keywords")
+  ogImageUrl      String?  @map("og_image_url")
+  robotsIndex     Boolean  @default(true) @map("robots_index")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  store  Brand        @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  domain StoreDomain? @relation(fields: [domainId], references: [id], onDelete: Cascade)
+
+  @@index([storeId, domainId, page])
+  @@map("seo_content")
+}
+
+model SeoImage {
+  id        String   @id @default(uuid()) @db.Uuid
+  storeId   String   @map("store_id") @db.Uuid
+  domainId  String?  @map("domain_id") @db.Uuid
+  filename  String
+  filePath  String   @map("file_path")
+  label     String?
+  page      String?
+  section   String?
+  altText   String?  @map("alt_text")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  store     Brand        @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  domain    StoreDomain? @relation(fields: [domainId], references: [id], onDelete: Cascade)
+  blogPosts BlogPost[]
+
+  @@index([storeId, domainId])
+  @@map("seo_images")
+}
+
+model BlogPost {
+  id               String         @id @default(uuid()) @db.Uuid
+  storeId          String         @map("store_id") @db.Uuid
+  domainId         String?        @map("domain_id") @db.Uuid
+  slug             String
+  title            String
+  excerpt          String?        @db.Text
+  content          String         @default("") @db.Text
+  status           BlogPostStatus @default(DRAFT)
+  author           String?
+  publishedAt      DateTime?      @map("published_at")
+  thumbnailImageId String?        @map("thumbnail_image_id") @db.Uuid
+  metaTitle        String?        @map("meta_title")
+  metaDescription  String?        @map("meta_description") @db.Text
+  metaKeywords     String?        @map("meta_keywords")
+  category         String?
+  createdAt        DateTime       @default(now()) @map("created_at")
+  updatedAt        DateTime       @updatedAt @map("updated_at")
+
+  store     Brand        @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  domain    StoreDomain? @relation(fields: [domainId], references: [id], onDelete: Cascade)
+  thumbnail SeoImage?    @relation(fields: [thumbnailImageId], references: [id], onDelete: SetNull)
+
+  @@index([storeId, domainId, status])
+  @@map("blog_posts")
 }

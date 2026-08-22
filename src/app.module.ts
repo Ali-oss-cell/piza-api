@@ -22,6 +22,7 @@ import { PaymentSettingsModule } from './payment-settings/payment-settings.modul
 import { PosModule } from './pos/pos.module';
 import { PricingModule } from './pricing/pricing.module';
 import { PrismaModule } from './prisma/prisma.module';
+import { SeoModule } from './seo/seo.module';
 import { SettingsModule } from './settings/settings.module';
 import { TeamModule } from './team/team.module';
 import { UploadsModule } from './uploads/uploads.module';
@@ -58,6 +59,7 @@ import { WebhooksModule } from './webhooks/webhooks.module';
     TeamModule,
     LocationsAdminModule,
     InventoryModule,
+    SeoModule,
   ],
   controllers: [HealthController],
   providers: [

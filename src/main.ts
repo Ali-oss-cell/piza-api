@@ -19,8 +19,14 @@ async function bootstrap(): Promise<void> {
   if (!existsSync(uploadsRoot)) {
     mkdirSync(join(uploadsRoot, 'logos'), { recursive: true });
     mkdirSync(join(uploadsRoot, 'heroes'), { recursive: true });
-  } else if (!existsSync(join(uploadsRoot, 'heroes'))) {
-    mkdirSync(join(uploadsRoot, 'heroes'), { recursive: true });
+    mkdirSync(join(uploadsRoot, 'seo'), { recursive: true });
+  } else {
+    if (!existsSync(join(uploadsRoot, 'heroes'))) {
+      mkdirSync(join(uploadsRoot, 'heroes'), { recursive: true });
+    }
+    if (!existsSync(join(uploadsRoot, 'seo'))) {
+      mkdirSync(join(uploadsRoot, 'seo'), { recursive: true });
+    }
   }
 
   app.useStaticAssets(uploadsRoot, {

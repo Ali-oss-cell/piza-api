@@ -4,6 +4,7 @@ import { IsBoolean, IsIn, IsOptional, IsUUID } from 'class-validator';
 const UPDATABLE_ROLES = [
   StoreMembershipRole.STORE_ADMIN,
   StoreMembershipRole.STAFF,
+  StoreMembershipRole.SEO,
 ] as const;
 
 export class UpdateTeamMemberDto {

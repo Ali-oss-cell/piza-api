@@ -14,6 +14,7 @@ import {
 const INVITABLE_ROLES = [
   StoreMembershipRole.STORE_ADMIN,
   StoreMembershipRole.STAFF,
+  StoreMembershipRole.SEO,
 ];
 
 export class InviteHqMemberDto {

@@ -645,6 +645,192 @@ async function seedAdmin(prisma, storeIds = []) {
   }
 }
 
+const SEO_PAGE_DEFAULTS = [
+  {
+    page: 'home',
+    sections: [
+      { section: 'hero_h1', content: 'Welcome' },
+      { section: 'hero_h2', content: 'Order online for delivery or pickup' },
+      { section: 'hero_body', content: 'Fresh ingredients, crafted with care.' },
+      { section: 'hero_image', content: '' },
+      {
+        section: 'page_title',
+        content: '',
+        metaTitle: 'Order Online',
+        metaDescription: 'Order delivery or pickup online.',
+      },
+    ],
+  },
+  {
+    page: 'about',
+    sections: [
+      { section: 'hero_h1', content: 'Our Story' },
+      { section: 'hero_body', content: 'Passion for great food, served fresh every day.' },
+      { section: 'hero_image', content: '' },
+      {
+        section: 'page_title',
+        content: '',
+        metaTitle: 'About Us',
+        metaDescription: 'Learn about our kitchen, team, and craft.',
+      },
+    ],
+  },
+  {
+    page: 'deals',
+    sections: [
+      { section: 'hero_h1', content: 'Deals & Specials' },
+      { section: 'hero_body', content: 'Save on your favourites with our latest offers.' },
+      { section: 'hero_image', content: '' },
+      {
+        section: 'page_title',
+        content: '',
+        metaTitle: 'Deals',
+        metaDescription: 'Current deals and limited-time offers.',
+      },
+    ],
+  },
+  {
+    page: 'locations',
+    sections: [
+      { section: 'hero_h1', content: 'Find Us' },
+      { section: 'hero_body', content: 'Visit us or order for delivery from your nearest location.' },
+      { section: 'hero_image', content: '' },
+      {
+        section: 'page_title',
+        content: '',
+        metaTitle: 'Locations',
+        metaDescription: 'Store locations, hours, and contact details.',
+      },
+    ],
+  },
+  {
+    page: 'blog',
+    sections: [
+      { section: 'hero_h1', content: 'Blog' },
+      { section: 'hero_body', content: 'News, recipes, and stories from our kitchen.' },
+      { section: 'hero_image', content: '' },
+    ],
+  },
+];
+
+async function upsertSeoSlot(prisma, storeId, pageDef, sectionDef, brandName) {
+  const existing = await prisma.seoContent.findFirst({
+    where: {
+      storeId,
+      domainId: null,
+      page: pageDef.page,
+      section: sectionDef.section,
+    },
+  });
+
+  const metaTitle =
+    sectionDef.metaTitle ??
+    (sectionDef.section === 'page_title'
+      ? `${sectionDef.metaTitle ?? pageDef.page.charAt(0).toUpperCase() + pageDef.page.slice(1)} | ${brandName}`
+      : null);
+
+  const data = {
+    content: sectionDef.content ?? '',
+    metaTitle: sectionDef.metaTitle ?? metaTitle,
+    metaDescription: sectionDef.metaDescription ?? null,
+    metaKeywords: sectionDef.metaKeywords ?? null,
+    robotsIndex: true,
+  };
+
+  if (existing) {
+    return prisma.seoContent.update({
+      where: { id: existing.id },
+      data,
+    });
+  }
+
+  return prisma.seoContent.create({
+    data: {
+      storeId,
+      domainId: null,
+      page: pageDef.page,
+      section: sectionDef.section,
+      ...data,
+    },
+  });
+}
+
+async function seedSeoContent(prisma, brands) {
+  let created = 0;
+
+  for (const brand of brands) {
+    for (const pageDef of SEO_PAGE_DEFAULTS) {
+      for (const sectionDef of pageDef.sections) {
+        const before = await prisma.seoContent.findFirst({
+          where: {
+            storeId: brand.id,
+            domainId: null,
+            page: pageDef.page,
+            section: sectionDef.section,
+          },
+        });
+
+        const brandName = brand.name;
+        const sectionWithBrand = { ...sectionDef };
+        if (sectionDef.section === 'page_title' && sectionDef.metaTitle) {
+          sectionWithBrand.metaTitle = `${sectionDef.metaTitle} | ${brandName}`;
+        } else if (sectionDef.section === 'hero_h1' && sectionDef.content === 'Welcome') {
+          sectionWithBrand.content = `Welcome to ${brandName}`;
+        }
+
+        await upsertSeoSlot(prisma, brand.id, pageDef, sectionWithBrand, brandName);
+        if (!before) {
+          created += 1;
+        }
+      }
+    }
+  }
+
+  console.log(`Seeded SEO content (${created} new slots).`);
+}
+
+async function seedSeoUser(prisma, storeIds) {
+  const seoEmail = process.env.SEO_SEED_EMAIL ?? 'seo@marinapizzas.com.au';
+  const seoPassword = process.env.SEO_SEED_PASSWORD ?? 'ChangeMe!Seo2026';
+
+  let seoUser = await prisma.user.findUnique({ where: { email: seoEmail } });
+
+  if (!seoUser) {
+    const passwordHash = await bcrypt.hash(seoPassword, 12);
+    seoUser = await prisma.user.create({
+      data: {
+        email: seoEmail,
+        password: passwordHash,
+        firstName: 'SEO',
+        lastName: 'Editor',
+        role: UserRole.USER,
+      },
+    });
+    console.log(`Seeded SEO editor account: ${seoEmail}`);
+    console.log('Rotate SEO_SEED_PASSWORD immediately in production.');
+  }
+
+  for (const storeId of storeIds) {
+    await prisma.userStore.upsert({
+      where: {
+        userId_storeId: {
+          userId: seoUser.id,
+          storeId,
+        },
+      },
+      update: { role: 'SEO', isActive: true },
+      create: {
+        userId: seoUser.id,
+        storeId,
+        role: 'SEO',
+        isActive: true,
+      },
+    });
+  }
+
+  console.log(`Ensured SEO memberships (${storeIds.length} stores).`);
+}
+
 async function main() {
   const connectionString = process.env.DATABASE_URL;
   if (!connectionString) {
@@ -657,6 +843,8 @@ async function main() {
   try {
     const { leovorno, bunnyBoys } = await seedBrandsAndLocations(prisma);
     await seedAdmin(prisma, [leovorno.id, bunnyBoys.id]);
+    await seedSeoContent(prisma, [leovorno, bunnyBoys]);
+    await seedSeoUser(prisma, [leovorno.id, bunnyBoys.id]);
     await seedCrusts(prisma);
     await seedToppings(prisma);
     await seedIngredients(prisma);

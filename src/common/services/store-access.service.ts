@@ -12,6 +12,11 @@ const MANAGE_ROLES: StoreMembershipRole[] = [
   StoreMembershipRole.STORE_ADMIN,
 ];
 
+const SEO_ROLES: StoreMembershipRole[] = [
+  StoreMembershipRole.SEO,
+  ...MANAGE_ROLES,
+];
+
 export type BrandListItem = Brand & {
   pathPrefix: string | null;
   host: string | null;
@@ -64,6 +69,96 @@ export class StoreAccessService {
     });
 
     return Boolean(membership);
+  }
+
+  async canAccessSeoDashboard(user: AuthenticatedUser): Promise<boolean> {
+    if (
+      user.role === UserRole.ADMIN ||
+      user.role === UserRole.MANAGER
+    ) {
+      return true;
+    }
+
+    if (await this.isPlatformAdmin(user)) {
+      return true;
+    }
+
+    const membership = await this.prisma.userStore.findFirst({
+      where: {
+        userId: user.id,
+        isActive: true,
+        role: { in: SEO_ROLES },
+      },
+    });
+
+    return Boolean(membership);
+  }
+
+  async assertCanManageSeo(
+    user: AuthenticatedUser,
+    brandSlug?: string,
+  ): Promise<void> {
+    if (
+      user.role === UserRole.ADMIN ||
+      user.role === UserRole.MANAGER
+    ) {
+      return;
+    }
+
+    if (await this.isPlatformAdmin(user)) {
+      return;
+    }
+
+    const slug = (brandSlug ?? DEFAULT_BRAND_SLUG).trim().toLowerCase();
+    const membership = await this.prisma.userStore.findFirst({
+      where: {
+        userId: user.id,
+        isActive: true,
+        role: { in: SEO_ROLES },
+        store: { slug, isActive: true },
+      },
+    });
+
+    if (!membership) {
+      throw new ForbiddenException(
+        `You do not have SEO access to store "${slug}".`,
+      );
+    }
+  }
+
+  async listAccessibleBrandsForSeo(
+    user: AuthenticatedUser,
+  ): Promise<BrandListItem[]> {
+    if (
+      user.role === UserRole.ADMIN ||
+      user.role === UserRole.MANAGER ||
+      (await this.isPlatformAdmin(user))
+    ) {
+      return this.listAccessibleBrands(user);
+    }
+
+    const memberships = await this.prisma.userStore.findMany({
+      where: {
+        userId: user.id,
+        isActive: true,
+        role: { in: SEO_ROLES },
+        store: { isActive: true },
+      },
+      include: {
+        store: {
+          include: {
+            domains: {
+              where: { isActive: true },
+              orderBy: [{ isPrimary: 'desc' }, { createdAt: 'asc' }],
+              take: 1,
+            },
+          },
+        },
+      },
+      orderBy: { createdAt: 'asc' },
+    });
+
+    return memberships.map((membership) => this.toListItem(membership.store));
   }
 
   async assertCanManageStore(
