@@ -175,7 +175,10 @@ class ApiClient:
         self.token = token
         self.brand = brand
         self.dry_run = dry_run
-        self.public_origin = self.base.replace("/api", "") if self.base.endswith("/api") else self.base
+        if self.base.endswith("/api"):
+            self.public_origin = self.base[:-4]
+        else:
+            self.public_origin = self.base
 
     def _headers(self, json_body: bool = True) -> dict[str, str]:
         h = {"Authorization": f"Bearer {self.token}", "x-brand-slug": self.brand}
@@ -289,8 +292,11 @@ def clear_store_catalog(api: ApiClient) -> None:
                 items = []
         if not isinstance(items, list) or not items:
             break
-        print(f"  pass {pass_num}: deleting {len(items)} menu items…")
-        for item in items:
+        active = [i for i in items if i.get("isActive", True)]
+        if not active:
+            break
+        print(f"  pass {pass_num}: deactivating {len(active)} menu items…")
+        for item in active:
             item_id = item.get("id")
             name = item.get("name", item_id)
             if not item_id:
@@ -442,8 +448,20 @@ def resolve_local_image(item: dict) -> Path | None:
 def import_menu_items(api: ApiClient, menu: dict) -> None:
     items = menu.get("items", [])
     print(f"→ Importing {len(items)} menu items…")
-    created = failed = 0
+    created = updated = failed = skipped = 0
     number = 1
+
+    existing_by_slug: dict[str, str] = {}
+    try:
+        catalog = api.get("/menu/manage/all")
+        if isinstance(catalog, list):
+            for row in catalog:
+                slug = row.get("slug")
+                item_id = row.get("id")
+                if slug and item_id:
+                    existing_by_slug[slug] = item_id
+    except RuntimeError:
+        pass
 
     for item in items:
         name = (item.get("name") or "").strip()
@@ -491,18 +509,29 @@ def import_menu_items(api: ApiClient, menu: dict) -> None:
             }
 
         try:
-            api.post("/menu", payload)
-            img_note = "📷" if local else ("🔗" if image_url != PLACEHOLDER_IMAGE else "⬜")
-            print(f"  ✓ {img_note} [{cat}] {name}  ${price:.2f}")
-            created += 1
+            existing_id = existing_by_slug.get(slug)
+            if existing_id:
+                api.put(f"/menu/{existing_id}", payload)
+                img_note = "📷" if local else ("🔗" if image_url != PLACEHOLDER_IMAGE else "⬜")
+                print(f"  ↻ {img_note} [{cat}] {name}  ${price:.2f}")
+                updated += 1
+            else:
+                api.post("/menu", payload)
+                img_note = "📷" if local else ("🔗" if image_url != PLACEHOLDER_IMAGE else "⬜")
+                print(f"  ✓ {img_note} [{cat}] {name}  ${price:.2f}")
+                created += 1
         except RuntimeError as exc:
-            print(f"  ✗ {name}: {exc}")
-            failed += 1
+            if "409" in str(exc) or "already exists" in str(exc).lower():
+                print(f"  · {name} (exists)")
+                skipped += 1
+            else:
+                print(f"  ✗ {name}: {exc}")
+                failed += 1
 
         number += 1
         time.sleep(0.04)
 
-    print(f"\nImport done: created={created} failed={failed}")
+    print(f"\nImport done: created={created} updated={updated} skipped={skipped} failed={failed}")
 
 
 def print_summary(api: ApiClient) -> None:
