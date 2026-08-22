@@ -278,15 +278,18 @@ def clear_store_catalog(api: ApiClient) -> None:
         print("  [dry-run] would delete all menu items, deals, and categories")
         return
 
-    items = []
-    try:
-        items = api.get("/menu/manage/all")
-    except RuntimeError:
+    for pass_num in range(1, 6):
+        items: list = []
         try:
-            items = api.get("/menu")
-        except RuntimeError as exc:
-            print(f"  ! could not list menu: {exc}")
-    if isinstance(items, list):
+            items = api.get("/menu/manage/all")
+        except RuntimeError:
+            try:
+                items = api.get("/menu")
+            except RuntimeError:
+                items = []
+        if not isinstance(items, list) or not items:
+            break
+        print(f"  pass {pass_num}: deleting {len(items)} menu items…")
         for item in items:
             item_id = item.get("id")
             name = item.get("name", item_id)
@@ -294,11 +297,11 @@ def clear_store_catalog(api: ApiClient) -> None:
                 continue
             try:
                 api.delete(f"/menu/{item_id}")
-                print(f"  ✗ item {name}")
+                print(f"    ✗ {name}")
             except RuntimeError as exc:
-                print(f"  ! skip item {name}: {exc}")
+                print(f"    ! skip item {name}: {exc}")
 
-    deals = []
+    deals: list = []
     try:
         deals = api.get("/deals/manage/all")
     except RuntimeError:
@@ -314,24 +317,27 @@ def clear_store_catalog(api: ApiClient) -> None:
             except RuntimeError as exc:
                 print(f"  ! skip deal: {exc}")
 
-    cats = []
-    try:
-        cats = api.get("/menu/categories/manage/all")
-    except RuntimeError:
+    for pass_num in range(1, 4):
+        cats: list = []
         try:
-            cats = api.get("/menu/categories")
+            cats = api.get("/menu/categories/manage/all")
         except RuntimeError:
-            cats = []
-    if isinstance(cats, list):
+            try:
+                cats = api.get("/menu/categories")
+            except RuntimeError:
+                cats = []
+        if not isinstance(cats, list) or not cats:
+            break
+        print(f"  pass {pass_num}: deleting {len(cats)} categories…")
         for cat in cats:
             slug = cat.get("slug")
             if not slug:
                 continue
             try:
                 api.delete(f"/menu/categories/{slug}")
-                print(f"  ✗ category {slug}")
+                print(f"    ✗ category {slug}")
             except RuntimeError as exc:
-                print(f"  ! skip category {slug}: {exc}")
+                print(f"    ! skip category {slug}: {exc}")
 
     print("  ✓ catalog cleared")
 
