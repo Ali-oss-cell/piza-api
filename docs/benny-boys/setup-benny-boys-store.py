@@ -550,12 +550,40 @@ def print_summary(api: ApiClient) -> None:
     print("  4. SEO portal → edit home hero + meta for this store")
 
 
+def validate_admin_token(token: str) -> None:
+    cleaned = token.strip()
+    placeholders = {"…", "...", "eyJ...", "your-token", "admin login token"}
+    if not cleaned or cleaned.lower() in placeholders or cleaned.startswith("#"):
+        raise SystemExit(
+            "ADMIN_TOKEN is missing or still a placeholder.\n"
+            "On the Droplet, run:\n"
+            "  export ADMIN_TOKEN=$(curl -s -X POST https://api.marinapizzas.com.au/api/auth/login \\\n"
+            "    -H 'Content-Type: application/json' \\\n"
+            "    -d '{\"email\":\"admin@leovorno.com\",\"password\":\"YOUR_PASSWORD\"}' \\\n"
+            "    | python3 -c 'import sys,json; print(json.load(sys.stdin)[\"accessToken\"])')"
+        )
+    try:
+        cleaned.encode("latin-1")
+    except UnicodeEncodeError as exc:
+        raise SystemExit(
+            "ADMIN_TOKEN must be plain ASCII (the JWT from login). "
+            "Do not paste '…' or other placeholder characters."
+        ) from exc
+    if len(cleaned) < 80:
+        raise SystemExit("ADMIN_TOKEN looks too short — paste the full JWT from login.")
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(
         description="Clear old store data and import Benny Boy's Pizza menu + images",
     )
     parser.add_argument("--dry-run", action="store_true", help="Print actions without API writes")
     parser.add_argument("--skip-clear", action="store_true", help="Do not delete existing catalog")
+    parser.add_argument(
+        "--clear-only",
+        action="store_true",
+        help="Only clear catalog for target store(s); skip store setup and menu import",
+    )
     parser.add_argument("--download-images", action="store_true", help="Run image download script first")
     parser.add_argument("--api-url", default=os.environ.get("API_URL", DEFAULT_API))
     parser.add_argument("--brand", default=os.environ.get("BRAND_SLUG", DEFAULT_BRAND))
@@ -570,6 +598,9 @@ def main() -> int:
     if not args.token and not args.dry_run:
         print("Set ADMIN_TOKEN (admin dashboard → DevTools → localStorage → leovorno-auth-token)")
         return 1
+
+    if args.token and not args.dry_run:
+        validate_admin_token(args.token)
 
     try:
         menu = load_menu()
@@ -602,6 +633,10 @@ def main() -> int:
             clear_api = ApiClient(args.api_url, token, slug, dry_run=args.dry_run)
             clear_store_catalog(clear_api)
             print()
+
+    if args.clear_only:
+        print("Clear-only run complete.")
+        return 0
 
     api = ApiClient(args.api_url, token, args.brand, dry_run=args.dry_run)
     create_store_if_missing(api, menu)
