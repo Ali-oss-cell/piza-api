@@ -12,7 +12,10 @@ import { PrismaService } from '../prisma/prisma.service';
 import {
   BulkSeoContentDto,
   SaveBlogPostDto,
+  SaveSeoRedirectDto,
   UpdateSeoContentDto,
+  UpdateSeoGscSettingsDto,
+  UpdateSeoImageDto,
 } from './dto/seo.dto';
 
 export type SeoContentResponse = {
@@ -33,6 +36,15 @@ export class SeoService {
     private readonly prisma: PrismaService,
     private readonly brandsService: BrandsService,
   ) {}
+
+  /** Live posts only: published and not scheduled for the future. */
+  private publicBlogWhere() {
+    const now = new Date();
+    return {
+      status: BlogPostStatus.PUBLISHED,
+      OR: [{ publishedAt: null }, { publishedAt: { lte: now } }],
+    };
+  }
 
   async resolveStoreId(brandSlug?: string): Promise<string> {
     const slug = (brandSlug ?? DEFAULT_BRAND_SLUG).trim().toLowerCase();
@@ -270,12 +282,61 @@ export class SeoService {
 
   async listImages(brandSlug: string, domainId?: string | null) {
     const storeId = await this.resolveStoreId(brandSlug);
-    return this.prisma.seoImage.findMany({
+    const images = await this.prisma.seoImage.findMany({
       where: {
         storeId,
         domainId: domainId ?? null,
       },
       orderBy: { createdAt: 'desc' },
+    });
+
+    const paths = images.map((image) => image.filePath);
+    const contentUses =
+      paths.length === 0
+        ? []
+        : await this.prisma.seoContent.findMany({
+            where: { storeId, content: { in: paths } },
+            select: { page: true, section: true, content: true },
+          });
+    const thumbUses = await this.prisma.blogPost.findMany({
+      where: {
+        storeId,
+        thumbnailImageId: { in: images.map((image) => image.id) },
+      },
+      select: { id: true, slug: true, title: true, thumbnailImageId: true },
+    });
+
+    return images.map((image) => {
+      const usedInPages = contentUses
+        .filter((row) => row.content === image.filePath)
+        .map((row) => `${row.page}/${row.section}`);
+      const usedInPosts = thumbUses
+        .filter((post) => post.thumbnailImageId === image.id)
+        .map((post) => `blog:${post.slug}`);
+      return {
+        ...image,
+        usage: [...usedInPages, ...usedInPosts],
+      };
+    });
+  }
+
+  async updateImage(id: string, brandSlug: string, dto: UpdateSeoImageDto) {
+    const storeId = await this.resolveStoreId(brandSlug);
+    const image = await this.prisma.seoImage.findFirst({
+      where: { id, storeId },
+    });
+    if (!image) {
+      throw new NotFoundException('Image not found.');
+    }
+
+    return this.prisma.seoImage.update({
+      where: { id },
+      data: {
+        label: dto.label === undefined ? undefined : dto.label,
+        altText: dto.altText === undefined ? undefined : dto.altText,
+        page: dto.page === undefined ? undefined : dto.page,
+        section: dto.section === undefined ? undefined : dto.section,
+      },
     });
   }
 
@@ -341,7 +402,7 @@ export class SeoService {
     const ctx = await this.resolveContext(params);
     const statusFilter = params.includeDrafts
       ? undefined
-      : { status: BlogPostStatus.PUBLISHED };
+      : this.publicBlogWhere();
 
     const storePosts = await this.prisma.blogPost.findMany({
       where: {
@@ -391,6 +452,7 @@ export class SeoService {
     includeDrafts?: boolean;
   }) {
     const ctx = await this.resolveContext(params);
+    const visibility = params.includeDrafts ? {} : this.publicBlogWhere();
 
     if (ctx.domainId) {
       const domainPost = await this.prisma.blogPost.findFirst({
@@ -398,9 +460,7 @@ export class SeoService {
           storeId: ctx.storeId,
           domainId: ctx.domainId,
           slug: params.slug,
-          ...(params.includeDrafts
-            ? {}
-            : { status: BlogPostStatus.PUBLISHED }),
+          ...visibility,
         },
         include: { thumbnail: true },
       });
@@ -414,7 +474,7 @@ export class SeoService {
         storeId: ctx.storeId,
         domainId: null,
         slug: params.slug,
-        ...(params.includeDrafts ? {} : { status: BlogPostStatus.PUBLISHED }),
+        ...visibility,
       },
       include: { thumbnail: true },
     });
@@ -439,12 +499,7 @@ export class SeoService {
       throw new BadRequestException('Slug is required.');
     }
 
-    const publishedAt = dto.publishedAt
-      ? new Date(dto.publishedAt)
-      : status === BlogPostStatus.PUBLISHED
-        ? new Date()
-        : null;
-
+    let existingPublishedAt: Date | null = null;
     if (dto.id) {
       const existing = await this.prisma.blogPost.findFirst({
         where: { id: dto.id, storeId },
@@ -452,7 +507,19 @@ export class SeoService {
       if (!existing) {
         throw new NotFoundException('Blog post not found.');
       }
+      existingPublishedAt = existing.publishedAt;
+    }
 
+    let publishedAt: Date | null = null;
+    if (status === BlogPostStatus.DRAFT) {
+      publishedAt = null;
+    } else if (dto.publishedAt) {
+      publishedAt = new Date(dto.publishedAt);
+    } else {
+      publishedAt = existingPublishedAt ?? new Date();
+    }
+
+    if (dto.id) {
       return this.prisma.blogPost.update({
         where: { id: dto.id },
         data: {
@@ -874,6 +941,8 @@ export class SeoService {
       storeName: brand.name,
       googleSiteVerification: brand.googleSiteVerification,
       hasVerification: Boolean(brand.googleSiteVerification?.trim()),
+      sitemapSubmittedAt: brand.sitemapSubmittedAt,
+      sitemapSubmitted: Boolean(brand.sitemapSubmittedAt),
       hasAddress: Boolean(location?.address?.trim()),
       hasPhone: Boolean(location?.phone?.trim()),
       seoContentCount: brand._count.seoContent,
@@ -891,11 +960,149 @@ export class SeoService {
       gscSteps: [
         `Add a Google Search Console property for ${domain?.host ? `https://${domain.host}` : origin}.`,
         brand.googleSiteVerification
-          ? 'Verification meta tag is set on this store — finish verification in GSC.'
-          : 'Paste the GSC HTML-tag token into store settings (googleSiteVerification), save, then verify in GSC.',
-        `Submit sitemap: ${sitemapUrl}`,
+          ? 'Verification meta tag is set — finish verification in GSC if not done yet.'
+          : 'Paste the GSC HTML-tag content token below, save, then verify in GSC.',
+        `Submit sitemap in GSC: ${sitemapUrl}`,
         `Confirm robots.txt lists Sitemap: ${robotsUrl}`,
+        brand.sitemapSubmittedAt
+          ? `Marked sitemap submitted on ${brand.sitemapSubmittedAt.toISOString().slice(0, 10)}.`
+          : 'After submitting the sitemap in GSC, tick “Sitemap submitted” below.',
       ],
     };
+  }
+
+  async updateGscSettings(brandSlug: string, dto: UpdateSeoGscSettingsDto) {
+    const storeId = await this.resolveStoreId(brandSlug);
+    const data: {
+      googleSiteVerification?: string | null;
+      sitemapSubmittedAt?: Date | null;
+    } = {};
+
+    if (dto.googleSiteVerification !== undefined) {
+      data.googleSiteVerification =
+        dto.googleSiteVerification?.trim() || null;
+    }
+    if (dto.sitemapSubmitted === true) {
+      data.sitemapSubmittedAt = new Date();
+    } else if (dto.sitemapSubmitted === false) {
+      data.sitemapSubmittedAt = null;
+    }
+
+    return this.prisma.brand.update({
+      where: { id: storeId },
+      data,
+      select: {
+        slug: true,
+        googleSiteVerification: true,
+        sitemapSubmittedAt: true,
+      },
+    });
+  }
+
+  private normalizeRedirectPath(path: string): string {
+    const trimmed = path.trim();
+    if (!trimmed) {
+      throw new BadRequestException('Path is required.');
+    }
+    if (/^https?:\/\//i.test(trimmed)) {
+      try {
+        const url = new URL(trimmed);
+        return url.pathname || '/';
+      } catch {
+        throw new BadRequestException('Invalid redirect path.');
+      }
+    }
+    return trimmed.startsWith('/') ? trimmed : `/${trimmed}`;
+  }
+
+  async listRedirects(brandSlug: string) {
+    const storeId = await this.resolveStoreId(brandSlug);
+    return this.prisma.seoRedirect.findMany({
+      where: { storeId },
+      orderBy: { fromPath: 'asc' },
+    });
+  }
+
+  async saveRedirect(brandSlug: string, dto: SaveSeoRedirectDto) {
+    const storeId = await this.resolveStoreId(brandSlug);
+    const fromPath = this.normalizeRedirectPath(dto.fromPath);
+    const toPath = this.normalizeRedirectPath(dto.toPath);
+    if (fromPath === toPath) {
+      throw new BadRequestException('From and to paths must differ.');
+    }
+
+    if (dto.id) {
+      const existing = await this.prisma.seoRedirect.findFirst({
+        where: { id: dto.id, storeId },
+      });
+      if (!existing) {
+        throw new NotFoundException('Redirect not found.');
+      }
+      return this.prisma.seoRedirect.update({
+        where: { id: dto.id },
+        data: {
+          fromPath,
+          toPath,
+          isActive: dto.isActive ?? true,
+        },
+      });
+    }
+
+    return this.prisma.seoRedirect.upsert({
+      where: { storeId_fromPath: { storeId, fromPath } },
+      create: {
+        storeId,
+        fromPath,
+        toPath,
+        isActive: dto.isActive ?? true,
+      },
+      update: {
+        toPath,
+        isActive: dto.isActive ?? true,
+      },
+    });
+  }
+
+  async deleteRedirect(id: string, brandSlug: string) {
+    const storeId = await this.resolveStoreId(brandSlug);
+    const existing = await this.prisma.seoRedirect.findFirst({
+      where: { id, storeId },
+    });
+    if (!existing) {
+      throw new NotFoundException('Redirect not found.');
+    }
+    await this.prisma.seoRedirect.delete({ where: { id } });
+    return { success: true };
+  }
+
+  async resolveRedirect(host: string | undefined, path: string) {
+    const pathname = this.normalizeRedirectPath(path || '/');
+    if (!host?.trim()) {
+      return null;
+    }
+
+    const domain = await this.prisma.storeDomain.findFirst({
+      where: {
+        isActive: true,
+        host: host.trim().toLowerCase(),
+      },
+      select: { storeId: true },
+    });
+    if (!domain) {
+      return null;
+    }
+
+    const redirect = await this.prisma.seoRedirect.findFirst({
+      where: {
+        storeId: domain.storeId,
+        fromPath: pathname,
+        isActive: true,
+      },
+    });
+    if (!redirect) {
+      return null;
+    }
+
+    return { toPath: redirect.toPath, fromPath: redirect.fromPath };
   }
 }

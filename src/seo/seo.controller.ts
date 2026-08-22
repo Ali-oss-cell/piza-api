@@ -19,7 +19,10 @@ import { StoreAccessService } from '../common/services/store-access.service';
 import {
   BulkSeoContentDto,
   SaveBlogPostDto,
+  SaveSeoRedirectDto,
   UpdateSeoContentDto,
+  UpdateSeoGscSettingsDto,
+  UpdateSeoImageDto,
 } from './dto/seo.dto';
 import { SeoService } from './seo.service';
 
@@ -92,6 +95,16 @@ export class SeoController {
     );
   }
 
+  @Patch('images/:id')
+  @UseGuards(JwtAuthGuard, SeoAccessGuard)
+  updateImage(
+    @Param('id') id: string,
+    @BrandSlug() brandSlug: string | undefined,
+    @Body() dto: UpdateSeoImageDto,
+  ) {
+    return this.seoService.updateImage(id, brandSlug ?? 'leovorno', dto);
+  }
+
   @Delete('images/:id')
   @UseGuards(JwtAuthGuard, SeoAccessGuard)
   deleteImage(@Param('id') id: string, @BrandSlug() brandSlug?: string) {
@@ -108,6 +121,32 @@ export class SeoController {
       brandSlug ?? 'leovorno',
       domainId === 'null' || domainId === '' ? null : domainId,
     );
+  }
+
+  @Get('redirects/resolve')
+  resolveRedirect(@Query('host') host?: string, @Query('path') path?: string) {
+    return this.seoService.resolveRedirect(host, path ?? '/');
+  }
+
+  @Get('redirects')
+  @UseGuards(JwtAuthGuard, SeoAccessGuard)
+  listRedirects(@BrandSlug() brandSlug?: string) {
+    return this.seoService.listRedirects(brandSlug ?? 'leovorno');
+  }
+
+  @Post('redirects')
+  @UseGuards(JwtAuthGuard, SeoAccessGuard)
+  saveRedirect(
+    @BrandSlug() brandSlug: string | undefined,
+    @Body() dto: SaveSeoRedirectDto,
+  ) {
+    return this.seoService.saveRedirect(brandSlug ?? 'leovorno', dto);
+  }
+
+  @Delete('redirects/:id')
+  @UseGuards(JwtAuthGuard, SeoAccessGuard)
+  deleteRedirect(@Param('id') id: string, @BrandSlug() brandSlug?: string) {
+    return this.seoService.deleteRedirect(id, brandSlug ?? 'leovorno');
   }
 
   @Get('blog')
@@ -167,10 +206,7 @@ export class SeoController {
 
   @Delete('blog/:id')
   @UseGuards(JwtAuthGuard, SeoAccessGuard)
-  deleteBlogPost(
-    @Param('id') id: string,
-    @BrandSlug() brandSlug?: string,
-  ) {
+  deleteBlogPost(@Param('id') id: string, @BrandSlug() brandSlug?: string) {
     return this.seoService.deleteBlogPost(id, brandSlug ?? 'leovorno');
   }
 
@@ -206,6 +242,15 @@ export class SeoController {
       brandSlug ?? 'leovorno',
       domainId === 'null' || domainId === '' ? null : domainId ?? null,
     );
+  }
+
+  @Patch('gsc-settings')
+  @UseGuards(JwtAuthGuard, SeoAccessGuard)
+  updateGscSettings(
+    @BrandSlug() brandSlug: string | undefined,
+    @Body() dto: UpdateSeoGscSettingsDto,
+  ) {
+    return this.seoService.updateGscSettings(brandSlug ?? 'leovorno', dto);
   }
 
   @Post('fill-from-store')

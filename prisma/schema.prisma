@@ -179,6 +179,7 @@ model Brand {
   heroImageDarkUrl String? @map("hero_image_dark_url")
   darkModeEnabled Boolean  @default(true) @map("dark_mode_enabled")
   googleSiteVerification String? @map("google_site_verification")
+  sitemapSubmittedAt DateTime? @map("sitemap_submitted_at")
   isActive     Boolean     @default(true) @map("is_active")
   status       BrandStatus @default(DRAFT)
   createdAt    DateTime    @default(now()) @map("created_at")
@@ -210,6 +211,7 @@ model Brand {
   seoContent           SeoContent[]
   seoImages            SeoImage[]
   blogPosts            BlogPost[]
+  seoRedirects         SeoRedirect[]
 
   @@map("brands")
 }
@@ -915,4 +917,20 @@ model BlogPost {
 
   @@index([storeId, domainId, status])
   @@map("blog_posts")
+}
+
+model SeoRedirect {
+  id        String   @id @default(uuid()) @db.Uuid
+  storeId   String   @map("store_id") @db.Uuid
+  fromPath  String   @map("from_path")
+  toPath    String   @map("to_path")
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  store Brand @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@unique([storeId, fromPath])
+  @@index([storeId, isActive])
+  @@map("seo_redirects")
 }

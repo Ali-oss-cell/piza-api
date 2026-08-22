@@ -163,3 +163,54 @@ export class CreateSeoImageDto {
   @IsString()
   altText?: string;
 }
+
+export class UpdateSeoImageDto {
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  label?: string | null;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  altText?: string | null;
+
+  @IsOptional()
+  @IsString()
+  page?: string | null;
+
+  @IsOptional()
+  @IsString()
+  section?: string | null;
+}
+
+export class UpdateSeoGscSettingsDto {
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  googleSiteVerification?: string | null;
+
+  @IsOptional()
+  @IsBoolean()
+  sitemapSubmitted?: boolean;
+}
+
+export class SaveSeoRedirectDto {
+  @IsOptional()
+  @IsUUID()
+  id?: string;
+
+  @IsString()
+  @MinLength(1)
+  @MaxLength(500)
+  fromPath!: string;
+
+  @IsString()
+  @MinLength(1)
+  @MaxLength(500)
+  toPath!: string;
+
+  @IsOptional()
+  @IsBoolean()
+  isActive?: boolean;
+}
