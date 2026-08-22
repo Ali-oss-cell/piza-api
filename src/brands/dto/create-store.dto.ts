@@ -93,6 +93,25 @@ export class CreateStoreDto {
 
   @IsOptional()
   @IsString()
+  @MaxLength(500)
+  heroImageDarkUrl?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(20)
+  backgroundLightColor?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(20)
+  backgroundDarkColor?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  darkModeEnabled?: boolean;
+
+  @IsOptional()
+  @IsString()
   @MaxLength(80)
   pathPrefix?: string;
 

@@ -239,6 +239,9 @@ const LEOVORNO_BRAND = {
   name: 'Leovorno',
   tagline: 'Pizza & Pasta Refined',
   primaryColor: '#D81B60',
+  backgroundLightColor: '#ffffff',
+  backgroundDarkColor: '#000000',
+  darkModeEnabled: true,
 };
 
 const BUNNY_BOYS_BRAND = {
@@ -246,7 +249,10 @@ const BUNNY_BOYS_BRAND = {
   slug: 'bunny-boys',
   name: 'Bunny Boys',
   tagline: 'Burgers, wings & good times',
-  primaryColor: '#FF6B35',
+  primaryColor: '#E85D04',
+  backgroundLightColor: '#ffffff',
+  backgroundDarkColor: '#000000',
+  darkModeEnabled: true,
 };
 
 async function ensureBrand(prisma, brand) {
@@ -256,6 +262,9 @@ async function ensureBrand(prisma, brand) {
       name: brand.name,
       tagline: brand.tagline,
       primaryColor: brand.primaryColor,
+      backgroundLightColor: brand.backgroundLightColor ?? '#ffffff',
+      backgroundDarkColor: brand.backgroundDarkColor ?? '#000000',
+      darkModeEnabled: brand.darkModeEnabled ?? true,
       isActive: true,
       status: 'LIVE',
     },
@@ -265,6 +274,9 @@ async function ensureBrand(prisma, brand) {
       name: brand.name,
       tagline: brand.tagline,
       primaryColor: brand.primaryColor,
+      backgroundLightColor: brand.backgroundLightColor ?? '#ffffff',
+      backgroundDarkColor: brand.backgroundDarkColor ?? '#000000',
+      darkModeEnabled: brand.darkModeEnabled ?? true,
       isActive: true,
       status: 'LIVE',
     },

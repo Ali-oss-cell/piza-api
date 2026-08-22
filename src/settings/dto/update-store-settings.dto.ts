@@ -1,4 +1,4 @@
-import { IsNumber, IsObject, IsOptional, IsString, Min } from 'class-validator';
+import { IsBoolean, IsNumber, IsObject, IsOptional, IsString, Min } from 'class-validator';
 
 export class UpdateStoreSettingsDto {
   @IsOptional()
@@ -28,6 +28,22 @@ export class UpdateStoreSettingsDto {
   @IsOptional()
   @IsString()
   heroImageUrl?: string | null;
+
+  @IsOptional()
+  @IsString()
+  heroImageDarkUrl?: string | null;
+
+  @IsOptional()
+  @IsString()
+  backgroundLightColor?: string | null;
+
+  @IsOptional()
+  @IsString()
+  backgroundDarkColor?: string | null;
+
+  @IsOptional()
+  @IsBoolean()
+  darkModeEnabled?: boolean;
 
   @IsOptional()
   @IsNumber({ maxDecimalPlaces: 2 })

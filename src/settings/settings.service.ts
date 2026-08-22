@@ -13,7 +13,11 @@ export type StoreSettingsResponse = {
   logoDarkUrl: string | null;
   primaryColor: string | null;
   secondaryColor: string | null;
+  backgroundLightColor: string | null;
+  backgroundDarkColor: string | null;
   heroImageUrl: string | null;
+  heroImageDarkUrl: string | null;
+  darkModeEnabled: boolean;
   deliveryFee: unknown;
   minOrderAmount: unknown;
   contactEmail: string | null;
@@ -42,7 +46,11 @@ export class SettingsService {
       logoDarkUrl: brandWithLocation.logoDarkUrl,
       primaryColor: brandWithLocation.primaryColor,
       secondaryColor: brandWithLocation.secondaryColor,
+      backgroundLightColor: brandWithLocation.backgroundLightColor,
+      backgroundDarkColor: brandWithLocation.backgroundDarkColor,
       heroImageUrl: brandWithLocation.heroImageUrl,
+      heroImageDarkUrl: brandWithLocation.heroImageDarkUrl,
+      darkModeEnabled: brandWithLocation.darkModeEnabled,
       deliveryFee: location.deliveryFee,
       minOrderAmount: location.minOrderAmount,
       contactEmail: location.email,
@@ -67,7 +75,11 @@ export class SettingsService {
       dto.logoDarkUrl !== undefined ||
       dto.primaryColor !== undefined ||
       dto.secondaryColor !== undefined ||
-      dto.heroImageUrl !== undefined
+      dto.backgroundLightColor !== undefined ||
+      dto.backgroundDarkColor !== undefined ||
+      dto.heroImageUrl !== undefined ||
+      dto.heroImageDarkUrl !== undefined ||
+      dto.darkModeEnabled !== undefined
     ) {
       await this.prisma.brand.update({
         where: { id: brandWithLocation.id },
@@ -88,6 +100,18 @@ export class SettingsService {
             : {}),
           ...(dto.heroImageUrl !== undefined
             ? { heroImageUrl: dto.heroImageUrl?.trim() || null }
+            : {}),
+          ...(dto.heroImageDarkUrl !== undefined
+            ? { heroImageDarkUrl: dto.heroImageDarkUrl?.trim() || null }
+            : {}),
+          ...(dto.backgroundLightColor !== undefined
+            ? { backgroundLightColor: dto.backgroundLightColor?.trim() || null }
+            : {}),
+          ...(dto.backgroundDarkColor !== undefined
+            ? { backgroundDarkColor: dto.backgroundDarkColor?.trim() || null }
+            : {}),
+          ...(dto.darkModeEnabled !== undefined
+            ? { darkModeEnabled: dto.darkModeEnabled }
             : {}),
         },
       });
@@ -138,7 +162,11 @@ export class SettingsService {
       logoDarkUrl: brand.logoDarkUrl,
       primaryColor: brand.primaryColor,
       secondaryColor: brand.secondaryColor,
+      backgroundLightColor: brand.backgroundLightColor,
+      backgroundDarkColor: brand.backgroundDarkColor,
       heroImageUrl: brand.heroImageUrl,
+      heroImageDarkUrl: brand.heroImageDarkUrl,
+      darkModeEnabled: brand.darkModeEnabled,
       deliveryFee: updatedLocation.deliveryFee,
       minOrderAmount: updatedLocation.minOrderAmount,
       contactEmail: updatedLocation.email,
