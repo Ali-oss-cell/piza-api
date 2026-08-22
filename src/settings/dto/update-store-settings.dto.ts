@@ -67,6 +67,11 @@ export class UpdateStoreSettingsDto {
   @IsString()
   address?: string;
 
+  /** Google Search Console HTML tag content value (google-site-verification). */
+  @IsOptional()
+  @IsString()
+  googleSiteVerification?: string | null;
+
   /** Per-day open/close hours JSON; null clears hours. */
   @IsOptional()
   @IsObject()

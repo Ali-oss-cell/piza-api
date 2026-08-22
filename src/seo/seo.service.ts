@@ -595,4 +595,307 @@ export class SeoService {
       allow: ['/'],
     };
   }
+
+  /**
+   * Fill SEO page fields from Brand + default Location.
+   * By default only fills empty content/meta. Pass overwrite=true to replace all.
+   */
+  async fillFromStore(
+    brandSlug: string,
+    domainId: string | null,
+    options?: { overwrite?: boolean },
+  ) {
+    const overwrite = options?.overwrite === true;
+    const brand = await this.prisma.brand.findUnique({
+      where: { slug: (brandSlug ?? DEFAULT_BRAND_SLUG).trim().toLowerCase() },
+      include: {
+        locations: {
+          where: { isActive: true },
+          orderBy: [{ isDefault: 'desc' }, { name: 'asc' }],
+          take: 1,
+        },
+      },
+    });
+    if (!brand) {
+      throw new NotFoundException(`Store "${brandSlug}" not found.`);
+    }
+
+    const location = brand.locations[0];
+    const name = brand.name;
+    const tagline =
+      brand.tagline?.trim() ||
+      `Order pizza and pasta from ${name}`;
+    const suburb = location?.suburb?.trim() || '';
+    const address = location?.address?.trim() || '';
+    const phone = location?.phone?.trim() || '';
+    const place = suburb || address || 'Australia';
+
+    const defaults: Array<{
+      page: string;
+      section: string;
+      content: string;
+      metaTitle?: string;
+      metaDescription?: string;
+      metaKeywords?: string;
+      ogImageUrl?: string;
+      robotsIndex?: boolean;
+    }> = [
+      {
+        page: 'home',
+        section: 'hero_h1',
+        content: `Welcome to ${name}`,
+      },
+      {
+        page: 'home',
+        section: 'hero_h2',
+        content: tagline,
+      },
+      {
+        page: 'home',
+        section: 'hero_body',
+        content: `Fresh pizza and pasta in ${place}. Order online for delivery or pickup.`,
+      },
+      {
+        page: 'home',
+        section: 'page_title',
+        content: `${name} | Order Online`,
+        metaTitle: `${name} | Order Online`,
+        metaDescription: `${tagline} — ${place}${phone ? ` · ${phone}` : ''}.`,
+        metaKeywords: `${name}, pizza, pasta, delivery, ${place}`,
+        ogImageUrl: brand.heroImageUrl ?? brand.logoUrl ?? undefined,
+        robotsIndex: true,
+      },
+      {
+        page: 'about',
+        section: 'hero_h1',
+        content: `About ${name}`,
+      },
+      {
+        page: 'about',
+        section: 'hero_body',
+        content: `We serve fresh pizza and pasta from our kitchen in ${place}.`,
+      },
+      {
+        page: 'about',
+        section: 'page_title',
+        content: `About | ${name}`,
+        metaTitle: `About | ${name}`,
+        metaDescription: `Learn about ${name} in ${place}.`,
+        robotsIndex: true,
+      },
+      {
+        page: 'deals',
+        section: 'hero_h1',
+        content: 'Deals & Promotions',
+      },
+      {
+        page: 'deals',
+        section: 'hero_body',
+        content: `Limited-time savings from ${name}.`,
+      },
+      {
+        page: 'deals',
+        section: 'page_title',
+        content: `Deals | ${name}`,
+        metaTitle: `Deals | ${name}`,
+        metaDescription: `Current deals and promotions at ${name}.`,
+        robotsIndex: true,
+      },
+      {
+        page: 'locations',
+        section: 'hero_h1',
+        content: 'Find us',
+      },
+      {
+        page: 'locations',
+        section: 'hero_body',
+        content: address
+          ? `Visit us at ${address}${phone ? ` or call ${phone}` : ''}.`
+          : `Find ${name} near you.`,
+      },
+      {
+        page: 'locations',
+        section: 'page_title',
+        content: `Locations | ${name}`,
+        metaTitle: `Locations | ${name}`,
+        metaDescription: address
+          ? `${name} — ${address}`
+          : `Locations for ${name}.`,
+        robotsIndex: true,
+      },
+      {
+        page: 'blog',
+        section: 'hero_h1',
+        content: `${name} Blog`,
+      },
+      {
+        page: 'blog',
+        section: 'hero_body',
+        content: `News and stories from our kitchen in ${place}.`,
+      },
+      {
+        page: 'blog',
+        section: 'page_title',
+        content: `Blog | ${name}`,
+        metaTitle: `Blog | ${name}`,
+        metaDescription: `News and updates from ${name}.`,
+        robotsIndex: true,
+      },
+    ];
+
+    const existing = await this.prisma.seoContent.findMany({
+      where: {
+        storeId: brand.id,
+        domainId: domainId ?? null,
+      },
+    });
+    const existingKey = new Set(
+      existing.map((row) => `${row.page}:${row.section}`),
+    );
+
+    const items = defaults.filter((item) => {
+      if (overwrite) return true;
+      const key = `${item.page}:${item.section}`;
+      if (!existingKey.has(key)) return true;
+      const row = existing.find(
+        (r) => r.page === item.page && r.section === item.section,
+      );
+      if (!row) return true;
+      const contentEmpty = !row.content?.trim();
+      const metaEmpty =
+        item.section === 'page_title'
+          ? !row.metaTitle?.trim() && !row.metaDescription?.trim()
+          : true;
+      return contentEmpty && metaEmpty;
+    });
+
+    if (items.length === 0) {
+      return { updated: 0, rows: existing };
+    }
+
+    const rows = await this.bulkUpsertContent(brand.slug, {
+      domainId,
+      items,
+    });
+
+    return { updated: items.length, rows };
+  }
+
+  /** Create a draft welcome blog post if the store has none. */
+  async ensureStarterBlog(brandSlug: string, domainId: string | null = null) {
+    const storeId = await this.resolveStoreId(brandSlug);
+    const brand = await this.prisma.brand.findUniqueOrThrow({
+      where: { id: storeId },
+      include: {
+        locations: {
+          where: { isActive: true },
+          orderBy: [{ isDefault: 'desc' }, { name: 'asc' }],
+          take: 1,
+        },
+      },
+    });
+
+    const existing = await this.prisma.blogPost.findFirst({
+      where: { storeId, domainId },
+    });
+    if (existing) {
+      return { created: false, post: existing };
+    }
+
+    const suburb = brand.locations[0]?.suburb?.trim() || '';
+    const place = suburb || 'our kitchen';
+    const slug = 'welcome-to-our-kitchen';
+
+    const post = await this.prisma.blogPost.create({
+      data: {
+        storeId,
+        domainId,
+        slug,
+        title: `Welcome to ${brand.name}`,
+        excerpt: `Meet ${brand.name} — fresh pizza and pasta from ${place}.`,
+        content: `<p>Thanks for visiting <strong>${brand.name}</strong>.</p><p>We craft pizza and pasta with fresh ingredients${suburb ? ` right here in ${suburb}` : ''}. Order online for delivery or pickup, and check back here for deals, seasonal specials, and kitchen news.</p>`,
+        status: BlogPostStatus.DRAFT,
+        author: brand.name,
+        category: 'News',
+        metaTitle: `Welcome to ${brand.name}`,
+        metaDescription: `Meet ${brand.name} — fresh pizza and pasta from ${place}.`,
+        metaKeywords: `${brand.name}, pizza, blog, ${place}`,
+      },
+      include: { thumbnail: true },
+    });
+
+    return { created: true, post };
+  }
+
+  async bootstrapNewStore(brandSlug: string) {
+    await this.fillFromStore(brandSlug, null, { overwrite: true });
+    await this.ensureStarterBlog(brandSlug, null);
+    return { ok: true };
+  }
+
+  async getLaunchChecklist(brandSlug: string, domainId: string | null) {
+    const brand = await this.prisma.brand.findUnique({
+      where: { slug: (brandSlug ?? DEFAULT_BRAND_SLUG).trim().toLowerCase() },
+      include: {
+        domains: { where: { isActive: true }, orderBy: [{ isPrimary: 'desc' }] },
+        locations: {
+          where: { isActive: true },
+          take: 1,
+          orderBy: [{ isDefault: 'desc' }],
+        },
+        _count: {
+          select: {
+            seoContent: true,
+            blogPosts: true,
+          },
+        },
+      },
+    });
+    if (!brand) {
+      throw new NotFoundException(`Store "${brandSlug}" not found.`);
+    }
+
+    const domain = domainId
+      ? brand.domains.find((d) => d.id === domainId)
+      : brand.domains.find((d) => d.isPrimary) ?? brand.domains[0];
+
+    const primaryHost =
+      domain?.host ||
+      process.env.WEB_DOMAIN ||
+      'marinapizzas.com.au';
+    const pathPrefix = domain?.pathPrefix || '';
+    const origin = `https://${primaryHost}`;
+    const sitemapUrl = `${origin}/sitemap.xml`;
+    const robotsUrl = `${origin}/robots.txt`;
+    const location = brand.locations[0];
+
+    return {
+      brandSlug: brand.slug,
+      storeName: brand.name,
+      googleSiteVerification: brand.googleSiteVerification,
+      hasVerification: Boolean(brand.googleSiteVerification?.trim()),
+      hasAddress: Boolean(location?.address?.trim()),
+      hasPhone: Boolean(location?.phone?.trim()),
+      seoContentCount: brand._count.seoContent,
+      blogPostCount: brand._count.blogPosts,
+      domain: domain
+        ? {
+            id: domain.id,
+            host: domain.host,
+            pathPrefix: domain.pathPrefix,
+          }
+        : null,
+      sitemapUrl,
+      robotsUrl,
+      publicHomeUrl: `${origin}${pathPrefix || ''}`,
+      gscSteps: [
+        `Add a Google Search Console property for ${domain?.host ? `https://${domain.host}` : origin}.`,
+        brand.googleSiteVerification
+          ? 'Verification meta tag is set on this store — finish verification in GSC.'
+          : 'Paste the GSC HTML-tag token into store settings (googleSiteVerification), save, then verify in GSC.',
+        `Submit sitemap: ${sitemapUrl}`,
+        `Confirm robots.txt lists Sitemap: ${robotsUrl}`,
+      ],
+    };
+  }
 }

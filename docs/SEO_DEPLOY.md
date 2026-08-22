@@ -49,20 +49,27 @@ Verify uploads volume persists (`api_uploads`) — SEO images live under `upload
 
 - CMS content is served via `GET /api/seo/content?brand=&page=`
 - Blog: `/blog` and `/blog/[slug]`
-- `robots.txt` disallows `/seo-login`, `/seo-dashboard`, `/admin`, `/login`
+- `robots.txt` disallows `/seo-login`, `/seo-dashboard`, `/admin`, `/login`, `/checkout`, `/cart`
+- Dynamic `robots.txt` also advertises `Sitemap: https://{this-host}/sitemap.xml`
 - Dynamic `sitemap.xml` per resolved store/domain
-- JSON-LD on home (Restaurant), menu items (Product), blog posts (BlogPosting)
+- JSON-LD on home (Restaurant + phone/address), menu items (Product), blog posts (BlogPosting)
+
+## Google Search Console
+
+See [GSC_MULTI_DOMAIN.md](./GSC_MULTI_DOMAIN.md). Short version: each custom domain is a separate GSC property; submit that host’s `/sitemap.xml` only. No DB-stored sitemap files required.
 
 ## Smoke test checklist
 
 - [ ] `GET /api/seo/content?brand=leovorno&page=home` returns sections + meta
 - [ ] Login at `/seo-login` with SEO or admin account
+- [ ] Dashboard → Fill empty SEO from store → Pages show store name/address-based copy
 - [ ] Edit home hero H1 → save → verify on live homepage
 - [ ] Upload image → assign to home hero slot
-- [ ] Create blog post → toolbar loads → publish → visible at `/blog`
-- [ ] `/robots.txt` lists disallow rules for SEO/admin paths
-- [ ] `/sitemap.xml` includes store URLs
+- [ ] Create blog post with meta + thumbnail → publish → visible at `/blog`
+- [ ] `/robots.txt` lists disallow rules **and** `Sitemap:` for the current host
+- [ ] `/sitemap.xml` includes store URLs for that host
 - [ ] Custom domain resolves store-specific SEO when domain override exists
+- [ ] System Settings → Search Console token appears in page source as google-site-verification
 
 ## Environment
 

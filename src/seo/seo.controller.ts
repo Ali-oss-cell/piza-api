@@ -195,4 +195,45 @@ export class SeoController {
   getRobots() {
     return this.seoService.getRobotsConfig();
   }
+
+  @Get('launch-checklist')
+  @UseGuards(JwtAuthGuard, SeoAccessGuard)
+  launchChecklist(
+    @BrandSlug() brandSlug?: string,
+    @Query('domainId') domainId?: string,
+  ) {
+    return this.seoService.getLaunchChecklist(
+      brandSlug ?? 'leovorno',
+      domainId === 'null' || domainId === '' ? null : domainId ?? null,
+    );
+  }
+
+  @Post('fill-from-store')
+  @UseGuards(JwtAuthGuard, SeoAccessGuard)
+  fillFromStore(
+    @BrandSlug() brandSlug: string | undefined,
+    @Body() body: { domainId?: string | null; overwrite?: boolean },
+  ) {
+    return this.seoService.fillFromStore(
+      brandSlug ?? 'leovorno',
+      body.domainId === undefined
+        ? null
+        : body.domainId === null
+          ? null
+          : body.domainId,
+      { overwrite: body.overwrite === true },
+    );
+  }
+
+  @Post('starter-blog')
+  @UseGuards(JwtAuthGuard, SeoAccessGuard)
+  starterBlog(
+    @BrandSlug() brandSlug: string | undefined,
+    @Body() body: { domainId?: string | null },
+  ) {
+    return this.seoService.ensureStarterBlog(
+      brandSlug ?? 'leovorno',
+      body.domainId ?? null,
+    );
+  }
 }

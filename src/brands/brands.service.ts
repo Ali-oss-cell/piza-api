@@ -1,8 +1,11 @@
 import {
   BadRequestException,
   ConflictException,
+  Inject,
   Injectable,
   NotFoundException,
+  Optional,
+  forwardRef,
 } from '@nestjs/common';
 import {
   AuditAction,
@@ -16,6 +19,7 @@ import { AuditService } from '../audit/audit.service';
 import { DEFAULT_BRAND_SLUG } from '../common/constants/brands';
 import { DEFAULT_OPENING_HOURS } from '../orders/opening-hours.types';
 import { PrismaService } from '../prisma/prisma.service';
+import { SeoService } from '../seo/seo.service';
 import { CreateStoreDto } from './dto/create-store.dto';
 
 export type BrandWithDefaultLocation = Brand & {
@@ -39,6 +43,9 @@ export class BrandsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
+    @Optional()
+    @Inject(forwardRef(() => SeoService))
+    private readonly seoService?: SeoService,
   ) {}
 
   findAll(): Promise<Brand[]> {
@@ -224,6 +231,14 @@ export class BrandsService {
       `Created store ${created.slug}`,
       { slug: created.slug },
     );
+
+    if (this.seoService) {
+      try {
+        await this.seoService.bootstrapNewStore(created.slug);
+      } catch {
+        // SEO bootstrap is best-effort; store creation still succeeds.
+      }
+    }
 
     return created;
   }

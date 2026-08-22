@@ -178,6 +178,7 @@ model Brand {
   heroImageUrl String?     @map("hero_image_url")
   heroImageDarkUrl String? @map("hero_image_dark_url")
   darkModeEnabled Boolean  @default(true) @map("dark_mode_enabled")
+  googleSiteVerification String? @map("google_site_verification")
   isActive     Boolean     @default(true) @map("is_active")
   status       BrandStatus @default(DRAFT)
   createdAt    DateTime    @default(now()) @map("created_at")

@@ -18,6 +18,7 @@ export type StoreSettingsResponse = {
   heroImageUrl: string | null;
   heroImageDarkUrl: string | null;
   darkModeEnabled: boolean;
+  googleSiteVerification: string | null;
   deliveryFee: unknown;
   minOrderAmount: unknown;
   contactEmail: string | null;
@@ -51,6 +52,7 @@ export class SettingsService {
       heroImageUrl: brandWithLocation.heroImageUrl,
       heroImageDarkUrl: brandWithLocation.heroImageDarkUrl,
       darkModeEnabled: brandWithLocation.darkModeEnabled,
+      googleSiteVerification: brandWithLocation.googleSiteVerification,
       deliveryFee: location.deliveryFee,
       minOrderAmount: location.minOrderAmount,
       contactEmail: location.email,
@@ -79,7 +81,8 @@ export class SettingsService {
       dto.backgroundDarkColor !== undefined ||
       dto.heroImageUrl !== undefined ||
       dto.heroImageDarkUrl !== undefined ||
-      dto.darkModeEnabled !== undefined
+      dto.darkModeEnabled !== undefined ||
+      dto.googleSiteVerification !== undefined
     ) {
       await this.prisma.brand.update({
         where: { id: brandWithLocation.id },
@@ -112,6 +115,12 @@ export class SettingsService {
             : {}),
           ...(dto.darkModeEnabled !== undefined
             ? { darkModeEnabled: dto.darkModeEnabled }
+            : {}),
+          ...(dto.googleSiteVerification !== undefined
+            ? {
+                googleSiteVerification:
+                  dto.googleSiteVerification?.trim() || null,
+              }
             : {}),
         },
       });
@@ -167,6 +176,7 @@ export class SettingsService {
       heroImageUrl: brand.heroImageUrl,
       heroImageDarkUrl: brand.heroImageDarkUrl,
       darkModeEnabled: brand.darkModeEnabled,
+      googleSiteVerification: brand.googleSiteVerification,
       deliveryFee: updatedLocation.deliveryFee,
       minOrderAmount: updatedLocation.minOrderAmount,
       contactEmail: updatedLocation.email,
