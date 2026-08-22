@@ -7,6 +7,7 @@ import {
   ParseUUIDPipe,
   Patch,
   Post,
+  Put,
   Query,
   Res,
   UseGuards,
@@ -16,6 +17,7 @@ import { AuthenticatedUser } from '../auth/interfaces/authenticated-user.interfa
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { PlatformAdminGuard } from '../common/guards/platform-admin.guard';
+import { UpdatePlatformSecretsDto } from '../platform-secrets/dto/update-platform-secrets.dto';
 import { ApplyMenuTemplateDto } from './dto/apply-menu-template.dto';
 import { CreateDomainDto } from './dto/create-domain.dto';
 import { CreateMenuTemplateDto } from './dto/create-menu-template.dto';
@@ -195,5 +197,15 @@ export class HqController {
     @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.hqService.pushDeal(dealId, dto, user);
+  }
+
+  @Get('platform-secrets')
+  platformSecrets() {
+    return this.hqService.listPlatformSecrets();
+  }
+
+  @Put('platform-secrets')
+  updatePlatformSecrets(@Body() dto: UpdatePlatformSecretsDto) {
+    return this.hqService.updatePlatformSecrets(dto);
   }
 }

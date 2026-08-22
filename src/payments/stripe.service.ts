@@ -11,6 +11,7 @@ import StripeLib from 'stripe';
 import { PrismaService } from '../prisma/prisma.service';
 import { CrmService } from '../crm/crm.service';
 import { InventoryService } from '../inventory/inventory.service';
+import { PlatformSecretsService } from '../platform-secrets/platform-secrets.service';
 
 function createStripeClient(secretKey: string) {
   return new StripeLib(secretKey);
@@ -22,25 +23,31 @@ type StripeClient = ReturnType<typeof createStripeClient>;
 export class StripeService {
   private readonly logger = new Logger(StripeService.name);
 
-  /* Global fallback client (from env) — used when no store context is available,
-     e.g. health checks. Per-store calls load their own client from the DB. */
+  /* Global fallback client (from env/DB) — used when no store context is available. */
   private readonly globalStripe: StripeClient | null;
-  private readonly globalWebhookSecret: string | undefined;
 
   constructor(
     private readonly configService: ConfigService,
     private readonly prisma: PrismaService,
     private readonly crmService: CrmService,
     private readonly inventoryService: InventoryService,
+    private readonly platformSecrets: PlatformSecretsService,
   ) {
-    const secretKey = this.configService.get<string>('STRIPE_SECRET_KEY');
+    const secretKey = this.resolveGlobalSecretKey();
     this.globalStripe = secretKey ? createStripeClient(secretKey) : null;
-    this.globalWebhookSecret = this.configService.get<string>('STRIPE_WEBHOOK_SECRET');
   }
 
-  /** True if a global (env-based) Stripe key is present. Used for health checks only. */
+  private resolveGlobalSecretKey(): string | undefined {
+    return this.platformSecrets.getPlain('STRIPE_SECRET_KEY');
+  }
+
+  private resolveGlobalWebhookSecret(): string | undefined {
+    return this.platformSecrets.getPlain('STRIPE_WEBHOOK_SECRET');
+  }
+
+  /** True if a global Stripe key is present (DB override or env). Health checks. */
   isConfigured(): boolean {
-    return this.globalStripe !== null;
+    return Boolean(this.resolveGlobalSecretKey());
   }
 
   /* ─────────────────────────────── per-store helpers ── */
@@ -56,11 +63,11 @@ export class StripeService {
     });
 
     const key = settings?.stripeSecretKeyRef?.trim()
-      || this.configService.get<string>('STRIPE_SECRET_KEY');
+      || this.resolveGlobalSecretKey();
 
     if (!key) {
       throw new ServiceUnavailableException(
-        'Stripe is not configured for this store. Add a Stripe secret key in Advanced Settings.',
+        'Stripe is not configured for this store. Add a Stripe secret key in Infrastructure.',
       );
     }
 
@@ -78,7 +85,7 @@ export class StripeService {
     });
 
     const secret = settings?.stripeWebhookSecretRef?.trim()
-      || this.globalWebhookSecret;
+      || this.resolveGlobalWebhookSecret();
 
     if (!secret) {
       throw new ServiceUnavailableException(
@@ -192,12 +199,13 @@ export class StripeService {
     /* We must verify synchronously here (called before we know the store).
        Use the global client + secret for the initial parse, then the event's
        orderId metadata tells us the store for subsequent per-store operations. */
-    const stripe = this.globalStripe;
-    const secret = this.globalWebhookSecret;
+    const secretKey = this.resolveGlobalSecretKey();
+    const secret = this.resolveGlobalWebhookSecret();
+    const stripe = secretKey ? createStripeClient(secretKey) : this.globalStripe;
 
     if (!stripe || !secret) {
       throw new ServiceUnavailableException(
-        'Stripe global webhook secret is not set. Add STRIPE_WEBHOOK_SECRET to env or set a per-store secret.',
+        'Stripe global webhook secret is not set. Set STRIPE_WEBHOOK_SECRET in Platform secrets or env.',
       );
     }
 

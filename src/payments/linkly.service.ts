@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { randomUUID } from 'crypto';
+import { PlatformSecretsService } from '../platform-secrets/platform-secrets.service';
 
 export type LinklyPurchaseResult = {
   approved: boolean;
@@ -22,7 +23,20 @@ export type LinklyPurchaseResult = {
 export class LinklyService {
   private readonly logger = new Logger(LinklyService.name);
 
-  constructor(private readonly config: ConfigService) {}
+  constructor(
+    private readonly config: ConfigService,
+    private readonly platformSecrets: PlatformSecretsService,
+  ) {}
+
+  private resolveLinklyEnv(): string {
+    return (
+      this.platformSecrets.getPlain('LINKLY_ENV') ??
+      this.config.get<string>('LINKLY_ENV') ??
+      'sandbox'
+    )
+      .trim()
+      .toLowerCase();
+  }
 
   getAuthBase(): string {
     const override = this.config.get<string>('LINKLY_AUTH_BASE')?.trim();
@@ -30,9 +44,7 @@ export class LinklyService {
       return override.replace(/\/$/, '');
     }
 
-    const env = (this.config.get<string>('LINKLY_ENV') ?? 'sandbox')
-      .trim()
-      .toLowerCase();
+    const env = this.resolveLinklyEnv();
     return env === 'production'
       ? 'https://auth.cloud.pceftpos.com'
       : 'https://auth.sandbox.cloud.pceftpos.com';
@@ -44,9 +56,7 @@ export class LinklyService {
       return override.replace(/\/$/, '');
     }
 
-    const env = (this.config.get<string>('LINKLY_ENV') ?? 'sandbox')
-      .trim()
-      .toLowerCase();
+    const env = this.resolveLinklyEnv();
     return env === 'production'
       ? 'https://rest.pos.cloud.pceftpos.com/v1'
       : 'https://rest.pos.sandbox.cloud.pceftpos.com/v1';

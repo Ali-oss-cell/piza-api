@@ -19,6 +19,7 @@ import { MenuModule } from './menu/menu.module';
 import { OrdersModule } from './orders/orders.module';
 import { PaymentsModule } from './payments/payments.module';
 import { PaymentSettingsModule } from './payment-settings/payment-settings.module';
+import { PlatformSecretsModule } from './platform-secrets/platform-secrets.module';
 import { PosModule } from './pos/pos.module';
 import { PricingModule } from './pricing/pricing.module';
 import { PrismaModule } from './prisma/prisma.module';
@@ -41,6 +42,7 @@ import { WebhooksModule } from './webhooks/webhooks.module';
     MailModule,
     AuditModule,
     BrandsModule,
+    PlatformSecretsModule,
     UsersModule,
     AuthModule,
     MenuModule,

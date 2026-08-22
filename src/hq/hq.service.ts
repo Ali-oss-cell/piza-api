@@ -25,6 +25,8 @@ import {
 } from '../common/utils/melbourne-time';
 import { PrismaService } from '../prisma/prisma.service';
 import { TeamService } from '../team/team.service';
+import { UpdatePlatformSecretsDto } from '../platform-secrets/dto/update-platform-secrets.dto';
+import { PlatformSecretsService } from '../platform-secrets/platform-secrets.service';
 import { ApplyMenuTemplateDto } from './dto/apply-menu-template.dto';
 import { CreateDomainDto } from './dto/create-domain.dto';
 import { CreateMenuTemplateDto } from './dto/create-menu-template.dto';
@@ -86,6 +88,7 @@ export class HqService {
     private readonly auditService: AuditService,
     private readonly teamService: TeamService,
     private readonly traefikDomainsSync: TraefikDomainsSyncService,
+    private readonly platformSecrets: PlatformSecretsService,
   ) {}
 
   private collectStoreAlerts(brand: {
@@ -1596,5 +1599,18 @@ export class HqService {
     }
     const withSlash = trimmed.startsWith('/') ? trimmed : `/${trimmed}`;
     return withSlash.replace(/\/+$/, '') || withSlash;
+  }
+
+  listPlatformSecrets() {
+    return this.platformSecrets.listMasked();
+  }
+
+  updatePlatformSecrets(dto: UpdatePlatformSecretsDto) {
+    return this.platformSecrets.upsertMany(
+      dto.secrets.map((item) => ({
+        key: item.key,
+        value: item.value ?? null,
+      })),
+    );
   }
 }

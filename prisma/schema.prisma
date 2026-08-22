@@ -284,6 +284,17 @@ model StorePaymentSettings {
   @@map("store_payment_settings")
 }
 
+/// Allowlisted global secrets editable by platform admins (HQ). Not free-form .env.
+model PlatformSecret {
+  id        String   @id @default(uuid()) @db.Uuid
+  key       String   @unique
+  valueEnc  String   @map("value_enc")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("platform_secrets")
+}
+
 model UserStore {
   id         String              @id @default(uuid()) @db.Uuid
   userId     String              @map("user_id") @db.Uuid
