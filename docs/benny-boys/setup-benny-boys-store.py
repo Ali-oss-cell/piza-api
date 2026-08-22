@@ -403,8 +403,14 @@ def upload_banner_hero(api: ApiClient, menu: dict) -> str | None:
 def ensure_categories(api: ApiClient) -> None:
     print("→ Creating menu categories…")
     for cat in CATEGORIES:
-        api.post("/menu/categories", cat)
-        print(f"  ✓ {cat['slug']}")
+        try:
+            api.post("/menu/categories", cat)
+            print(f"  ✓ {cat['slug']}")
+        except RuntimeError as exc:
+            if "409" in str(exc) or "already exists" in str(exc).lower():
+                print(f"  · {cat['slug']} (exists)")
+            else:
+                raise
 
 
 def resolve_local_image(item: dict) -> Path | None:
