@@ -56,14 +56,14 @@ PLACEHOLDER_IMAGE = (
 
 STORE_PROFILE = {
     "name": "Benny Boy's Pizza (Wantirna South)",
-    "tagline": "Pizza, pasta & deals — Wantirna South",
+    "tagline": "Bold flavours · Fresh bites",
     "primaryColor": "#E85D04",
     "secondaryColor": "#1F2937",
     "pathPrefix": None,  # filled from brand slug
     "location": {
         "name": "Wantirna South",
         "suburb": "Wantirna South",
-        "address": "100 Coleman Rd, Boronia VIC 3155",
+        "address": "100 Coleman Rd, Wantirna South VIC 3152, Australia",
         "phone": "",
         "email": "",
         "deliveryFee": 4.0,

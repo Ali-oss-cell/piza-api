@@ -1,4 +1,4 @@
-export const DEFAULT_BRAND_SLUG = 'leovorno';
+export const DEFAULT_BRAND_SLUG = 'benny-boys';
 
 export const BRAND_SLUG_HEADER = 'x-brand-slug';
 
