@@ -26,6 +26,7 @@ COPY --from=builder /app/prisma.config.ts ./
 COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
 COPY --from=builder /app/node_modules/@prisma ./node_modules/@prisma
 COPY scripts/docker-entrypoint.sh ./scripts/docker-entrypoint.sh
+COPY scripts/delete-stores.mjs ./scripts/delete-stores.mjs
 
 RUN chmod +x ./scripts/docker-entrypoint.sh
 

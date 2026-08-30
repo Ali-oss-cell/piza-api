@@ -53,8 +53,8 @@ async function main() {
 
     if (targets.length === 0) {
       console.log('\nNothing to delete. Examples:');
-      console.log('  node docs/benny-boys/delete-stores.mjs --all');
-      console.log('  node docs/benny-boys/delete-stores.mjs benny-boys bunny-boys leovorno');
+      console.log('  node scripts/delete-stores.mjs --all');
+      console.log('  node scripts/delete-stores.mjs benny-boys bunny-boys leovorno');
       process.exit(1);
     }
 
