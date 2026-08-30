@@ -71,6 +71,21 @@ STORE_PROFILE = {
     },
 }
 
+OPENING_HOURS = {
+    "timezone": "Australia/Melbourne",
+    "leadTimeMinutes": 45,
+    "slotIntervalMinutes": 15,
+    "days": {
+        "monday": {"open": "16:00", "close": "22:00"},
+        "tuesday": {"open": "16:00", "close": "22:00"},
+        "wednesday": {"open": "16:00", "close": "22:00"},
+        "thursday": {"open": "16:00", "close": "22:00"},
+        "friday": {"open": "11:00", "close": "23:00"},
+        "saturday": {"open": "11:00", "close": "23:00"},
+        "sunday": {"open": "11:00", "close": "23:00"},
+    },
+}
+
 CATEGORIES = [
     {"slug": "deals", "label": "Deals", "sortOrder": 0, "supportsSizeOptions": False, "supportsExtras": False},
     {"slug": "basic-pizzas", "label": "Basic Pizzas", "sortOrder": 1, "supportsSizeOptions": True, "supportsExtras": True},
@@ -388,6 +403,7 @@ def update_store_branding(api: ApiClient, menu: dict, hero_url: str | None) -> N
         "address": STORE_PROFILE["location"]["address"],
         "contactPhone": STORE_PROFILE["location"].get("phone") or "",
         "contactEmail": STORE_PROFILE["location"].get("email") or "",
+        "openingHours": OPENING_HOURS,
     }
     if hero_url:
         body["heroImageUrl"] = hero_url

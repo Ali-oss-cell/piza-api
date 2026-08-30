@@ -40,7 +40,30 @@ export function weekdayKeyFromDate(date: Date, timezone: string): WeekdayKey {
   return weekday;
 }
 
-const TIME_RE = /^\d{2}:\d{2}$/;
+/** Accept HH:MM or H:MM (optional seconds) and return HH:MM, or null if invalid. */
+export function normalizeTimeString(value: string): string | null {
+  const trimmed = value.trim();
+  const match = trimmed.match(/^(\d{1,2}):(\d{2})(?::\d{2})?$/);
+  if (!match) {
+    return null;
+  }
+  const hours = Number(match[1]);
+  const minutes = Number(match[2]);
+  if (hours > 23 || minutes > 59) {
+    return null;
+  }
+  return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+}
+
+function closeMinutesForValidation(open: string, close: string): number {
+  const openMinutes = parseTimeToMinutes(open);
+  const closeMinutes = parseTimeToMinutes(close);
+  // 00:00 close means end of day (midnight), e.g. open 17:00 → close midnight.
+  if (closeMinutes === 0 && openMinutes > 0) {
+    return 24 * 60;
+  }
+  return closeMinutes;
+}
 
 export const DEFAULT_OPENING_HOURS: OpeningHoursConfig = {
   timezone: 'Australia/Melbourne',
@@ -62,12 +85,10 @@ function isValidDayHours(value: unknown): value is DayHours {
     return false;
   }
   const day = value as Partial<DayHours>;
-  return (
-    typeof day.open === 'string' &&
-    typeof day.close === 'string' &&
-    TIME_RE.test(day.open) &&
-    TIME_RE.test(day.close)
-  );
+  if (typeof day.open !== 'string' || typeof day.close !== 'string') {
+    return false;
+  }
+  return normalizeTimeString(day.open) !== null && normalizeTimeString(day.close) !== null;
 }
 
 export function parseOpeningHours(
@@ -131,12 +152,14 @@ export function normalizeOpeningHours(
     if (!isValidDayHours(dayValue)) {
       return null;
     }
-    const openMinutes = parseTimeToMinutes(dayValue.open);
-    const closeMinutes = parseTimeToMinutes(dayValue.close);
+    const open = normalizeTimeString(dayValue.open)!;
+    const close = normalizeTimeString(dayValue.close)!;
+    const openMinutes = parseTimeToMinutes(open);
+    const closeMinutes = closeMinutesForValidation(open, close);
     if (closeMinutes <= openMinutes) {
       return null;
     }
-    days[key] = { open: dayValue.open, close: dayValue.close };
+    days[key] = { open, close };
   }
 
   return {
@@ -203,7 +226,7 @@ export function isWithinOpeningHours(
 
   const minutes = minutesInTimezone(scheduledAt, config.timezone);
   const openMinutes = parseTimeToMinutes(dayHours.open);
-  const closeMinutes = parseTimeToMinutes(dayHours.close);
+  const closeMinutes = closeMinutesForValidation(dayHours.open, dayHours.close);
 
   return minutes >= openMinutes && minutes <= closeMinutes;
 }
