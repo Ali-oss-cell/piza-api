@@ -1,27 +1,51 @@
 # Benny Boy's Pizza — store setup
 
-Import **Benny Boy's Pizza (Wantirna South)** menu (61 items) into the Marina API.
+Import **Benny Boy's Pizza (Wantirna South)** menu into the Marina API.
 
-## On the Droplet
+## One command (recommended)
+
+Deletes **all** old stores, logs in with email/password (no browser JWT), creates **one** Benny Boy's store + full menu.
 
 ```bash
 cd ~/piza/piza-api
 git pull origin main
 
-# Get token from admin dashboard (browser DevTools → leovorno-auth-token)
-export ADMIN_TOKEN='eyJ...'
+export ADMIN_EMAIL='admin@leovorno.com'
+export ADMIN_PASSWORD='your-password'
 
-cd docs/benny-boys
-chmod +x setup-benny-boys.sh setup-benny-boys-store.py
-
-# Preview
-./setup-benny-boys.sh --dry-run
-
-# Full import (new slug benny-boys, clears bunny-boys + leovorno demo menus)
-./setup-benny-boys.sh
-
-# Or reuse existing bunny-boys slug
-./setup-benny-boys.sh bunny-boys
+bash docs/benny-boys/reset-benny-boys.sh
 ```
 
-Storefront after import: `https://marinapizzas.com.au/benny-boys` or `/bunny-boys`
+Preview only:
+
+```bash
+bash docs/benny-boys/reset-benny-boys.sh --dry-run
+```
+
+Storefront after import: `https://marinapizzas.com.au` (Benny Boy's is the main store).
+
+## Menu-only import (store already exists)
+
+```bash
+export ADMIN_PASSWORD='your-password'
+cd docs/benny-boys
+./setup-benny-boys.sh
+```
+
+## Delete stores only (no JWT)
+
+```bash
+docker compose -f docker-compose.prod.yml cp scripts/delete-stores.mjs api:/app/scripts/delete-stores.mjs
+docker compose -f docker-compose.prod.yml exec -T api node scripts/delete-stores.mjs --all
+```
+
+Or SQL fallback:
+
+```bash
+docker compose -f docker-compose.prod.yml exec -T postgres psql -U piza -d marinapizzas -c "
+BEGIN;
+DELETE FROM order_items WHERE order_id IN (SELECT id FROM orders);
+DELETE FROM orders;
+DELETE FROM brands;
+COMMIT;"
+```

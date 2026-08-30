@@ -550,6 +550,46 @@ def print_summary(api: ApiClient) -> None:
     print("  4. SEO portal → edit home hero + meta for this store")
 
 
+def fetch_admin_token(api_url: str, email: str, password: str) -> str:
+    base = api_url.rstrip("/")
+    url = f"{base}/auth/login"
+    body = json.dumps({"email": email.strip(), "password": password}).encode("utf-8")
+    req = urllib.request.Request(
+        url,
+        data=body,
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=120) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+    except urllib.error.HTTPError as exc:
+        err = exc.read().decode("utf-8", errors="replace")
+        raise SystemExit(f"Login failed HTTP {exc.code}: {err}") from exc
+    token = data.get("accessToken") or data.get("access_token")
+    if not token:
+        raise SystemExit(f"Login response missing accessToken: {data}")
+    return str(token)
+
+
+def resolve_admin_token(api_url: str, token: str, email: str, password: str, dry_run: bool) -> str:
+    if token.strip():
+        return token.strip()
+    if dry_run:
+        return "dry-run"
+    if not password:
+        raise SystemExit(
+            "No ADMIN_TOKEN. Set ADMIN_PASSWORD (and optionally ADMIN_EMAIL), e.g.:\n"
+            "  export ADMIN_EMAIL='admin@leovorno.com'\n"
+            "  export ADMIN_PASSWORD='your-password'\n"
+            "Or run: bash docs/benny-boys/reset-benny-boys.sh"
+        )
+    print(f"→ Logging in as {email}…")
+    fetched = fetch_admin_token(api_url, email, password)
+    print("  ✓ Login OK")
+    return fetched
+
+
 def validate_admin_token(token: str) -> None:
     cleaned = token.strip()
     placeholders = {"…", "...", "eyJ...", "your-token", "admin login token"}
@@ -588,6 +628,8 @@ def main() -> int:
     parser.add_argument("--api-url", default=os.environ.get("API_URL", DEFAULT_API))
     parser.add_argument("--brand", default=os.environ.get("BRAND_SLUG", DEFAULT_BRAND))
     parser.add_argument("--token", default=os.environ.get("ADMIN_TOKEN", ""))
+    parser.add_argument("--email", default=os.environ.get("ADMIN_EMAIL", "admin@leovorno.com"))
+    parser.add_argument("--password", default=os.environ.get("ADMIN_PASSWORD", ""))
     parser.add_argument(
         "--also-clear",
         default="",
@@ -595,12 +637,16 @@ def main() -> int:
     )
     args = parser.parse_args()
 
-    if not args.token and not args.dry_run:
-        print("Set ADMIN_TOKEN (admin dashboard → DevTools → localStorage → leovorno-auth-token)")
-        return 1
+    token = resolve_admin_token(
+        args.api_url,
+        args.token,
+        args.email,
+        args.password,
+        args.dry_run,
+    )
 
-    if args.token and not args.dry_run:
-        validate_admin_token(args.token)
+    if token and token != "dry-run" and not args.dry_run:
+        validate_admin_token(token)
 
     try:
         menu = load_menu()
@@ -626,7 +672,7 @@ def main() -> int:
     print(f"Menu items = {len(menu.get('items', []))}")
     print()
 
-    token = args.token or "dry-run"
+    token = token if token else "dry-run"
 
     if not args.skip_clear:
         for slug in brands_to_clear:
