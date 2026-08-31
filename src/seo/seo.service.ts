@@ -604,7 +604,28 @@ export class SeoService {
 
     const prefix = `${params.baseUrl.replace(/\/$/, '')}${pathBase}`;
 
-    const staticPaths = ['', '/about', '/deals', '/locations', '/blog'];
+    const staticPaths = [
+      '',
+      '/menu',
+      '/about',
+      '/deals',
+      '/locations',
+      '/blog',
+      '/catering',
+      '/faq',
+      '/contact',
+      '/delivery',
+      '/privacy',
+      '/terms',
+      '/allergens',
+      '/gallery',
+      '/reviews',
+      '/gift-cards',
+      '/loyalty',
+      '/careers',
+      '/functions',
+      '/nutrition',
+    ];
     const urls: Array<{ loc: string; lastmod?: string }> = staticPaths.map(
       (path) => ({
         loc: `${prefix}${path || '/'}`,

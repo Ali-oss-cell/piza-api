@@ -93,6 +93,18 @@ enum BlogPostStatus {
   PUBLISHED
 }
 
+enum InquiryType {
+  CONTACT
+  CAREERS
+  CATERING
+}
+
+enum InquiryStatus {
+  NEW
+  READ
+  ARCHIVED
+}
+
 enum DealScope {
   STORE
   PLATFORM
@@ -212,6 +224,7 @@ model Brand {
   seoImages            SeoImage[]
   blogPosts            BlogPost[]
   seoRedirects         SeoRedirect[]
+  inquiries            StoreInquiry[]
 
   @@map("brands")
 }
@@ -933,4 +946,25 @@ model SeoRedirect {
   @@unique([storeId, fromPath])
   @@index([storeId, isActive])
   @@map("seo_redirects")
+}
+
+model StoreInquiry {
+  id        String         @id @default(uuid()) @db.Uuid
+  brandId   String         @map("brand_id") @db.Uuid
+  type      InquiryType
+  status    InquiryStatus  @default(NEW)
+  name      String
+  email     String
+  phone     String?
+  subject   String?
+  message   String         @db.Text
+  payload   Json?
+  createdAt DateTime       @default(now()) @map("created_at")
+  readAt    DateTime?      @map("read_at")
+
+  brand Brand @relation(fields: [brandId], references: [id], onDelete: Cascade)
+
+  @@index([brandId, status, createdAt])
+  @@index([brandId, type])
+  @@map("store_inquiries")
 }
