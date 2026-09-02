@@ -607,6 +607,7 @@ export class SeoService {
     const staticPaths = [
       '',
       '/menu',
+      '/order-online',
       '/about',
       '/deals',
       '/locations',
