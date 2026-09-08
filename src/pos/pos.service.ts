@@ -247,12 +247,15 @@ export class PosService {
       ? `T${order.ticketNumber}${Date.now().toString().slice(-8)}`
       : order.id.replace(/-/g, '').slice(0, 16)
     ).slice(0, 16);
+    const sessionId = this.linklyService.newSessionId();
 
     await this.prisma.order.update({
       where: { id: orderId },
       data: {
         paymentStatus: PaymentStatus.PROCESSING,
         paymentMethod: PaymentMethod.CARD_TERMINAL,
+        linklySessionId: sessionId,
+        linklyTxnRef: txnRef,
       },
     });
 
@@ -261,7 +264,8 @@ export class PosService {
       posId: credentials.posId,
       amountCents,
       txnRef,
-      operatorName: 'POS',
+      sessionId,
+      operatorName: this.operatorLabel(staff),
     });
 
     if (!result.approved) {
@@ -282,6 +286,9 @@ export class PosService {
         paymentStatus: PaymentStatus.PAID,
         paymentMethod: PaymentMethod.CARD_TERMINAL,
         paidAt: new Date(),
+        linklySessionId: result.sessionId,
+        linklyRfn: result.rfn ?? null,
+        linklyTxnRef: result.txnRef || txnRef,
         notes: order.notes
           ? `${order.notes}\nLinkly REF=${result.hostRef ?? ''} RFN=${result.rfn ?? ''}`
           : `Linkly REF=${result.hostRef ?? ''} RFN=${result.rfn ?? ''}`,
@@ -311,7 +318,287 @@ export class PosService {
       paymentStatus: order.paymentStatus,
       paymentMethod: order.paymentMethod,
       paidAt: order.paidAt,
+      linklySessionId: order.linklySessionId,
+      linklyRfn: order.linklyRfn,
+      linklyTxnRef: order.linklyTxnRef,
     };
+  }
+
+  /**
+   * Recover after timeout/power fail: GET Linkly transaction status for the
+   * session saved on the order, then mark PAID / FAILED accordingly.
+   */
+  async recoverLinklyPayment(orderId: string) {
+    const order = await this.ensurePosOrder(orderId);
+
+    if (order.paymentStatus === PaymentStatus.PAID) {
+      return this.getPaymentStatus(orderId);
+    }
+
+    if (!order.linklySessionId) {
+      throw new BadRequestException(
+        'No Linkly session on this order — cannot recover status.',
+      );
+    }
+
+    const location = await this.prisma.location.findUnique({
+      where: { id: order.locationId },
+    });
+    if (!location) {
+      throw new NotFoundException('Order location not found');
+    }
+
+    const credentials = await this.paymentSettingsService.getLinklyCredentials(
+      location.brandId,
+    );
+
+    const status = await this.linklyService.getTransactionStatus({
+      secret: credentials.secret,
+      posId: credentials.posId,
+      sessionId: order.linklySessionId,
+    });
+
+    if (status.inProgress) {
+      return {
+        ...this.getPaymentStatusShape(order),
+        linklyHttpStatus: status.httpStatus,
+        linklyInProgress: true,
+      };
+    }
+
+    if (status.notFound) {
+      await this.prisma.order.update({
+        where: { id: orderId },
+        data: { paymentStatus: PaymentStatus.FAILED },
+      });
+      return {
+        orderId,
+        paymentStatus: PaymentStatus.FAILED,
+        paymentMethod: order.paymentMethod,
+        paidAt: null,
+        linklySessionId: order.linklySessionId,
+        linklyHttpStatus: 404,
+        linklyNotFound: true,
+        message:
+          'Linkly has no record of this session — safe to retry the card payment.',
+      };
+    }
+
+    const result = status.result;
+    if (!result) {
+      throw new BadRequestException('Empty Linkly status response.');
+    }
+
+    if (result.approved) {
+      const updated = await this.prisma.order.update({
+        where: { id: orderId },
+        data: {
+          paymentStatus: PaymentStatus.PAID,
+          paymentMethod: PaymentMethod.CARD_TERMINAL,
+          paidAt: new Date(),
+          linklyRfn: result.rfn ?? order.linklyRfn,
+          linklyTxnRef: result.txnRef || order.linklyTxnRef,
+        },
+      });
+      await this.crmService.linkOrderById(orderId);
+      await this.inventoryService.deductForPaidOrder(orderId);
+      return {
+        orderId: updated.id,
+        paymentStatus: updated.paymentStatus,
+        paymentMethod: updated.paymentMethod,
+        paidAt: updated.paidAt,
+        linklySessionId: updated.linklySessionId,
+        linklyRfn: updated.linklyRfn,
+        linklyTxnRef: updated.linklyTxnRef,
+        linklyResponseCode: result.responseCode,
+        linklyResponseText: result.responseText,
+      };
+    }
+
+    await this.prisma.order.update({
+      where: { id: orderId },
+      data: { paymentStatus: PaymentStatus.FAILED },
+    });
+
+    return {
+      orderId,
+      paymentStatus: PaymentStatus.FAILED,
+      paymentMethod: order.paymentMethod,
+      paidAt: null,
+      linklySessionId: order.linklySessionId,
+      linklyResponseCode: result.responseCode,
+      linklyResponseText: result.responseText,
+    };
+  }
+
+  /**
+   * Full card refund via Linkly (TxnType R) using stored RFN.
+   */
+  async refundCardPayment(
+    orderId: string,
+    staff?: AuthenticatedUser,
+    amountCents?: number,
+  ) {
+    const order = await this.ensurePosOrder(orderId);
+
+    if (order.paymentStatus === PaymentStatus.REFUNDED) {
+      return {
+        orderId: order.id,
+        paymentStatus: order.paymentStatus,
+        alreadyRefunded: true,
+      };
+    }
+
+    if (order.paymentStatus !== PaymentStatus.PAID) {
+      throw new BadRequestException('Only paid orders can be refunded.');
+    }
+
+    if (order.paymentMethod !== PaymentMethod.CARD_TERMINAL) {
+      throw new BadRequestException(
+        'This order was not paid via Linkly card terminal.',
+      );
+    }
+
+    const rfn =
+      order.linklyRfn?.trim() || this.parseLinklyRfnFromNotes(order.notes);
+    if (!rfn) {
+      throw new BadRequestException(
+        'Missing Linkly RFN for this order — cannot refund on the pinpad.',
+      );
+    }
+
+    const location = await this.prisma.location.findUnique({
+      where: { id: order.locationId },
+    });
+    if (!location) {
+      throw new NotFoundException('Order location not found');
+    }
+
+    const credentials = await this.paymentSettingsService.getLinklyCredentials(
+      location.brandId,
+    );
+
+    const fullCents = Math.round(Number(order.total) * 100);
+    const refundCents =
+      amountCents != null && amountCents > 0 ? amountCents : fullCents;
+    if (refundCents > fullCents) {
+      throw new BadRequestException('Refund amount exceeds order total.');
+    }
+
+    const txnRef = (`R${order.ticketNumber ?? ''}${Date.now().toString().slice(-8)}`).slice(
+      0,
+      16,
+    );
+    const sessionId = this.linklyService.newSessionId();
+
+    const result = await this.linklyService.refund({
+      secret: credentials.secret,
+      posId: credentials.posId,
+      amountCents: refundCents,
+      txnRef,
+      rfn,
+      sessionId,
+      operatorName: this.operatorLabel(staff),
+    });
+
+    if (!result.approved) {
+      throw new BadRequestException(
+        result.responseText ||
+          `Refund declined (${result.responseCode || 'unknown'})`,
+      );
+    }
+
+    const updated = await this.prisma.order.update({
+      where: { id: orderId },
+      data: {
+        paymentStatus: PaymentStatus.REFUNDED,
+        notes: order.notes
+          ? `${order.notes}\nLinkly REFUND REF=${result.hostRef ?? ''} session=${result.sessionId}`
+          : `Linkly REFUND REF=${result.hostRef ?? ''} session=${result.sessionId}`,
+      },
+    });
+
+    await this.inventoryService.restockForRefundedOrder(orderId);
+
+    return {
+      orderId: updated.id,
+      paymentStatus: updated.paymentStatus,
+      linklySessionId: result.sessionId,
+      linklyResponseCode: result.responseCode,
+      linklyResponseText: result.responseText,
+      refundAmountCents: refundCents,
+    };
+  }
+
+  async runLinklySettlement(
+    brandSlug: string | undefined,
+    settlementType: 'S' | 'P' | 'L' = 'S',
+  ) {
+    const slug = brandSlug?.trim().toLowerCase();
+    if (!slug) {
+      throw new BadRequestException(
+        'Store (brand) is required. Select a store on this POS device.',
+      );
+    }
+
+    const brand = await this.prisma.brand.findFirst({
+      where: { slug, isActive: true },
+      select: { id: true },
+    });
+    if (!brand) {
+      throw new NotFoundException(`Store "${slug}" not found`);
+    }
+
+    await this.paymentSettingsService.assertCardTerminalEnabled(brand.id);
+    const credentials = await this.paymentSettingsService.getLinklyCredentials(
+      brand.id,
+    );
+
+    const result = await this.linklyService.settlement({
+      secret: credentials.secret,
+      posId: credentials.posId,
+      settlementType,
+    });
+
+    if (!result.success) {
+      throw new BadRequestException(
+        result.responseText ||
+          `Settlement failed (${result.responseCode || 'unknown'})`,
+      );
+    }
+
+    return {
+      success: true,
+      settlementType,
+      linklySessionId: result.sessionId,
+      linklyResponseCode: result.responseCode,
+      linklyResponseText: result.responseText,
+    };
+  }
+
+  private getPaymentStatusShape(order: Order) {
+    return {
+      orderId: order.id,
+      paymentStatus: order.paymentStatus,
+      paymentMethod: order.paymentMethod,
+      paidAt: order.paidAt,
+      linklySessionId: order.linklySessionId,
+      linklyRfn: order.linklyRfn,
+      linklyTxnRef: order.linklyTxnRef,
+    };
+  }
+
+  private parseLinklyRfnFromNotes(notes: string | null | undefined): string | null {
+    if (!notes) return null;
+    const match = notes.match(/\bRFN=([^\s\n]+)/);
+    const value = match?.[1]?.trim();
+    return value && value !== 'undefined' ? value : null;
+  }
+
+  private operatorLabel(staff?: AuthenticatedUser): string {
+    if (!staff) return 'POS';
+    const name = `${staff.firstName ?? ''} ${staff.lastName ?? ''}`.trim();
+    return name || 'POS';
   }
 
   async markCashPaid(

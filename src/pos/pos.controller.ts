@@ -19,7 +19,12 @@ import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { AuthenticatedUser } from '../auth/interfaces/authenticated-user.interface';
 import { QuoteRequestDto } from '../pricing/dto/quote-request.dto';
 import { CreatePosOrderDto } from './dto/create-pos-order.dto';
-import { CardPaymentDto, CashPaymentDto } from './dto/payment.dto';
+import {
+  CardPaymentDto,
+  CashPaymentDto,
+  LinklySettlementDto,
+  RefundCardPaymentDto,
+} from './dto/payment.dto';
 import { UpdatePosOrderStatusDto } from './dto/update-pos-order-status.dto';
 import { PosService } from './pos.service';
 
@@ -99,6 +104,34 @@ export class PosController {
   @Get('payments/:orderId/status')
   getPaymentStatus(@Param('orderId') orderId: string) {
     return this.posService.getPaymentStatus(orderId);
+  }
+
+  @Post('payments/:orderId/linkly-recover')
+  recoverLinklyPayment(@Param('orderId') orderId: string) {
+    return this.posService.recoverLinklyPayment(orderId);
+  }
+
+  @Post('payments/refund')
+  refundCardPayment(
+    @Body() dto: RefundCardPaymentDto,
+    @CurrentUser() staff: AuthenticatedUser,
+  ) {
+    return this.posService.refundCardPayment(
+      dto.orderId,
+      staff,
+      dto.amountCents,
+    );
+  }
+
+  @Post('linkly/settlement')
+  runLinklySettlement(
+    @Body() dto: LinklySettlementDto,
+    @BrandSlug() brandSlug?: string,
+  ) {
+    return this.posService.runLinklySettlement(
+      brandSlug,
+      dto.settlementType ?? 'S',
+    );
   }
 
   @Post('payments/cash')
