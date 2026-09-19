@@ -27,19 +27,28 @@ export function deriveBasePrice(sizeOptions: SizeOptions): number {
     sizeOptions.large,
     sizeOptions.family,
   ]
-    .filter((option) => option.enabled)
+    .filter((option) => option?.enabled)
     .map((option) => option.price);
 
-  return enabledPrices[0] ?? sizeOptions.large.price;
+  if (enabledPrices.length > 0) {
+    return enabledPrices[0];
+  }
+
+  return (
+    sizeOptions.large?.price ??
+    sizeOptions.small?.price ??
+    sizeOptions.family?.price ??
+    0
+  );
 }
 
 export function toLegacySizePricing(
   sizeOptions: SizeOptions,
 ): Record<'small' | 'large' | 'family', number> {
   return {
-    small: sizeOptions.small.price,
-    large: sizeOptions.large.price,
-    family: sizeOptions.family.price,
+    small: sizeOptions.small?.price ?? 0,
+    large: sizeOptions.large?.price ?? 0,
+    family: sizeOptions.family?.price ?? 0,
   };
 }
 
