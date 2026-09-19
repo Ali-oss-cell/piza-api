@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   ForbiddenException,
   Injectable,
   NotFoundException,
@@ -240,12 +241,62 @@ export class PosService {
     }
 
     /* ── Linkly path (default) ── */
+    // Recover-before-retry: never mint a new session while one is in flight.
+    if (
+      order.paymentStatus === PaymentStatus.PROCESSING &&
+      order.linklySessionId
+    ) {
+      const recovered = await this.recoverLinklyPayment(orderId);
+      const recoveredFlags = recovered as {
+        paymentStatus: PaymentStatus;
+        linklyInProgress?: boolean;
+        linklyResponseCode?: string;
+        linklyResponseText?: string;
+        linklyTxnRef?: string | null;
+        linklyRfn?: string | null;
+        linklyNotFound?: boolean;
+      };
+
+      if (recoveredFlags.paymentStatus === PaymentStatus.PAID) {
+        const paidOrder = await this.prisma.order.findUniqueOrThrow({
+          where: { id: orderId },
+        });
+        return {
+          orderId: paidOrder.id,
+          ticketNumber: paidOrder.ticketNumber,
+          paymentStatus: paidOrder.paymentStatus,
+          paymentMethod: paidOrder.paymentMethod,
+          linklySessionId: paidOrder.linklySessionId,
+          linklyTxnRef: paidOrder.linklyTxnRef,
+          linklyRfn: paidOrder.linklyRfn,
+          linklyResponseCode: recoveredFlags.linklyResponseCode,
+          linklyResponseText: recoveredFlags.linklyResponseText,
+        };
+      }
+
+      if (recoveredFlags.linklyInProgress) {
+        throw new ConflictException({
+          message:
+            'Card payment is still in progress on the pinpad. Wait and recover — do not start a new charge.',
+          code: 'LINKLY_IN_PROGRESS',
+          orderId,
+          linklySessionId: order.linklySessionId,
+          linklyTxnRef: order.linklyTxnRef,
+          linklyInProgress: true,
+        });
+      }
+
+      // notFound or FAILED — safe to start a fresh purchase below.
+    }
+
     const credentials = await this.paymentSettingsService.getLinklyCredentials(
       location.brandId,
     );
-    const txnRef = (order.ticketNumber
-      ? `T${order.ticketNumber}${Date.now().toString().slice(-8)}`
-      : order.id.replace(/-/g, '').slice(0, 16)
+    // Re-read order in case recover updated status/session fields.
+    const freshOrder = await this.ensurePosOrder(orderId);
+    const txnRef = (freshOrder.ticketNumber
+      ? `T${freshOrder.ticketNumber}${Date.now().toString().slice(-8)}`
+      : freshOrder.id.replace(/-/g, '').slice(0, 16)
     ).slice(0, 16);
     const sessionId = this.linklyService.newSessionId();
 
@@ -274,10 +325,17 @@ export class PosService {
         data: { paymentStatus: PaymentStatus.FAILED },
       });
 
-      throw new BadRequestException(
-        result.responseText ||
+      throw new BadRequestException({
+        message:
+          result.responseText ||
           `Card declined (${result.responseCode || 'unknown'})`,
-      );
+        code: 'LINKLY_DECLINED',
+        orderId,
+        linklySessionId: result.sessionId,
+        linklyTxnRef: result.txnRef || txnRef,
+        linklyResponseCode: result.responseCode,
+        linklyResponseText: result.responseText,
+      });
     }
 
     const updated = await this.prisma.order.update({
@@ -289,8 +347,8 @@ export class PosService {
         linklySessionId: result.sessionId,
         linklyRfn: result.rfn ?? null,
         linklyTxnRef: result.txnRef || txnRef,
-        notes: order.notes
-          ? `${order.notes}\nLinkly REF=${result.hostRef ?? ''} RFN=${result.rfn ?? ''}`
+        notes: freshOrder.notes
+          ? `${freshOrder.notes}\nLinkly REF=${result.hostRef ?? ''} RFN=${result.rfn ?? ''}`
           : `Linkly REF=${result.hostRef ?? ''} RFN=${result.rfn ?? ''}`,
       },
       include: { items: true, staffUser: true },
@@ -305,9 +363,56 @@ export class PosService {
       paymentStatus: updated.paymentStatus,
       paymentMethod: updated.paymentMethod,
       linklySessionId: result.sessionId,
+      linklyTxnRef: result.txnRef || txnRef,
+      linklyRfn: result.rfn ?? null,
       linklyResponseCode: result.responseCode,
       linklyResponseText: result.responseText,
     };
+  }
+
+  /**
+   * POS orders at this location still in PROCESSING card payment (last 24h).
+   * Used for startup / power-fail recovery on the register.
+   */
+  async findUnresolvedCardPayments(
+    staff: AuthenticatedUser,
+    brandSlug?: string,
+    locationId?: string,
+  ) {
+    const location = await this.resolvePosLocation(staff, brandSlug, locationId);
+    const since = new Date(Date.now() - 24 * 60 * 60 * 1000);
+
+    const orders = await this.prisma.order.findMany({
+      where: {
+        channel: OrderChannel.POS,
+        locationId: location.id,
+        paymentStatus: PaymentStatus.PROCESSING,
+        paymentMethod: PaymentMethod.CARD_TERMINAL,
+        createdAt: { gte: since },
+        linklySessionId: { not: null },
+      },
+      select: {
+        id: true,
+        ticketNumber: true,
+        total: true,
+        createdAt: true,
+        paymentStatus: true,
+        linklyTxnRef: true,
+        linklySessionId: true,
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 20,
+    });
+
+    return orders.map((o) => ({
+      id: o.id,
+      ticketNumber: o.ticketNumber,
+      total: Number(o.total),
+      createdAt: o.createdAt,
+      paymentStatus: o.paymentStatus,
+      linklyTxnRef: o.linklyTxnRef,
+      linklySessionId: o.linklySessionId,
+    }));
   }
 
   async getPaymentStatus(orderId: string) {
@@ -377,6 +482,8 @@ export class PosService {
         paymentMethod: order.paymentMethod,
         paidAt: null,
         linklySessionId: order.linklySessionId,
+        linklyTxnRef: order.linklyTxnRef,
+        linklyRfn: order.linklyRfn,
         linklyHttpStatus: 404,
         linklyNotFound: true,
         message:
@@ -426,6 +533,8 @@ export class PosService {
       paymentMethod: order.paymentMethod,
       paidAt: null,
       linklySessionId: order.linklySessionId,
+      linklyTxnRef: order.linklyTxnRef,
+      linklyRfn: order.linklyRfn,
       linklyResponseCode: result.responseCode,
       linklyResponseText: result.responseText,
     };

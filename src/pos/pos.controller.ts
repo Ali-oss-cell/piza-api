@@ -101,6 +101,19 @@ export class PosController {
     );
   }
 
+  @Get('payments/unresolved')
+  findUnresolvedCardPayments(
+    @CurrentUser() staff: AuthenticatedUser,
+    @BrandSlug() brandSlug?: string,
+    @LocationId() locationId?: string,
+  ) {
+    return this.posService.findUnresolvedCardPayments(
+      staff,
+      brandSlug,
+      locationId,
+    );
+  }
+
   @Get('payments/:orderId/status')
   getPaymentStatus(@Param('orderId') orderId: string) {
     return this.posService.getPaymentStatus(orderId);
