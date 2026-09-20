@@ -52,6 +52,13 @@ type LinklyResponseBody = {
 @Injectable()
 export class LinklyService {
   private readonly logger = new Logger(LinklyService.name);
+  private readonly posName = 'voro POS';
+  private readonly posVersion = '1.0.0';
+  /** Cached Cloud auth tokens keyed by secret+posId. */
+  private readonly tokenCache = new Map<
+    string,
+    { token: string; expiresAtMs: number }
+  >();
 
   constructor(
     private readonly config: ConfigService,
@@ -145,6 +152,13 @@ export class LinklyService {
     secret: string;
     posId: string;
   }): Promise<string> {
+    const cacheKey = `${params.posId}:${params.secret}`;
+    const cached = this.tokenCache.get(cacheKey);
+    // Refresh 60s before expiry (ExpirySeconds from Linkly).
+    if (cached && cached.expiresAtMs > Date.now() + 60_000) {
+      return cached.token;
+    }
+
     const url = `${this.getAuthBase()}/v1/tokens/cloudpos`;
     const response = await fetch(url, {
       method: 'POST',
@@ -154,8 +168,8 @@ export class LinklyService {
       },
       body: JSON.stringify({
         secret: params.secret,
-        posName: 'Marina POS',
-        posVersion: '1.0.0',
+        posName: this.posName,
+        posVersion: this.posVersion,
         posId: params.posId,
         posVendorId: this.getPosVendorId(),
       }),
@@ -163,11 +177,14 @@ export class LinklyService {
 
     const body = (await response.json().catch(() => ({}))) as {
       token?: string;
+      expirySeconds?: number;
+      ExpirySeconds?: number;
       message?: string;
       error?: string;
     };
 
     if (!response.ok || !body.token) {
+      this.tokenCache.delete(cacheKey);
       const message =
         body.message ||
         body.error ||
@@ -180,6 +197,18 @@ export class LinklyService {
       }
       throw new ServiceUnavailableException(message);
     }
+
+    const expirySeconds = Number(
+      body.expirySeconds ?? body.ExpirySeconds ?? 3600,
+    );
+    const safeExpiry =
+      Number.isFinite(expirySeconds) && expirySeconds > 0
+        ? expirySeconds
+        : 3600;
+    this.tokenCache.set(cacheKey, {
+      token: body.token,
+      expiresAtMs: Date.now() + safeExpiry * 1000,
+    });
 
     return body.token;
   }
@@ -397,6 +426,10 @@ export class LinklyService {
     const url = `${this.getRestBase()}/sessions/${sessionId}/transaction?async=false`;
 
     const purchaseAnalysisData: Record<string, string> = {
+      // Accreditation 1.0.1 mandatory PAD tags
+      NME: this.posName.slice(0, 32),
+      VER: this.posVersion.slice(0, 16),
+      VND: this.getPosVendorId().slice(0, 32),
       OPR: `1|${(params.operatorName ?? 'POS').slice(0, 40)}`,
       AMT: amtPad,
       PCM: '0000',
