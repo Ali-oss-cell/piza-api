@@ -310,14 +310,77 @@ export class PosService {
       },
     });
 
-    const result = await this.linklyService.purchase({
-      secret: credentials.secret,
-      posId: credentials.posId,
-      amountCents,
-      txnRef,
-      sessionId,
-      operatorName: this.operatorLabel(staff),
-    });
+    let result;
+    try {
+      result = await this.linklyService.purchase({
+        secret: credentials.secret,
+        posId: credentials.posId,
+        amountCents,
+        txnRef,
+        sessionId,
+        operatorName: this.operatorLabel(staff),
+      });
+    } catch (error: unknown) {
+      // VPP may have finished (approve/decline) even if Cloud HTTP timed out.
+      const recovered = await this.recoverLinklyPayment(orderId).catch(
+        () => null,
+      );
+      if (recovered?.paymentStatus === PaymentStatus.PAID) {
+        const paidOrder = await this.prisma.order.findUniqueOrThrow({
+          where: { id: orderId },
+        });
+        const paidFlags = recovered as {
+          linklyResponseCode?: string;
+          linklyResponseText?: string;
+        };
+        return {
+          orderId: paidOrder.id,
+          ticketNumber: paidOrder.ticketNumber,
+          paymentStatus: paidOrder.paymentStatus,
+          paymentMethod: paidOrder.paymentMethod,
+          linklySessionId: paidOrder.linklySessionId,
+          linklyTxnRef: paidOrder.linklyTxnRef,
+          linklyRfn: paidOrder.linklyRfn,
+          linklyResponseCode: paidFlags.linklyResponseCode,
+          linklyResponseText: paidFlags.linklyResponseText,
+        };
+      }
+      if (
+        recovered &&
+        typeof recovered === 'object' &&
+        (recovered as { linklyInProgress?: boolean }).linklyInProgress
+      ) {
+        throw new ConflictException({
+          message:
+            'Card payment is still in progress on the pinpad. Wait and recover — do not start a new charge.',
+          code: 'LINKLY_IN_PROGRESS',
+          orderId,
+          linklySessionId: sessionId,
+          linklyTxnRef: txnRef,
+          linklyInProgress: true,
+        });
+      }
+      if (recovered?.paymentStatus === PaymentStatus.FAILED) {
+        const failed = recovered as {
+          linklyResponseText?: string;
+          linklyResponseCode?: string;
+          message?: string;
+        };
+        throw new BadRequestException({
+          message:
+            failed.linklyResponseText ||
+            failed.message ||
+            'Card payment failed on pinpad.',
+          code: 'LINKLY_DECLINED',
+          orderId,
+          linklySessionId: sessionId,
+          linklyTxnRef: txnRef,
+          linklyResponseCode: failed.linklyResponseCode,
+          linklyResponseText: failed.linklyResponseText,
+        });
+      }
+      throw error;
+    }
 
     if (!result.approved) {
       await this.prisma.order.update({
