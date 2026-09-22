@@ -44,14 +44,14 @@ export class PosService {
     return this.pricingService.quote(dto.items);
   }
 
-  getPaymentMethods(brandSlug?: string) {
+  getPaymentMethods(brandSlug?: string, locationId?: string) {
     const slug = brandSlug?.trim().toLowerCase();
     if (!slug) {
       throw new BadRequestException(
         'Store (brand) is required. Select a store on this POS device.',
       );
     }
-    return this.paymentSettingsService.getPosMethods(slug);
+    return this.paymentSettingsService.getPosMethods(slug, locationId);
   }
 
   async createOrder(
@@ -210,10 +210,14 @@ export class PosService {
       userRole: staff?.role,
     });
 
-    await this.paymentSettingsService.assertCardTerminalEnabled(location.brandId);
+    await this.paymentSettingsService.assertCardTerminalEnabled(
+      location.brandId,
+      location.id,
+    );
 
     const provider = await this.paymentSettingsService.getCardTerminalProvider(
       location.brandId,
+      location.id,
     );
     const amountCents = Math.round(Number(order.total) * 100);
 
@@ -291,6 +295,7 @@ export class PosService {
 
     const credentials = await this.paymentSettingsService.getLinklyCredentials(
       location.brandId,
+      location.id,
     );
     // Re-read order in case recover updated status/session fields.
     const freshOrder = await this.ensurePosOrder(orderId);
@@ -518,6 +523,7 @@ export class PosService {
 
     const credentials = await this.paymentSettingsService.getLinklyCredentials(
       location.brandId,
+      location.id,
     );
 
     const status = await this.linklyService.getTransactionStatus({
@@ -648,6 +654,7 @@ export class PosService {
 
     const credentials = await this.paymentSettingsService.getLinklyCredentials(
       location.brandId,
+      location.id,
     );
 
     const fullCents = Math.round(Number(order.total) * 100);
@@ -705,6 +712,7 @@ export class PosService {
   async runLinklySettlement(
     brandSlug: string | undefined,
     settlementType: 'S' | 'P' | 'L' = 'S',
+    locationId?: string,
   ) {
     const slug = brandSlug?.trim().toLowerCase();
     if (!slug) {
@@ -721,9 +729,13 @@ export class PosService {
       throw new NotFoundException(`Store "${slug}" not found`);
     }
 
-    await this.paymentSettingsService.assertCardTerminalEnabled(brand.id);
+    await this.paymentSettingsService.assertCardTerminalEnabled(
+      brand.id,
+      locationId,
+    );
     const credentials = await this.paymentSettingsService.getLinklyCredentials(
       brand.id,
+      locationId,
     );
 
     const result = await this.linklyService.settlement({

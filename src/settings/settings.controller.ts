@@ -1,5 +1,6 @@
 import { Body, Controller, Get, Put, UseGuards } from '@nestjs/common';
 import { BrandSlug } from '../common/decorators/brand-slug.decorator';
+import { LocationId } from '../common/decorators/location-id.decorator';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { StoreManagerGuard } from '../common/guards/store-manager.guard';
 import { UpdateStoreSettingsDto } from './dto/update-store-settings.dto';
@@ -10,8 +11,11 @@ export class SettingsController {
   constructor(private readonly settingsService: SettingsService) {}
 
   @Get()
-  findStoreSettings(@BrandSlug() brandSlug?: string) {
-    return this.settingsService.findStoreSettings(brandSlug);
+  findStoreSettings(
+    @BrandSlug() brandSlug?: string,
+    @LocationId() locationId?: string,
+  ) {
+    return this.settingsService.findStoreSettings(brandSlug, locationId);
   }
 
   @Put()

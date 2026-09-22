@@ -35,24 +35,43 @@ export class SettingsService {
     private readonly brandsService: BrandsService,
   ) {}
 
-  async findStoreSettings(brandSlug?: string): Promise<StoreSettingsResponse> {
-    const brandWithLocation = await this.brandsService.getBrandWithDefaultLocation(brandSlug);
-    const location = brandWithLocation.locations[0];
+  async findStoreSettings(
+    brandSlug?: string,
+    locationId?: string,
+  ): Promise<StoreSettingsResponse> {
+    const brand = await this.brandsService.resolveBrand(brandSlug);
+    const location = locationId?.trim()
+      ? await this.prisma.location.findFirst({
+          where: {
+            id: locationId.trim(),
+            brandId: brand.id,
+            isActive: true,
+          },
+        })
+      : (
+          await this.brandsService.getBrandWithDefaultLocation(brandSlug)
+        ).locations[0];
+
+    if (!location) {
+      throw new BadRequestException(
+        'No active location configured for this brand.',
+      );
+    }
 
     return {
       id: location.id,
-      storeName: brandWithLocation.name,
-      tagline: brandWithLocation.tagline,
-      logoUrl: brandWithLocation.logoUrl,
-      logoDarkUrl: brandWithLocation.logoDarkUrl,
-      primaryColor: brandWithLocation.primaryColor,
-      secondaryColor: brandWithLocation.secondaryColor,
-      backgroundLightColor: brandWithLocation.backgroundLightColor,
-      backgroundDarkColor: brandWithLocation.backgroundDarkColor,
-      heroImageUrl: brandWithLocation.heroImageUrl,
-      heroImageDarkUrl: brandWithLocation.heroImageDarkUrl,
-      darkModeEnabled: brandWithLocation.darkModeEnabled,
-      googleSiteVerification: brandWithLocation.googleSiteVerification,
+      storeName: brand.name,
+      tagline: brand.tagline,
+      logoUrl: brand.logoUrl,
+      logoDarkUrl: brand.logoDarkUrl,
+      primaryColor: brand.primaryColor,
+      secondaryColor: brand.secondaryColor,
+      backgroundLightColor: brand.backgroundLightColor,
+      backgroundDarkColor: brand.backgroundDarkColor,
+      heroImageUrl: brand.heroImageUrl,
+      heroImageDarkUrl: brand.heroImageDarkUrl,
+      darkModeEnabled: brand.darkModeEnabled,
+      googleSiteVerification: brand.googleSiteVerification,
       deliveryFee: location.deliveryFee,
       minOrderAmount: location.minOrderAmount,
       contactEmail: location.email,

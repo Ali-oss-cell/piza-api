@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Post, Put, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Post, Put, Query, UseGuards } from '@nestjs/common';
 import { BrandSlug } from '../common/decorators/brand-slug.decorator';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { PlatformAdminGuard } from '../common/guards/platform-admin.guard';
@@ -30,7 +30,14 @@ export class PaymentSettingsController {
   }
 
   @Post('linkly/unpair')
-  unpairLinkly(@BrandSlug() brandSlug?: string) {
-    return this.paymentSettingsService.unpairLinkly(brandSlug);
+  unpairLinkly(
+    @BrandSlug() brandSlug?: string,
+    @Query('locationId') locationId?: string,
+    @Body() body?: { locationId?: string },
+  ) {
+    return this.paymentSettingsService.unpairLinkly(
+      brandSlug,
+      locationId ?? body?.locationId,
+    );
   }
 }

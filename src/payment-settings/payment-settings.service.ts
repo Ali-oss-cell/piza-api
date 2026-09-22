@@ -17,6 +17,16 @@ import { PrismaService } from '../prisma/prisma.service';
 import { PairLinklyDto } from './dto/pair-linkly.dto';
 import { UpdatePaymentSettingsDto } from './dto/update-payment-settings.dto';
 
+export type LocationLinklySummary = {
+  id: string;
+  slug: string;
+  name: string;
+  linklyPaired: boolean;
+  linklyUsername: string | null;
+  cardTerminalEnabled: boolean;
+  provider: StorePaymentProvider;
+};
+
 export type PaymentSettingsResponse = {
   storeId: string;
   storeSlug: string;
@@ -37,6 +47,7 @@ export type PaymentSettingsResponse = {
     stripeTerminalLocationId: string | null;
     stripeTerminalReaderId: string | null;
   } | null;
+  locations: LocationLinklySummary[];
 };
 
 @Injectable()
@@ -53,8 +64,9 @@ export class PaymentSettingsService {
     const brand = await this.brandsService.resolveBrand(brandSlug);
     const settings = await this.ensureSettings(brand.id);
     const location = await this.resolveLocation(brand.id);
+    const locations = await this.listLocationSummaries(brand.id);
 
-    return this.toResponse(brand.slug, settings, location);
+    return this.toResponse(brand.slug, settings, location, locations);
   }
 
   async updateForStore(
@@ -140,7 +152,8 @@ export class PaymentSettingsService {
       },
     );
 
-    return this.toResponse(brand.slug, updated, location);
+    const locations = await this.listLocationSummaries(brand.id);
+    return this.toResponse(brand.slug, updated, location, locations);
   }
 
   async pairLinkly(
@@ -157,64 +170,157 @@ export class PaymentSettingsService {
       pairCode: dto.pairCode.trim(),
     });
 
-    const posId = settings.linklyPosId || randomUUID();
     const encrypted = encryptLinklySecret(this.config, secret);
+    const locationId = dto.locationId?.trim();
 
-    const updated = await this.prisma.storePaymentSettings.update({
-      where: { storeId: brand.id },
-      data: {
-        linklyUsername: dto.username.trim(),
-        linklyPairSecretEnc: encrypted,
-        linklySecretRef: 'paired',
-        linklyPosId: posId,
-        provider: StorePaymentProvider.LINKLY,
-        cardTerminalEnabled: true,
-      },
-    });
+    if (locationId) {
+      const location = await this.resolveLocation(brand.id, locationId);
+      if (!location) {
+        throw new NotFoundException('Location not found for this store.');
+      }
 
-    await this.audit.log(
-      null,
-      brand.id,
-      AuditAction.PAYMENT_SETTINGS_UPDATED,
-      `Linkly pinpad paired for ${brand.slug}`,
-      { linklyUsername: updated.linklyUsername },
-    );
+      const existing = await this.prisma.locationPaymentSettings.findUnique({
+        where: { locationId: location.id },
+      });
+      const posId = existing?.linklyPosId || randomUUID();
 
-    const location = await this.resolveLocation(brand.id);
-    return this.toResponse(brand.slug, updated, location);
+      await this.prisma.locationPaymentSettings.upsert({
+        where: { locationId: location.id },
+        create: {
+          locationId: location.id,
+          linklyUsername: dto.username.trim(),
+          linklyPairSecretEnc: encrypted,
+          linklySecretRef: 'paired',
+          linklyPosId: posId,
+          provider: StorePaymentProvider.LINKLY,
+          cardTerminalEnabled: true,
+        },
+        update: {
+          linklyUsername: dto.username.trim(),
+          linklyPairSecretEnc: encrypted,
+          linklySecretRef: 'paired',
+          linklyPosId: posId,
+          provider: StorePaymentProvider.LINKLY,
+          cardTerminalEnabled: true,
+        },
+      });
+
+      // Keep brand card terminal enabled so POS methods can fall back cleanly.
+      await this.prisma.storePaymentSettings.update({
+        where: { storeId: brand.id },
+        data: {
+          provider: StorePaymentProvider.LINKLY,
+          cardTerminalEnabled: true,
+          cashEnabled: settings.cashEnabled,
+        },
+      });
+
+      await this.audit.log(
+        null,
+        brand.id,
+        AuditAction.PAYMENT_SETTINGS_UPDATED,
+        `Linkly pinpad paired for ${brand.slug} location ${location.slug}`,
+        { locationId: location.id, linklyUsername: dto.username.trim() },
+      );
+    } else {
+      const posId = settings.linklyPosId || randomUUID();
+
+      await this.prisma.storePaymentSettings.update({
+        where: { storeId: brand.id },
+        data: {
+          linklyUsername: dto.username.trim(),
+          linklyPairSecretEnc: encrypted,
+          linklySecretRef: 'paired',
+          linklyPosId: posId,
+          provider: StorePaymentProvider.LINKLY,
+          cardTerminalEnabled: true,
+        },
+      });
+
+      await this.audit.log(
+        null,
+        brand.id,
+        AuditAction.PAYMENT_SETTINGS_UPDATED,
+        `Linkly pinpad paired for ${brand.slug}`,
+        { linklyUsername: dto.username.trim() },
+      );
+    }
+
+    return this.getForStore(brand.slug);
   }
 
-  async unpairLinkly(brandSlug?: string): Promise<PaymentSettingsResponse> {
+  async unpairLinkly(
+    brandSlug?: string,
+    locationId?: string,
+  ): Promise<PaymentSettingsResponse> {
     const brand = await this.brandsService.resolveBrand(brandSlug);
     await this.ensureSettings(brand.id);
+    const locId = locationId?.trim();
 
-    const updated = await this.prisma.storePaymentSettings.update({
-      where: { storeId: brand.id },
-      data: {
-        linklyPairSecretEnc: null,
-        linklySecretRef: null,
-        cardTerminalEnabled: false,
-        provider: StorePaymentProvider.CASH,
-      },
-    });
+    if (locId) {
+      const location = await this.resolveLocation(brand.id, locId);
+      if (!location) {
+        throw new NotFoundException('Location not found for this store.');
+      }
 
-    await this.audit.log(
-      null,
-      brand.id,
-      AuditAction.PAYMENT_SETTINGS_UPDATED,
-      `Linkly pinpad unpaired for ${brand.slug}`,
-      {},
-    );
+      await this.prisma.locationPaymentSettings.deleteMany({
+        where: { locationId: location.id },
+      });
 
-    const location = await this.resolveLocation(brand.id);
-    return this.toResponse(brand.slug, updated, location);
+      await this.audit.log(
+        null,
+        brand.id,
+        AuditAction.PAYMENT_SETTINGS_UPDATED,
+        `Linkly pinpad unpaired for ${brand.slug} location ${location.slug}`,
+        { locationId: location.id },
+      );
+    } else {
+      await this.prisma.storePaymentSettings.update({
+        where: { storeId: brand.id },
+        data: {
+          linklyPairSecretEnc: null,
+          linklySecretRef: null,
+          cardTerminalEnabled: false,
+          provider: StorePaymentProvider.CASH,
+        },
+      });
+
+      await this.audit.log(
+        null,
+        brand.id,
+        AuditAction.PAYMENT_SETTINGS_UPDATED,
+        `Linkly pinpad unpaired for ${brand.slug}`,
+        {},
+      );
+    }
+
+    return this.getForStore(brand.slug);
   }
 
-  async getLinklyCredentials(storeId: string): Promise<{
+  async getLinklyCredentials(
+    storeId: string,
+    locationId?: string,
+  ): Promise<{
     secret: string;
     posId: string;
     username: string | null;
   }> {
+    if (locationId?.trim()) {
+      const locSettings = await this.prisma.locationPaymentSettings.findUnique({
+        where: { locationId: locationId.trim() },
+      });
+      if (locSettings?.linklyPairSecretEnc && locSettings.linklyPosId) {
+        return {
+          secret: decryptLinklySecret(
+            this.config,
+            locSettings.linklyPairSecretEnc,
+          ),
+          posId: locSettings.linklyPosId,
+          username: locSettings.linklyUsername,
+        };
+      }
+    }
+
     const settings = await this.ensureSettings(storeId);
     if (!settings.linklyPairSecretEnc || !settings.linklyPosId) {
       throw new BadRequestException(
@@ -229,7 +335,10 @@ export class PaymentSettingsService {
     };
   }
 
-  async getPosMethods(brandSlug?: string): Promise<{
+  async getPosMethods(
+    brandSlug?: string,
+    locationId?: string,
+  ): Promise<{
     cashEnabled: boolean;
     cardTerminalEnabled: boolean;
     provider: StorePaymentProvider;
@@ -237,6 +346,21 @@ export class PaymentSettingsService {
   }> {
     const brand = await this.brandsService.resolveBrand(brandSlug);
     const settings = await this.ensureSettings(brand.id);
+
+    const locId = locationId?.trim();
+    if (locId) {
+      const locSettings = await this.prisma.locationPaymentSettings.findUnique({
+        where: { locationId: locId },
+      });
+      if (locSettings?.linklyPairSecretEnc) {
+        return {
+          cashEnabled: settings.cashEnabled,
+          cardTerminalEnabled: locSettings.cardTerminalEnabled,
+          provider: locSettings.provider,
+          linklyPaired: true,
+        };
+      }
+    }
 
     return {
       cashEnabled: settings.cashEnabled,
@@ -254,11 +378,26 @@ export class PaymentSettingsService {
   }
 
   /**
-   * Assert that card-terminal is enabled for the store.
-   * Checks the active provider: LINKLY requires a paired secret,
-   * STRIPE requires a secret key saved in the DB.
+   * Assert that card-terminal is enabled for the store (location override first).
    */
-  async assertCardTerminalEnabled(storeId: string): Promise<void> {
+  async assertCardTerminalEnabled(
+    storeId: string,
+    locationId?: string,
+  ): Promise<void> {
+    if (locationId?.trim()) {
+      const locSettings = await this.prisma.locationPaymentSettings.findUnique({
+        where: { locationId: locationId.trim() },
+      });
+      if (locSettings?.linklyPairSecretEnc) {
+        if (!locSettings.cardTerminalEnabled) {
+          throw new BadRequestException(
+            'Card terminal payments are disabled for this location.',
+          );
+        }
+        return;
+      }
+    }
+
     const settings = await this.ensureSettings(storeId);
     if (!settings.cardTerminalEnabled) {
       throw new BadRequestException(
@@ -275,7 +414,6 @@ export class PaymentSettingsService {
       return;
     }
 
-    // Default: LINKLY
     if (!settings.linklyPairSecretEnc) {
       throw new BadRequestException(
         'Linkly pinpad is not paired for this store.',
@@ -283,8 +421,19 @@ export class PaymentSettingsService {
     }
   }
 
-  /** Returns the active card-terminal provider for a store. */
-  async getCardTerminalProvider(storeId: string): Promise<StorePaymentProvider> {
+  /** Returns the active card-terminal provider for a store/location. */
+  async getCardTerminalProvider(
+    storeId: string,
+    locationId?: string,
+  ): Promise<StorePaymentProvider> {
+    if (locationId?.trim()) {
+      const locSettings = await this.prisma.locationPaymentSettings.findUnique({
+        where: { locationId: locationId.trim() },
+      });
+      if (locSettings?.linklyPairSecretEnc) {
+        return locSettings.provider;
+      }
+    }
     const settings = await this.ensureSettings(storeId);
     return settings.provider;
   }
@@ -326,6 +475,29 @@ export class PaymentSettingsService {
     });
   }
 
+  private async listLocationSummaries(
+    storeId: string,
+  ): Promise<LocationLinklySummary[]> {
+    const locations = await this.prisma.location.findMany({
+      where: { brandId: storeId, isActive: true },
+      orderBy: [{ isDefault: 'desc' }, { name: 'asc' }],
+      include: { paymentSettings: true },
+    });
+
+    return locations.map((location) => {
+      const loc = location.paymentSettings;
+      return {
+        id: location.id,
+        slug: location.slug,
+        name: location.name,
+        linklyPaired: Boolean(loc?.linklyPairSecretEnc),
+        linklyUsername: loc?.linklyUsername ?? null,
+        cardTerminalEnabled: loc?.cardTerminalEnabled ?? false,
+        provider: loc?.provider ?? StorePaymentProvider.LINKLY,
+      };
+    });
+  }
+
   private toResponse(
     storeSlug: string,
     settings: {
@@ -348,6 +520,7 @@ export class PaymentSettingsService {
       stripeTerminalLocationId: string | null;
       stripeTerminalReaderId: string | null;
     } | null,
+    locations: LocationLinklySummary[],
   ): PaymentSettingsResponse {
     const paired = Boolean(settings.linklyPairSecretEnc);
     return {
@@ -372,6 +545,7 @@ export class PaymentSettingsService {
             stripeTerminalReaderId: location.stripeTerminalReaderId,
           }
         : null,
+      locations,
     };
   }
 }

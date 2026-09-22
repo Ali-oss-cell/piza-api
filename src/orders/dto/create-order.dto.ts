@@ -75,4 +75,8 @@ export class CreateOrderDto {
   @IsNumber({ maxDecimalPlaces: 2 })
   @Min(0)
   total!: number;
+
+  @IsOptional()
+  @IsString()
+  locationId?: string;
 }

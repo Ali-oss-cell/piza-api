@@ -248,10 +248,11 @@ model Location {
   createdAt                DateTime @default(now()) @map("created_at")
   updatedAt                DateTime @updatedAt @map("updated_at")
 
-  brand        Brand         @relation(fields: [brandId], references: [id], onDelete: Cascade)
+  brand        Brand                     @relation(fields: [brandId], references: [id], onDelete: Cascade)
   orders       Order[]
   domains      StoreDomain[]
   memberships  UserStore[]
+  paymentSettings LocationPaymentSettings?
 
   @@unique([brandId, slug])
   @@map("locations")
@@ -298,6 +299,25 @@ model StorePaymentSettings {
   store Brand @relation(fields: [storeId], references: [id], onDelete: Cascade)
 
   @@map("store_payment_settings")
+}
+
+/// Optional per-location Linkly pinpad override. When paired, POS uses this
+/// instead of the brand-level StorePaymentSettings for that location.
+model LocationPaymentSettings {
+  id                  String               @id @default(uuid()) @db.Uuid
+  locationId          String               @unique @map("location_id") @db.Uuid
+  provider            StorePaymentProvider @default(LINKLY)
+  cardTerminalEnabled Boolean              @default(false) @map("card_terminal_enabled")
+  linklyUsername      String?              @map("linkly_username")
+  linklySecretRef     String?              @map("linkly_secret_ref")
+  linklyPairSecretEnc String?              @map("linkly_pair_secret_enc")
+  linklyPosId         String?              @map("linkly_pos_id")
+  createdAt           DateTime             @default(now()) @map("created_at")
+  updatedAt           DateTime             @updatedAt @map("updated_at")
+
+  location Location @relation(fields: [locationId], references: [id], onDelete: Cascade)
+
+  @@map("location_payment_settings")
 }
 
 /// Allowlisted global secrets editable by platform admins (HQ). Not free-form .env.

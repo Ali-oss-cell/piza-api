@@ -84,8 +84,11 @@ export class PosController {
   }
 
   @Get('payment-methods')
-  getPaymentMethods(@BrandSlug() brandSlug?: string) {
-    return this.posService.getPaymentMethods(brandSlug);
+  getPaymentMethods(
+    @BrandSlug() brandSlug?: string,
+    @LocationId() locationId?: string,
+  ) {
+    return this.posService.getPaymentMethods(brandSlug, locationId);
   }
 
   @Post('payments/card')
@@ -140,10 +143,12 @@ export class PosController {
   runLinklySettlement(
     @Body() dto: LinklySettlementDto,
     @BrandSlug() brandSlug?: string,
+    @LocationId() locationId?: string,
   ) {
     return this.posService.runLinklySettlement(
       brandSlug,
       dto.settlementType ?? 'S',
+      locationId,
     );
   }
 

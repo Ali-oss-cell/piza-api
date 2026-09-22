@@ -28,10 +28,21 @@ export class OrdersService {
     brandSlug?: string,
   ): Promise<Order> {
     const scheduledAt = new Date(dto.scheduledAt);
-    const location = await this.brandsService.resolveDefaultLocation(brandSlug);
+    const location = await this.brandsService.resolveOrderLocation(
+      brandSlug,
+      dto.locationId,
+    );
 
-    await this.orderSchedulingService.assertScheduledAtValid(scheduledAt, brandSlug);
-    await this.orderSchedulingService.assertMinOrderAmount(dto.subtotal, brandSlug);
+    await this.orderSchedulingService.assertScheduledAtValid(
+      scheduledAt,
+      brandSlug,
+      location.id,
+    );
+    await this.orderSchedulingService.assertMinOrderAmount(
+      dto.subtotal,
+      brandSlug,
+      location.id,
+    );
     this.orderSchedulingService.assertDeliveryAddress(dto.deliveryMode, dto);
 
     if (!user && (!dto.guestName?.trim() || !dto.guestEmail?.trim())) {

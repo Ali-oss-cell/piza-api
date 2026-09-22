@@ -15,8 +15,12 @@ export class OrderSchedulingService {
   async assertScheduledAtValid(
     scheduledAt: Date,
     brandSlug?: string,
+    locationId?: string,
   ): Promise<void> {
-    const settings = await this.settingsService.findStoreSettings(brandSlug);
+    const settings = await this.settingsService.findStoreSettings(
+      brandSlug,
+      locationId,
+    );
     const openingHours = parseOpeningHours(settings.openingHours);
     const timezone = openingHours?.timezone ?? 'Australia/Melbourne';
     const leadTimeMinutes =
@@ -65,8 +69,15 @@ export class OrderSchedulingService {
     }
   }
 
-  async assertMinOrderAmount(subtotal: number, brandSlug?: string): Promise<void> {
-    const settings = await this.settingsService.findStoreSettings(brandSlug);
+  async assertMinOrderAmount(
+    subtotal: number,
+    brandSlug?: string,
+    locationId?: string,
+  ): Promise<void> {
+    const settings = await this.settingsService.findStoreSettings(
+      brandSlug,
+      locationId,
+    );
     const minOrder = Number(settings.minOrderAmount);
 
     if (subtotal < minOrder) {

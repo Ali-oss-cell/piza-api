@@ -29,6 +29,7 @@ export type BrandWithDefaultLocation = Brand & {
 export type ResolvedStore = Brand & {
   pathPrefix: string | null;
   host: string | null;
+  locationId: string | null;
   locations: Location[];
 };
 
@@ -80,6 +81,7 @@ export class BrandsService {
       ...domain.store,
       pathPrefix: domain.pathPrefix,
       host: domain.host,
+      locationId: domain.locationId,
       locations: domain.store.locations,
     };
   }
@@ -325,6 +327,28 @@ export class BrandsService {
     }
 
     return location;
+  }
+
+  async resolveOrderLocation(
+    slug?: string,
+    locationId?: string,
+  ): Promise<Location> {
+    if (locationId?.trim()) {
+      const brand = await this.resolveBrand(slug);
+      const location = await this.prisma.location.findFirst({
+        where: {
+          id: locationId.trim(),
+          brandId: brand.id,
+          isActive: true,
+        },
+      });
+      if (!location) {
+        throw new NotFoundException('Location not found for this brand.');
+      }
+      return location;
+    }
+
+    return this.resolveDefaultLocation(slug);
   }
 
   async getBrandWithDefaultLocation(slug?: string): Promise<BrandWithDefaultLocation> {
