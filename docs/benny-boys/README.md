@@ -1,8 +1,18 @@
-# Benny Boy's Pizza — store setup
-
 Import **Benny Boy's Pizza (Wantirna South)** menu into the Marina API.
 
-## One command (recommended)
+## Import from Word + local `pic/` (recommended for updates)
+
+See **[IMPORT_MENU.md](./IMPORT_MENU.md)**. Short version on the droplet:
+
+```bash
+cd ~/piza/piza-api
+git pull origin main
+# upload docx + pic into docs/benny-boys/menu-import/ first
+export ADMIN_PASSWORD='your-password'
+bash docs/benny-boys/import-store-menu.sh --brand benny-boys --replace
+```
+
+## One command (full store reset)
 
 Deletes **all** old stores, logs in with email/password (no browser JWT), creates **one** Benny Boy's store + full menu.
 
@@ -24,7 +34,7 @@ bash docs/benny-boys/reset-benny-boys.sh --dry-run
 
 Storefront after import: `https://marinapizzas.com.au` (Benny Boy's is the main store).
 
-## Menu-only import (store already exists)
+## Menu-only import (Uber JSON / old path)
 
 ```bash
 export ADMIN_PASSWORD='your-password'
