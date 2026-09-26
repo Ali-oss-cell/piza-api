@@ -626,6 +626,7 @@ export class SeoService {
       '/careers',
       '/functions',
       '/nutrition',
+      '/track-order',
     ];
     const urls: Array<{ loc: string; lastmod?: string }> = staticPaths.map(
       (path) => ({
@@ -633,6 +634,24 @@ export class SeoService {
         lastmod: brand.updatedAt.toISOString(),
       }),
     );
+
+    // On the primary domain (no path prefix), also list other live stores at /{slug}.
+    if (!pathBase) {
+      const siblingStores = await this.prisma.brand.findMany({
+        where: {
+          isActive: true,
+          status: 'LIVE',
+          id: { not: brand.id },
+        },
+        select: { slug: true, updatedAt: true },
+      });
+      for (const store of siblingStores) {
+        urls.push({
+          loc: `${params.baseUrl.replace(/\/$/, '')}/${store.slug}`,
+          lastmod: store.updatedAt.toISOString(),
+        });
+      }
+    }
 
     const menuItems = await this.prisma.menuItem.findMany({
       where: { brandId: ctx.storeId, isActive: true },
@@ -680,6 +699,7 @@ export class SeoService {
         '/login',
         '/checkout',
         '/cart',
+        '/account',
       ],
       allow: ['/'],
     };
