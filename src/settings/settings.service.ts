@@ -18,7 +18,7 @@ export type StoreSettingsResponse = {
   heroImageUrl: string | null;
   heroImageDarkUrl: string | null;
   darkModeEnabled: boolean;
-  storefrontLayout: 'classic' | 'menu_first' | 'magazine';
+  storefrontLayout: 'classic' | 'menu_first' | 'magazine' | 'portfolio';
   googleSiteVerification: string | null;
   deliveryFee: unknown;
   minOrderAmount: unknown;
@@ -31,10 +31,11 @@ export type StoreSettingsResponse = {
 
 function toPublicLayout(
   layout: StorefrontLayout | string | null | undefined,
-): 'classic' | 'menu_first' | 'magazine' {
+): 'classic' | 'menu_first' | 'magazine' | 'portfolio' {
   const value = String(layout ?? 'CLASSIC').toUpperCase();
   if (value === 'MENU_FIRST') return 'menu_first';
   if (value === 'MAGAZINE') return 'magazine';
+  if (value === 'PORTFOLIO') return 'portfolio';
   return 'classic';
 }
 
@@ -43,9 +44,10 @@ function toPrismaLayout(raw?: string): StorefrontLayout | undefined {
   const value = raw.trim().toUpperCase().replace(/-/g, '_');
   if (value === 'MENU_FIRST') return StorefrontLayout.MENU_FIRST;
   if (value === 'MAGAZINE') return StorefrontLayout.MAGAZINE;
+  if (value === 'PORTFOLIO') return StorefrontLayout.PORTFOLIO;
   if (value === 'CLASSIC') return StorefrontLayout.CLASSIC;
   throw new BadRequestException(
-    'storefrontLayout must be classic, menu_first, or magazine.',
+    'storefrontLayout must be classic, menu_first, magazine, or portfolio.',
   );
 }
 

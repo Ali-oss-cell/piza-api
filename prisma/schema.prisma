@@ -78,6 +78,7 @@ enum StorefrontLayout {
   CLASSIC
   MENU_FIRST
   MAGAZINE
+  PORTFOLIO
 }
 
 enum StorePaymentProvider {

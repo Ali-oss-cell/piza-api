@@ -56,7 +56,16 @@ export class UpdateStoreSettingsDto {
   /** Storefront page structure: classic | menu_first | magazine */
   @IsOptional()
   @IsString()
-  @IsIn(['classic', 'menu_first', 'magazine', 'CLASSIC', 'MENU_FIRST', 'MAGAZINE'])
+  @IsIn([
+    'classic',
+    'menu_first',
+    'magazine',
+    'portfolio',
+    'CLASSIC',
+    'MENU_FIRST',
+    'MAGAZINE',
+    'PORTFOLIO',
+  ])
   storefrontLayout?: string;
 
   @IsOptional()
