@@ -74,6 +74,12 @@ enum BrandStatus {
   LIVE
 }
 
+enum StorefrontLayout {
+  CLASSIC
+  MENU_FIRST
+  MAGAZINE
+}
+
 enum StorePaymentProvider {
   NONE
   CASH
@@ -190,6 +196,7 @@ model Brand {
   heroImageUrl String?     @map("hero_image_url")
   heroImageDarkUrl String? @map("hero_image_dark_url")
   darkModeEnabled Boolean  @default(true) @map("dark_mode_enabled")
+  storefrontLayout StorefrontLayout @default(CLASSIC) @map("storefront_layout")
   googleSiteVerification String? @map("google_site_verification")
   sitemapSubmittedAt DateTime? @map("sitemap_submitted_at")
   isActive     Boolean     @default(true) @map("is_active")

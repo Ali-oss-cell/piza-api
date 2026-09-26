@@ -1,4 +1,12 @@
-import { IsBoolean, IsNumber, IsObject, IsOptional, IsString, Min } from 'class-validator';
+import {
+  IsBoolean,
+  IsIn,
+  IsNumber,
+  IsObject,
+  IsOptional,
+  IsString,
+  Min,
+} from 'class-validator';
 
 export class UpdateStoreSettingsDto {
   @IsOptional()
@@ -44,6 +52,12 @@ export class UpdateStoreSettingsDto {
   @IsOptional()
   @IsBoolean()
   darkModeEnabled?: boolean;
+
+  /** Storefront page structure: classic | menu_first | magazine */
+  @IsOptional()
+  @IsString()
+  @IsIn(['classic', 'menu_first', 'magazine', 'CLASSIC', 'MENU_FIRST', 'MAGAZINE'])
+  storefrontLayout?: string;
 
   @IsOptional()
   @IsNumber({ maxDecimalPlaces: 2 })

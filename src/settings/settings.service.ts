@@ -1,5 +1,5 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { Prisma, StorefrontLayout } from '@prisma/client';
 import { BrandsService } from '../brands/brands.service';
 import { normalizeOpeningHours } from '../orders/opening-hours.types';
 import { PrismaService } from '../prisma/prisma.service';
@@ -18,6 +18,7 @@ export type StoreSettingsResponse = {
   heroImageUrl: string | null;
   heroImageDarkUrl: string | null;
   darkModeEnabled: boolean;
+  storefrontLayout: 'classic' | 'menu_first' | 'magazine';
   googleSiteVerification: string | null;
   deliveryFee: unknown;
   minOrderAmount: unknown;
@@ -27,6 +28,26 @@ export type StoreSettingsResponse = {
   openingHours: unknown;
   updatedAt: Date;
 };
+
+function toPublicLayout(
+  layout: StorefrontLayout | string | null | undefined,
+): 'classic' | 'menu_first' | 'magazine' {
+  const value = String(layout ?? 'CLASSIC').toUpperCase();
+  if (value === 'MENU_FIRST') return 'menu_first';
+  if (value === 'MAGAZINE') return 'magazine';
+  return 'classic';
+}
+
+function toPrismaLayout(raw?: string): StorefrontLayout | undefined {
+  if (raw === undefined) return undefined;
+  const value = raw.trim().toUpperCase().replace(/-/g, '_');
+  if (value === 'MENU_FIRST') return StorefrontLayout.MENU_FIRST;
+  if (value === 'MAGAZINE') return StorefrontLayout.MAGAZINE;
+  if (value === 'CLASSIC') return StorefrontLayout.CLASSIC;
+  throw new BadRequestException(
+    'storefrontLayout must be classic, menu_first, or magazine.',
+  );
+}
 
 @Injectable()
 export class SettingsService {
@@ -71,6 +92,7 @@ export class SettingsService {
       heroImageUrl: brand.heroImageUrl,
       heroImageDarkUrl: brand.heroImageDarkUrl,
       darkModeEnabled: brand.darkModeEnabled,
+      storefrontLayout: toPublicLayout(brand.storefrontLayout),
       googleSiteVerification: brand.googleSiteVerification,
       deliveryFee: location.deliveryFee,
       minOrderAmount: location.minOrderAmount,
@@ -88,6 +110,7 @@ export class SettingsService {
   ): Promise<StoreSettingsResponse> {
     const brandWithLocation = await this.brandsService.getBrandWithDefaultLocation(brandSlug);
     const location = brandWithLocation.locations[0];
+    const layoutUpdate = toPrismaLayout(dto.storefrontLayout);
 
     if (
       dto.storeName !== undefined ||
@@ -101,7 +124,8 @@ export class SettingsService {
       dto.heroImageUrl !== undefined ||
       dto.heroImageDarkUrl !== undefined ||
       dto.darkModeEnabled !== undefined ||
-      dto.googleSiteVerification !== undefined
+      dto.googleSiteVerification !== undefined ||
+      layoutUpdate !== undefined
     ) {
       await this.prisma.brand.update({
         where: { id: brandWithLocation.id },
@@ -135,6 +159,7 @@ export class SettingsService {
           ...(dto.darkModeEnabled !== undefined
             ? { darkModeEnabled: dto.darkModeEnabled }
             : {}),
+          ...(layoutUpdate !== undefined ? { storefrontLayout: layoutUpdate } : {}),
           ...(dto.googleSiteVerification !== undefined
             ? {
                 googleSiteVerification:
@@ -195,6 +220,7 @@ export class SettingsService {
       heroImageUrl: brand.heroImageUrl,
       heroImageDarkUrl: brand.heroImageDarkUrl,
       darkModeEnabled: brand.darkModeEnabled,
+      storefrontLayout: toPublicLayout(brand.storefrontLayout),
       googleSiteVerification: brand.googleSiteVerification,
       deliveryFee: updatedLocation.deliveryFee,
       minOrderAmount: updatedLocation.minOrderAmount,
