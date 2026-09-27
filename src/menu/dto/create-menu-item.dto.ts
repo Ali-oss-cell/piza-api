@@ -40,6 +40,10 @@ export class CreateMenuItemDto {
   imageAlt!: string;
 
   @IsOptional()
+  @IsString()
+  imageBlurHash?: string;
+
+  @IsOptional()
   @IsArray()
   @IsEnum(MenuItemBadge, { each: true })
   badges?: MenuItemBadge[];

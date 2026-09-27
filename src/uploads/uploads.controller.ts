@@ -20,6 +20,7 @@ import { BrandSlug } from '../common/decorators/brand-slug.decorator';
 import { AuthenticatedUser } from '../auth/interfaces/authenticated-user.interface';
 import { StoreAccessService } from '../common/services/store-access.service';
 import { SeoService } from '../seo/seo.service';
+import { blurHashFromFile } from '../common/utils/blur-hash.util';
 
 const LOGOS_DIR = join(process.cwd(), 'uploads', 'logos');
 const HEROES_DIR = join(process.cwd(), 'uploads', 'heroes');
@@ -97,9 +98,12 @@ export class UploadsController {
       throw new BadRequestException('No image file uploaded.');
     }
 
+    const blurHash = await blurHashFromFile(file.path);
+
     return {
       url: `/api/uploads/logos/${file.filename}`,
       filename: file.filename,
+      blurHash,
     };
   }
 
@@ -143,9 +147,12 @@ export class UploadsController {
       throw new BadRequestException('No image file uploaded.');
     }
 
+    const blurHash = await blurHashFromFile(file.path);
+
     return {
       url: `/api/uploads/heroes/${file.filename}`,
       filename: file.filename,
+      blurHash,
     };
   }
 

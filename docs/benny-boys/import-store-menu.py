@@ -702,14 +702,19 @@ class ApiClient:
     def delete(self, path: str):
         return self.request("DELETE", path)
 
-    def upload_hero(self, file_path: Path) -> str:
+    def upload_hero(self, file_path: Path) -> tuple[str, str | None]:
         if self.dry_run:
-            return f"{self.public_origin}/api/uploads/heroes/dry-run-{file_path.name}"
+            return (
+                f"{self.public_origin}/api/uploads/heroes/dry-run-{file_path.name}",
+                None,
+            )
         result = self.request("POST", "/uploads/hero", multipart=("file", file_path))
         rel = result.get("url") or ""
         if not rel:
             raise RuntimeError(f"Upload failed for {file_path.name}: {result}")
-        return rel if rel.startswith("http") else f"{self.public_origin}{rel}"
+        url = rel if rel.startswith("http") else f"{self.public_origin}{rel}"
+        blur = result.get("blurHash") or result.get("blur_hash")
+        return url, blur if isinstance(blur, str) and blur.strip() else None
 
 
 def choose_store(api_base: str, token: str, brand_arg: str | None) -> str:
@@ -813,9 +818,10 @@ def import_items(api: ApiClient, items: list[dict], pic_root: Path) -> None:
         slug = slugify(name)
         local = match_image(item, images, pic_root)
         image_url = PLACEHOLDER
+        image_blur_hash: str | None = None
         try:
             if local:
-                image_url = api.upload_hero(local)
+                image_url, image_blur_hash = api.upload_hero(local)
             else:
                 missing_img += 1
         except RuntimeError as exc:
@@ -835,6 +841,8 @@ def import_items(api: ApiClient, items: list[dict], pic_root: Path) -> None:
             "ingredients": [],
             "badges": [],
         }
+        if image_blur_hash:
+            payload["imageBlurHash"] = image_blur_hash
         if item.get("sizeOptions"):
             payload["sizeOptions"] = item["sizeOptions"]
         if item.get("priceNote"):
