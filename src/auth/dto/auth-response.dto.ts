@@ -23,6 +23,7 @@ export class AuthUserDto {
   firstName!: string;
   lastName!: string;
   role!: UserRole;
+  posPinMustChange!: boolean;
   stores!: AuthStoreDto[];
 }
 

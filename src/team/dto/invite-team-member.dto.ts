@@ -48,4 +48,11 @@ export class InviteTeamMemberDto {
   @IsOptional()
   @IsUUID()
   locationId?: string;
+
+  /** Initial POS unlock code. Staff must change it on first login. */
+  @IsOptional()
+  @IsString()
+  @MinLength(4)
+  @MaxLength(6)
+  posPin?: string;
 }

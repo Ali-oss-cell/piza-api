@@ -1,0 +1,1 @@
+ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "pos_pin_must_change" BOOLEAN NOT NULL DEFAULT false;

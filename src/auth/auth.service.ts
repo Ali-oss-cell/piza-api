@@ -70,6 +70,7 @@ export class AuthService {
       firstName: user.firstName,
       lastName: user.lastName,
       role: user.role,
+      posPinMustChange: user.posPinMustChange,
       stores: await this.listAccessibleStores(user),
     };
   }

@@ -5,6 +5,7 @@ import {
 } from '@nestjs/common';
 import { AuditAction, StoreMembershipRole, UserRole } from '@prisma/client';
 import { randomBytes } from 'crypto';
+import * as bcrypt from 'bcrypt';
 import { AuthenticatedUser } from '../auth/interfaces/authenticated-user.interface';
 import { AuditService } from '../audit/audit.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -159,6 +160,17 @@ export class TeamService {
         firstName: dto.firstName.trim(),
         lastName: dto.lastName.trim(),
         role: UserRole.STAFF,
+      });
+    }
+
+    if (dto.posPin) {
+      if (!/^\d{4,6}$/.test(dto.posPin)) {
+        throw new BadRequestException('POS code must be 4–6 digits.');
+      }
+      const hash = await bcrypt.hash(dto.posPin, 12);
+      await this.prisma.user.update({
+        where: { id: user.id },
+        data: { posPinHash: hash, posPinMustChange: true },
       });
     }
 

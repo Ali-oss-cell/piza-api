@@ -29,6 +29,7 @@ import {
 import {
   AddFavouriteDto,
   CashRefundDto,
+  ChangePosPinDto,
   CloseShiftDto,
   EscPosPrintDto,
   OpenShiftDto,
@@ -179,6 +180,14 @@ export class PosController {
     @CurrentUser() staff: AuthenticatedUser,
   ) {
     return this.posService.verifyPin(dto.pin, staff);
+  }
+
+  @Post('auth/change-pin')
+  changePin(
+    @Body() dto: ChangePosPinDto,
+    @CurrentUser() staff: AuthenticatedUser,
+  ) {
+    return this.posService.changeOwnPin(dto.currentPin, dto.newPin, staff);
   }
 
   @Post('auth/set-pin')

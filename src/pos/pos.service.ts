@@ -1082,6 +1082,32 @@ export class PosService {
     throw new UnauthorizedException('Invalid PIN');
   }
 
+  async changeOwnPin(currentPin: string, newPin: string, staff: AuthenticatedUser) {
+    if (!/^\d{4,6}$/.test(newPin)) {
+      throw new BadRequestException('New code must be 4–6 digits.');
+    }
+    const user = await this.prisma.user.findUnique({
+      where: { id: staff.id },
+      select: { posPinHash: true },
+    });
+    if (!user?.posPinHash) {
+      throw new BadRequestException('No POS code is set. Ask a manager.');
+    }
+    const matches = await bcrypt.compare(currentPin, user.posPinHash);
+    if (!matches) {
+      throw new UnauthorizedException('Current code is wrong.');
+    }
+    if (currentPin === newPin) {
+      throw new BadRequestException('Choose a different code.');
+    }
+    const hash = await bcrypt.hash(newPin, 12);
+    await this.prisma.user.update({
+      where: { id: staff.id },
+      data: { posPinHash: hash, posPinMustChange: false },
+    });
+    return { ok: true, posPinMustChange: false };
+  }
+
   async setPin(
     targetUserId: string,
     pin: string,
@@ -1193,6 +1219,7 @@ export class PosService {
     registerId?: string,
   ) {
     const location = await this.resolvePosLocation(staff, brandSlug, locationId);
+    await this.assertCanManageShift(staff, location);
     const existing = await this.getOpenShift(location.id);
     if (existing) {
       throw new ConflictException('A shift is already open for this location.');
@@ -1277,6 +1304,13 @@ export class PosService {
     if (report.shift.closedAt) {
       throw new BadRequestException('Shift already closed.');
     }
+    const location = await this.prisma.location.findUnique({
+      where: { id: report.shift.locationId },
+    });
+    if (!location) {
+      throw new NotFoundException('Location not found');
+    }
+    await this.assertCanManageShift(staff, location);
     const variance = this.roundMoney(
       closingCountedCash - report.expectedCash,
     );
@@ -1530,6 +1564,30 @@ export class PosService {
     });
 
     return { ok: true, host, port };
+  }
+
+  private async assertCanManageShift(
+    staff: AuthenticatedUser,
+    location: Location,
+  ) {
+    if (staff.role === UserRole.ADMIN || staff.role === UserRole.MANAGER) {
+      return;
+    }
+    const membership = await this.prisma.userStore.findFirst({
+      where: {
+        userId: staff.id,
+        storeId: location.brandId,
+        isActive: true,
+      },
+    });
+    if (
+      membership?.role !== 'STORE_ADMIN' &&
+      membership?.role !== 'PLATFORM_ADMIN'
+    ) {
+      throw new ForbiddenException(
+        'Shifts are opened and closed from the store dashboard.',
+      );
+    }
   }
 
   private async assertManagerActionToken(token?: string) {

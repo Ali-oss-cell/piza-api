@@ -183,6 +183,7 @@ model User {
   email            String       @unique
   password         String
   posPinHash       String?      @map("pos_pin_hash")
+  posPinMustChange Boolean      @default(false) @map("pos_pin_must_change")
   firstName        String       @map("first_name")
   lastName         String       @map("last_name")
   role             UserRole     @default(USER)

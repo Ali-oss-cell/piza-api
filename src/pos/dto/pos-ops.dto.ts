@@ -16,6 +16,16 @@ export class VerifyPosPinDto {
   pin!: string;
 }
 
+export class ChangePosPinDto {
+  @IsString()
+  @Length(4, 6)
+  currentPin!: string;
+
+  @IsString()
+  @Length(4, 6)
+  newPin!: string;
+}
+
 export class SetPosPinDto {
   @IsUUID()
   userId!: string;
