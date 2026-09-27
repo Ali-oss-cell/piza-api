@@ -1,11 +1,12 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
-import { MenuItem } from '@prisma/client';
+import { MenuItem, PosDiscountType } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import {
   deriveBasePrice,
   type SizeOptions,
 } from '../menu/size-options.util';
-import { QuoteLineDto } from './dto/quote-request.dto';
+import { PosDiscountDto } from './dto/pos-discount.dto';
+import { QuoteLineDto, QuoteRequestDto } from './dto/quote-request.dto';
 import { QuoteLineResult, QuoteResult } from './pricing.types';
 
 @Injectable()
@@ -14,7 +15,7 @@ export class PricingService {
 
   async quote(
     items: QuoteLineDto[],
-    options?: { deliveryFee?: number },
+    options?: { deliveryFee?: number; discount?: PosDiscountDto },
   ): Promise<QuoteResult> {
     const lines: QuoteLineResult[] = [];
 
@@ -26,7 +27,7 @@ export class PricingService {
       lines.reduce((sum, line) => sum + line.lineTotal, 0),
     );
     const deliveryFee = this.round(options?.deliveryFee ?? 0);
-    const discountAmount = 0;
+    const discountAmount = this.resolveDiscount(subtotal, options?.discount);
     const taxAmount = 0;
 
     return {
@@ -34,9 +35,36 @@ export class PricingService {
       deliveryFee,
       discountAmount,
       taxAmount,
-      total: this.round(subtotal + deliveryFee - discountAmount),
+      total: this.round(Math.max(0, subtotal + deliveryFee - discountAmount)),
       lines,
     };
+  }
+
+  async quoteRequest(dto: QuoteRequestDto): Promise<QuoteResult> {
+    return this.quote(dto.items, { discount: dto.discount });
+  }
+
+  resolveDiscount(subtotal: number, discount?: PosDiscountDto): number {
+    if (!discount) {
+      return 0;
+    }
+
+    if (discount.type === PosDiscountType.COMP) {
+      return this.round(subtotal);
+    }
+
+    const value = discount.value ?? 0;
+    if (discount.type === PosDiscountType.PERCENT) {
+      if (value < 0 || value > 100) {
+        throw new BadRequestException('Percent discount must be 0–100.');
+      }
+      return this.round((subtotal * value) / 100);
+    }
+
+    if (value < 0) {
+      throw new BadRequestException('Amount discount must be >= 0.');
+    }
+    return this.round(Math.min(subtotal, value));
   }
 
   private async quoteLine(item: QuoteLineDto): Promise<QuoteLineResult> {
@@ -115,9 +143,7 @@ export class PricingService {
     return Number(menuItem.price);
   }
 
-  private normalizeSizeKey(
-    size: string,
-  ): keyof SizeOptions {
+  private normalizeSizeKey(size: string): keyof SizeOptions {
     const normalized = size.toLowerCase();
 
     if (normalized.startsWith('s')) {

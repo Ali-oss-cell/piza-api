@@ -8,6 +8,7 @@ import {
   Min,
   ValidateNested,
 } from 'class-validator';
+import { PosDiscountDto } from './pos-discount.dto';
 
 export class QuoteLineDto {
   @IsUUID()
@@ -39,4 +40,9 @@ export class QuoteRequestDto {
   @ValidateNested({ each: true })
   @Type(() => QuoteLineDto)
   items!: QuoteLineDto[];
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => PosDiscountDto)
+  discount?: PosDiscountDto;
 }

@@ -134,6 +134,20 @@ enum AuditAction {
   CRM_EXPORT
   CRM_CUSTOMER_UPDATED
   INVENTORY_OVERRIDE
+  POS_DISCOUNT
+  POS_VOID_LINE
+  POS_VOID_ORDER
+  POS_REFUND
+  POS_SHIFT_OPEN
+  POS_SHIFT_CLOSE
+  POS_TRAINING_TOGGLE
+  POS_PIN_SET
+}
+
+enum PosDiscountType {
+  PERCENT
+  AMOUNT
+  COMP
 }
 
 enum StockUnit {
@@ -168,6 +182,7 @@ model User {
   id               String       @id @default(uuid()) @db.Uuid
   email            String       @unique
   password         String
+  posPinHash       String?      @map("pos_pin_hash")
   firstName        String       @map("first_name")
   lastName         String       @map("last_name")
   role             UserRole     @default(USER)
@@ -179,6 +194,8 @@ model User {
   auditEvents      AuditEvent[]
   stockMovements   StockMovement[]
   purchaseOrders   PurchaseOrder[]
+  shiftsOpened     PosShift[]   @relation("ShiftOpenedBy")
+  shiftsClosed     PosShift[]   @relation("ShiftClosedBy")
 
   @@map("users")
 }
@@ -253,6 +270,12 @@ model Location {
   isDefault                Boolean  @default(false) @map("is_default")
   stripeTerminalLocationId String?  @map("stripe_terminal_location_id")
   stripeTerminalReaderId   String?  @map("stripe_terminal_reader_id")
+  receiptPrinterHost       String?  @map("receipt_printer_host")
+  receiptPrinterPort       Int?     @map("receipt_printer_port")
+  kitchenPrinterHost       String?  @map("kitchen_printer_host")
+  kitchenPrinterPort       Int?     @map("kitchen_printer_port")
+  requireOpenShift         Boolean  @default(false) @map("require_open_shift")
+  posTrainingMode          Boolean  @default(false) @map("pos_training_mode")
   createdAt                DateTime @default(now()) @map("created_at")
   updatedAt                DateTime @updatedAt @map("updated_at")
 
@@ -261,6 +284,8 @@ model Location {
   domains      StoreDomain[]
   memberships  UserStore[]
   paymentSettings LocationPaymentSettings?
+  shifts       PosShift[]
+  favourites   PosFavouriteItem[]
 
   @@unique([brandId, slug])
   @@map("locations")
@@ -421,6 +446,7 @@ model MenuItem {
   imageUrl          String          @map("image_url")
   imageAlt          String          @map("image_alt")
   imageBlurHash     String?         @map("image_blur_hash")
+  sku               String?
   badges            MenuItemBadge[] @default([])
   priceNote         String?         @map("price_note")
   ingredients       String[]        @default([])
@@ -435,9 +461,11 @@ model MenuItem {
   category          MenuCategory        @relation(fields: [brandId, categorySlug], references: [brandId, slug], onUpdate: Cascade)
   orderItems        OrderItem[]
   recipeLines       MenuItemRecipeLine[]
+  favourites        PosFavouriteItem[]
 
   @@unique([brandId, slug])
   @@index([brandId, categorySlug])
+  @@index([brandId, sku])
   @@map("menu_items")
 }
 
@@ -582,6 +610,8 @@ model Order {
   guestEmail            String?         @map("guest_email")
   guestName             String?         @map("guest_name")
   guestPhone            String?         @map("guest_phone")
+  tableNumber           String?         @map("table_number")
+  pagerNumber           String?         @map("pager_number")
   deliveryAddressLine1  String?         @map("delivery_address_line1")
   deliveryAddressLine2  String?         @map("delivery_address_line2")
   deliverySuburb        String?         @map("delivery_suburb")
@@ -601,21 +631,26 @@ model Order {
   linklyTxnRef          String?         @map("linkly_txn_ref")
   paidAt                DateTime?       @map("paid_at")
   registerId            String?         @map("register_id")
+  shiftId               String?         @map("shift_id") @db.Uuid
   ticketNumber          Int?            @map("ticket_number")
   clientRequestId       String?         @unique @map("client_request_id")
   subtotal              Decimal         @db.Decimal(10, 2)
   taxAmount             Decimal         @default(0) @map("tax_amount") @db.Decimal(10, 2)
   discountAmount        Decimal         @default(0) @map("discount_amount") @db.Decimal(10, 2)
+  discountType          PosDiscountType? @map("discount_type")
+  discountReason        String?         @map("discount_reason")
   deliveryFee           Decimal         @default(0) @map("delivery_fee") @db.Decimal(10, 2)
   total                 Decimal         @db.Decimal(10, 2)
   promoCode             String?         @map("promo_code")
   notes                 String?
+  isTraining            Boolean         @default(false) @map("is_training")
   createdAt             DateTime        @default(now()) @map("created_at")
   updatedAt             DateTime        @updatedAt @map("updated_at")
   location              Location        @relation(fields: [locationId], references: [id], onDelete: Restrict)
   user                  User?           @relation("CustomerOrders", fields: [userId], references: [id], onDelete: SetNull)
   staffUser             User?           @relation("StaffOrders", fields: [staffUserId], references: [id], onDelete: SetNull)
   storeCustomer         StoreCustomer?  @relation(fields: [storeCustomerId], references: [id], onDelete: SetNull)
+  shift                 PosShift?       @relation(fields: [shiftId], references: [id], onDelete: SetNull)
   items                 OrderItem[]
   stockMovements        StockMovement[]
 
@@ -626,6 +661,8 @@ model Order {
   @@index([status])
   @@index([paymentStatus])
   @@index([channel, ticketNumber])
+  @@index([shiftId])
+  @@index([guestPhone])
   @@map("orders")
 }
 
@@ -999,4 +1036,47 @@ model StoreInquiry {
   @@index([brandId, status, createdAt])
   @@index([brandId, type])
   @@map("store_inquiries")
+}
+
+model PosShift {
+  id                 String    @id @default(uuid()) @db.Uuid
+  locationId         String    @map("location_id") @db.Uuid
+  registerId         String?   @map("register_id")
+  openedByUserId     String    @map("opened_by_user_id") @db.Uuid
+  closedByUserId     String?   @map("closed_by_user_id") @db.Uuid
+  openingFloat       Decimal   @default(0) @map("opening_float") @db.Decimal(10, 2)
+  closingCountedCash Decimal?  @map("closing_counted_cash") @db.Decimal(10, 2)
+  expectedCash       Decimal?  @map("expected_cash") @db.Decimal(10, 2)
+  cardTotal          Decimal?  @map("card_total") @db.Decimal(10, 2)
+  cashSalesTotal     Decimal?  @map("cash_sales_total") @db.Decimal(10, 2)
+  discountTotal      Decimal?  @map("discount_total") @db.Decimal(10, 2)
+  voidCount          Int?      @map("void_count")
+  refundTotal        Decimal?  @map("refund_total") @db.Decimal(10, 2)
+  variance           Decimal?  @db.Decimal(10, 2)
+  openedAt           DateTime  @default(now()) @map("opened_at")
+  closedAt           DateTime? @map("closed_at")
+  reportSnapshot     Json?     @map("report_snapshot")
+
+  location Location @relation(fields: [locationId], references: [id], onDelete: Cascade)
+  openedBy User     @relation("ShiftOpenedBy", fields: [openedByUserId], references: [id], onDelete: Restrict)
+  closedBy User?    @relation("ShiftClosedBy", fields: [closedByUserId], references: [id], onDelete: SetNull)
+  orders   Order[]
+
+  @@index([locationId, closedAt])
+  @@map("pos_shifts")
+}
+
+model PosFavouriteItem {
+  id         String   @id @default(uuid()) @db.Uuid
+  locationId String   @map("location_id") @db.Uuid
+  menuItemId String   @map("menu_item_id") @db.Uuid
+  sortOrder  Int      @default(0) @map("sort_order")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  location Location @relation(fields: [locationId], references: [id], onDelete: Cascade)
+  menuItem MenuItem @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
+
+  @@unique([locationId, menuItemId])
+  @@index([locationId, sortOrder])
+  @@map("pos_favourite_items")
 }

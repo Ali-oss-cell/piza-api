@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { AuthModule } from '../auth/auth.module';
 import { CrmModule } from '../crm/crm.module';
 import { InventoryModule } from '../inventory/inventory.module';
 import { PaymentsModule } from '../payments/payments.module';
@@ -16,6 +17,7 @@ import { PosService } from './pos.service';
     PaymentSettingsModule,
     CrmModule,
     InventoryModule,
+    AuthModule,
   ],
   controllers: [PosController],
   providers: [PosService],

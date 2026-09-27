@@ -4,8 +4,11 @@ import {
   ForbiddenException,
   Injectable,
   NotFoundException,
+  UnauthorizedException,
 } from '@nestjs/common';
+import { JwtService } from '@nestjs/jwt';
 import {
+  AuditAction,
   DeliveryMode,
   FulfillmentType,
   Location,
@@ -14,9 +17,11 @@ import {
   OrderStatus,
   PaymentMethod,
   PaymentStatus,
+  PosDiscountType,
   Prisma,
   UserRole,
 } from '@prisma/client';
+import * as bcrypt from 'bcrypt';
 import { AuthenticatedUser } from '../auth/interfaces/authenticated-user.interface';
 import { CrmService } from '../crm/crm.service';
 import { InventoryService } from '../inventory/inventory.service';
@@ -28,6 +33,8 @@ import { StripeService } from '../payments/stripe.service';
 import { CreatePosOrderDto } from './dto/create-pos-order.dto';
 import { QuoteRequestDto } from '../pricing/dto/quote-request.dto';
 
+const MANAGER_ACTION_TYPE = 'manager_action';
+
 @Injectable()
 export class PosService {
   constructor(
@@ -38,10 +45,11 @@ export class PosService {
     private readonly paymentSettingsService: PaymentSettingsService,
     private readonly crmService: CrmService,
     private readonly inventoryService: InventoryService,
+    private readonly jwtService: JwtService,
   ) {}
 
   quote(dto: QuoteRequestDto) {
-    return this.pricingService.quote(dto.items);
+    return this.pricingService.quote(dto.items, { discount: dto.discount });
   }
 
   getPaymentMethods(brandSlug?: string, locationId?: string) {
@@ -72,7 +80,30 @@ export class PosService {
     }
 
     const location = await this.resolvePosLocation(staff, brandSlug, locationId);
-    const quote = await this.pricingService.quote(dto.items);
+    const openShift = await this.getOpenShift(location.id);
+    if (location.requireOpenShift && !openShift && !location.posTrainingMode) {
+      throw new BadRequestException(
+        'Open a shift before taking orders (or ask a manager to override require-shift).',
+      );
+    }
+
+    const discount =
+      dto.discountType != null
+        ? {
+            type: dto.discountType,
+            value: dto.discountValue,
+            reason: dto.discountReason,
+          }
+        : undefined;
+
+    if (discount && discount.type !== PosDiscountType.COMP && (discount.value ?? 0) > 0) {
+      await this.assertManagerActionToken(dto.managerActionToken);
+    }
+    if (discount?.type === PosDiscountType.COMP) {
+      await this.assertManagerActionToken(dto.managerActionToken);
+    }
+
+    const quote = await this.pricingService.quote(dto.items, { discount });
     const ticketNumber = await this.nextTicketNumber(location.id);
 
     const data: Prisma.OrderCreateInput = {
@@ -88,12 +119,21 @@ export class PosService {
       subtotal: quote.subtotal,
       taxAmount: quote.taxAmount,
       discountAmount: quote.discountAmount,
+      discountType: dto.discountType,
+      discountReason: dto.discountReason,
       deliveryFee: quote.deliveryFee,
       total: quote.total,
       ticketNumber,
       notes: dto.notes,
+      guestName: dto.customerName,
+      guestPhone: dto.customerPhone,
+      tableNumber: dto.tableNumber,
+      pagerNumber: dto.pagerNumber,
+      registerId: dto.registerId,
+      isTraining: location.posTrainingMode,
       clientRequestId: dto.clientRequestId,
       staffUser: { connect: { id: staff.id } },
+      ...(openShift ? { shift: { connect: { id: openShift.id } } } : {}),
       items: {
         create: quote.lines.map((line) => ({
           menuItemId: line.menuItemId,
@@ -109,10 +149,29 @@ export class PosService {
       },
     };
 
-    return this.prisma.order.create({
+    const order = await this.prisma.order.create({
       data,
       include: { items: true, staffUser: true },
     });
+
+    if (quote.discountAmount > 0) {
+      await this.prisma.auditEvent.create({
+        data: {
+          actorUserId: staff.id,
+          storeId: location.brandId,
+          action: AuditAction.POS_DISCOUNT,
+          message: `POS discount $${quote.discountAmount} on ticket #${ticketNumber}`,
+          payload: {
+            orderId: order.id,
+            discountType: dto.discountType,
+            discountValue: dto.discountValue,
+            reason: dto.discountReason,
+          },
+        },
+      });
+    }
+
+    return order;
   }
 
   async findActiveOrders(
@@ -124,20 +183,25 @@ export class PosService {
 
     return this.prisma.order.findMany({
       where: {
-        channel: OrderChannel.POS,
         locationId: location.id,
+        paymentStatus: PaymentStatus.PAID,
+        isTraining: false,
         status: {
           in: [
             OrderStatus.PENDING,
             OrderStatus.CONFIRMED,
             OrderStatus.PREPARING,
             OrderStatus.READY,
+            OrderStatus.COMPLETED,
           ],
+        },
+        channel: {
+          in: [OrderChannel.POS, OrderChannel.WEB, OrderChannel.PHONE],
         },
       },
       include: { items: true, staffUser: true },
       orderBy: { createdAt: 'desc' },
-      take: 50,
+      take: 80,
     });
   }
 
@@ -926,5 +990,573 @@ export class PosService {
     });
 
     return (latest?.ticketNumber ?? 0) + 1;
+  }
+
+  async verifyPin(pin: string, staff: AuthenticatedUser) {
+    const users = await this.prisma.user.findMany({
+      where: {
+        posPinHash: { not: null },
+        OR: [
+          { id: staff.id },
+          { role: { in: [UserRole.MANAGER, UserRole.ADMIN, UserRole.STAFF] } },
+          {
+            storeMemberships: {
+              some: { userId: staff.id, isActive: true },
+            },
+          },
+        ],
+      },
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        role: true,
+        posPinHash: true,
+        email: true,
+      },
+      take: 200,
+    });
+
+    // Prefer store-scoped staff: load memberships for current user's stores
+    const membershipStoreIds = await this.prisma.userStore.findMany({
+      where: { userId: staff.id, isActive: true },
+      select: { storeId: true },
+    });
+    const storeIds = membershipStoreIds.map((m) => m.storeId);
+
+    const candidates =
+      storeIds.length > 0
+        ? await this.prisma.user.findMany({
+            where: {
+              posPinHash: { not: null },
+              OR: [
+                { role: { in: [UserRole.ADMIN, UserRole.MANAGER] } },
+                {
+                  storeMemberships: {
+                    some: { storeId: { in: storeIds }, isActive: true },
+                  },
+                },
+              ],
+            },
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+              role: true,
+              posPinHash: true,
+              email: true,
+            },
+          })
+        : users;
+
+    for (const user of candidates) {
+      if (!user.posPinHash) continue;
+      const ok = await bcrypt.compare(pin, user.posPinHash);
+      if (!ok) continue;
+
+      const managerActionToken =
+        user.role === UserRole.MANAGER || user.role === UserRole.ADMIN
+          ? await this.jwtService.signAsync(
+              {
+                sub: user.id,
+                type: MANAGER_ACTION_TYPE,
+                role: user.role,
+              },
+              { expiresIn: '5m' },
+            )
+          : null;
+
+      return {
+        user: {
+          id: user.id,
+          firstName: user.firstName,
+          lastName: user.lastName,
+          role: user.role,
+          email: user.email,
+        },
+        managerActionToken,
+        canApproveManagerActions: Boolean(managerActionToken),
+      };
+    }
+
+    throw new UnauthorizedException('Invalid PIN');
+  }
+
+  async setPin(
+    targetUserId: string,
+    pin: string,
+    actor: AuthenticatedUser,
+  ) {
+    if (
+      actor.role !== UserRole.MANAGER &&
+      actor.role !== UserRole.ADMIN &&
+      actor.id !== targetUserId
+    ) {
+      throw new ForbiddenException('Only managers can set another user PIN.');
+    }
+    if (!/^\d{4,6}$/.test(pin)) {
+      throw new BadRequestException('PIN must be 4–6 digits.');
+    }
+    const hash = await bcrypt.hash(pin, 12);
+    await this.prisma.user.update({
+      where: { id: targetUserId },
+      data: { posPinHash: hash },
+    });
+    await this.prisma.auditEvent.create({
+      data: {
+        actorUserId: actor.id,
+        action: AuditAction.POS_PIN_SET,
+        message: `POS PIN set for user ${targetUserId}`,
+        payload: { targetUserId },
+      },
+    });
+    return { ok: true };
+  }
+
+  async listStaffForPin(staff: AuthenticatedUser, brandSlug?: string) {
+    const slug = brandSlug?.trim().toLowerCase();
+    if (!slug) {
+      throw new BadRequestException('Store is required.');
+    }
+    const brand = await this.prisma.brand.findFirst({
+      where: { slug, isActive: true },
+    });
+    if (!brand) throw new NotFoundException('Store not found');
+
+    const members = await this.prisma.userStore.findMany({
+      where: { storeId: brand.id, isActive: true },
+      include: {
+        user: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            role: true,
+            posPinHash: true,
+          },
+        },
+      },
+    });
+
+    return members.map((m) => ({
+      id: m.user.id,
+      firstName: m.user.firstName,
+      lastName: m.user.lastName,
+      role: m.user.role,
+      hasPin: Boolean(m.user.posPinHash),
+    }));
+  }
+
+  async voidUnpaidOrder(
+    orderId: string,
+    reason: string,
+    managerActionToken: string,
+    staff: AuthenticatedUser,
+  ) {
+    await this.assertManagerActionToken(managerActionToken);
+    const order = await this.ensurePosOrder(orderId);
+    if (order.paymentStatus === PaymentStatus.PAID) {
+      throw new BadRequestException('Paid orders must be refunded, not voided.');
+    }
+    const updated = await this.prisma.order.update({
+      where: { id: orderId },
+      data: {
+        status: OrderStatus.CANCELLED,
+        paymentStatus: PaymentStatus.VOID,
+        notes: [order.notes, `VOID: ${reason}`].filter(Boolean).join('\n'),
+      },
+      include: { items: true },
+    });
+    await this.prisma.auditEvent.create({
+      data: {
+        actorUserId: staff.id,
+        action: AuditAction.POS_VOID_ORDER,
+        message: `Voided unpaid order ${orderId}: ${reason}`,
+        payload: { orderId, reason },
+      },
+    });
+    return updated;
+  }
+
+  async getOpenShift(locationId: string) {
+    return this.prisma.posShift.findFirst({
+      where: { locationId, closedAt: null },
+      orderBy: { openedAt: 'desc' },
+    });
+  }
+
+  async openShift(
+    staff: AuthenticatedUser,
+    brandSlug: string | undefined,
+    locationId: string | undefined,
+    openingFloat = 0,
+    registerId?: string,
+  ) {
+    const location = await this.resolvePosLocation(staff, brandSlug, locationId);
+    const existing = await this.getOpenShift(location.id);
+    if (existing) {
+      throw new ConflictException('A shift is already open for this location.');
+    }
+    const shift = await this.prisma.posShift.create({
+      data: {
+        locationId: location.id,
+        openedByUserId: staff.id,
+        openingFloat,
+        registerId,
+      },
+    });
+    await this.prisma.auditEvent.create({
+      data: {
+        actorUserId: staff.id,
+        storeId: location.brandId,
+        action: AuditAction.POS_SHIFT_OPEN,
+        message: `Opened shift ${shift.id}`,
+        payload: { shiftId: shift.id, openingFloat },
+      },
+    });
+    return shift;
+  }
+
+  async getShiftReport(shiftId: string) {
+    const shift = await this.prisma.posShift.findUnique({
+      where: { id: shiftId },
+    });
+    if (!shift) throw new NotFoundException('Shift not found');
+
+    const createdAtFilter: { gte: Date; lte?: Date } = { gte: shift.openedAt };
+    if (shift.closedAt) {
+      createdAtFilter.lte = shift.closedAt;
+    }
+    const orders = await this.prisma.order.findMany({
+      where: {
+        channel: OrderChannel.POS,
+        isTraining: false,
+        OR: [
+          { shiftId },
+          { locationId: shift.locationId, createdAt: createdAtFilter },
+        ],
+      },
+    });
+
+    const paid = orders.filter((o) => o.paymentStatus === PaymentStatus.PAID);
+    const cashSalesTotal = paid
+      .filter((o) => o.paymentMethod === PaymentMethod.CASH)
+      .reduce((s, o) => s + Number(o.total), 0);
+    const cardTotal = paid
+      .filter((o) => o.paymentMethod === PaymentMethod.CARD_TERMINAL)
+      .reduce((s, o) => s + Number(o.total), 0);
+    const discountTotal = paid.reduce((s, o) => s + Number(o.discountAmount), 0);
+    const voidCount = orders.filter(
+      (o) =>
+        o.paymentStatus === PaymentStatus.VOID ||
+        o.status === OrderStatus.CANCELLED,
+    ).length;
+    const refundTotal = orders
+      .filter((o) => o.paymentStatus === PaymentStatus.REFUNDED)
+      .reduce((s, o) => s + Number(o.total), 0);
+    const expectedCash = Number(shift.openingFloat) + cashSalesTotal - refundTotal;
+
+    return {
+      shift,
+      cashSalesTotal: this.roundMoney(cashSalesTotal),
+      cardTotal: this.roundMoney(cardTotal),
+      discountTotal: this.roundMoney(discountTotal),
+      voidCount,
+      refundTotal: this.roundMoney(refundTotal),
+      expectedCash: this.roundMoney(expectedCash),
+      orderCount: paid.length,
+    };
+  }
+
+  async closeShift(
+    shiftId: string,
+    closingCountedCash: number,
+    staff: AuthenticatedUser,
+  ) {
+    const report = await this.getShiftReport(shiftId);
+    if (report.shift.closedAt) {
+      throw new BadRequestException('Shift already closed.');
+    }
+    const variance = this.roundMoney(
+      closingCountedCash - report.expectedCash,
+    );
+    const closed = await this.prisma.posShift.update({
+      where: { id: shiftId },
+      data: {
+        closedAt: new Date(),
+        closedByUserId: staff.id,
+        closingCountedCash,
+        expectedCash: report.expectedCash,
+        cardTotal: report.cardTotal,
+        cashSalesTotal: report.cashSalesTotal,
+        discountTotal: report.discountTotal,
+        voidCount: report.voidCount,
+        refundTotal: report.refundTotal,
+        variance,
+        reportSnapshot: report as unknown as Prisma.InputJsonValue,
+      },
+    });
+    await this.prisma.auditEvent.create({
+      data: {
+        actorUserId: staff.id,
+        action: AuditAction.POS_SHIFT_CLOSE,
+        message: `Closed shift ${shiftId} variance ${variance}`,
+        payload: { shiftId, variance, closingCountedCash },
+      },
+    });
+    return { shift: closed, report: { ...report, variance } };
+  }
+
+  async listFavourites(staff: AuthenticatedUser, brandSlug?: string, locationId?: string) {
+    const location = await this.resolvePosLocation(staff, brandSlug, locationId);
+    return this.prisma.posFavouriteItem.findMany({
+      where: { locationId: location.id },
+      include: { menuItem: true },
+      orderBy: { sortOrder: 'asc' },
+    });
+  }
+
+  async addFavourite(
+    menuItemId: string,
+    staff: AuthenticatedUser,
+    brandSlug?: string,
+    locationId?: string,
+  ) {
+    const location = await this.resolvePosLocation(staff, brandSlug, locationId);
+    return this.prisma.posFavouriteItem.upsert({
+      where: {
+        locationId_menuItemId: { locationId: location.id, menuItemId },
+      },
+      create: { locationId: location.id, menuItemId },
+      update: {},
+      include: { menuItem: true },
+    });
+  }
+
+  async removeFavourite(
+    menuItemId: string,
+    staff: AuthenticatedUser,
+    brandSlug?: string,
+    locationId?: string,
+  ) {
+    const location = await this.resolvePosLocation(staff, brandSlug, locationId);
+    await this.prisma.posFavouriteItem.deleteMany({
+      where: { locationId: location.id, menuItemId },
+    });
+    return { ok: true };
+  }
+
+  async findOrdersByPhone(
+    phone: string,
+    staff: AuthenticatedUser,
+    brandSlug?: string,
+    locationId?: string,
+  ) {
+    const location = await this.resolvePosLocation(staff, brandSlug, locationId);
+    const normalized = phone.replace(/\D/g, '');
+    return this.prisma.order.findMany({
+      where: {
+        locationId: location.id,
+        channel: OrderChannel.POS,
+        guestPhone: { contains: normalized.slice(-8) },
+        paymentStatus: PaymentStatus.PAID,
+      },
+      include: { items: true },
+      orderBy: { createdAt: 'desc' },
+      take: 10,
+    });
+  }
+
+  async toggleTraining(
+    enabled: boolean,
+    managerActionToken: string,
+    staff: AuthenticatedUser,
+    brandSlug?: string,
+    locationId?: string,
+  ) {
+    await this.assertManagerActionToken(managerActionToken);
+    const location = await this.resolvePosLocation(staff, brandSlug, locationId);
+    const updated = await this.prisma.location.update({
+      where: { id: location.id },
+      data: { posTrainingMode: enabled },
+    });
+    await this.prisma.auditEvent.create({
+      data: {
+        actorUserId: staff.id,
+        storeId: location.brandId,
+        action: AuditAction.POS_TRAINING_TOGGLE,
+        message: `Training mode ${enabled ? 'ON' : 'OFF'}`,
+        payload: { locationId: location.id, enabled },
+      },
+    });
+    return {
+      posTrainingMode: updated.posTrainingMode,
+      requireOpenShift: updated.requireOpenShift,
+    };
+  }
+
+  async updatePrinterSettings(
+    staff: AuthenticatedUser,
+    brandSlug: string | undefined,
+    locationId: string | undefined,
+    dto: {
+      receiptPrinterHost?: string | null;
+      receiptPrinterPort?: number | null;
+      kitchenPrinterHost?: string | null;
+      kitchenPrinterPort?: number | null;
+      requireOpenShift?: boolean;
+    },
+  ) {
+    if (staff.role !== UserRole.MANAGER && staff.role !== UserRole.ADMIN) {
+      throw new ForbiddenException('Manager required');
+    }
+    const location = await this.resolvePosLocation(staff, brandSlug, locationId);
+    return this.prisma.location.update({
+      where: { id: location.id },
+      data: {
+        receiptPrinterHost: dto.receiptPrinterHost,
+        receiptPrinterPort: dto.receiptPrinterPort ?? undefined,
+        kitchenPrinterHost: dto.kitchenPrinterHost,
+        kitchenPrinterPort: dto.kitchenPrinterPort ?? undefined,
+        requireOpenShift: dto.requireOpenShift,
+      },
+      select: {
+        id: true,
+        receiptPrinterHost: true,
+        receiptPrinterPort: true,
+        kitchenPrinterHost: true,
+        kitchenPrinterPort: true,
+        requireOpenShift: true,
+        posTrainingMode: true,
+      },
+    });
+  }
+
+  async getLocationPosSettings(
+    staff: AuthenticatedUser,
+    brandSlug?: string,
+    locationId?: string,
+  ) {
+    const location = await this.resolvePosLocation(staff, brandSlug, locationId);
+    const openShift = await this.getOpenShift(location.id);
+    return {
+      locationId: location.id,
+      receiptPrinterHost: location.receiptPrinterHost,
+      receiptPrinterPort: location.receiptPrinterPort,
+      kitchenPrinterHost: location.kitchenPrinterHost,
+      kitchenPrinterPort: location.kitchenPrinterPort,
+      requireOpenShift: location.requireOpenShift,
+      posTrainingMode: location.posTrainingMode,
+      openShift,
+    };
+  }
+
+  async cashRefund(
+    orderId: string,
+    reason: string,
+    managerActionToken: string,
+    staff: AuthenticatedUser,
+    amount?: number,
+  ) {
+    await this.assertManagerActionToken(managerActionToken);
+    const order = await this.ensurePosOrder(orderId);
+    if (order.paymentStatus !== PaymentStatus.PAID) {
+      throw new BadRequestException('Only paid orders can be refunded.');
+    }
+    if (order.paymentMethod !== PaymentMethod.CASH) {
+      throw new BadRequestException('Use card refund for card payments.');
+    }
+    const refundAmount = amount ?? Number(order.total);
+    const updated = await this.prisma.order.update({
+      where: { id: orderId },
+      data: {
+        paymentStatus: PaymentStatus.REFUNDED,
+        notes: [order.notes, `CASH REFUND $${refundAmount}: ${reason}`]
+          .filter(Boolean)
+          .join('\n'),
+      },
+      include: { items: true },
+    });
+    await this.inventoryService.restockForRefundedOrder(orderId);
+
+    await this.prisma.auditEvent.create({
+      data: {
+        actorUserId: staff.id,
+        action: AuditAction.POS_REFUND,
+        message: `Cash refund $${refundAmount} on ${orderId}`,
+        payload: { orderId, refundAmount, reason },
+      },
+    });
+    return updated;
+  }
+
+  async printEscPos(
+    staff: AuthenticatedUser,
+    brandSlug: string | undefined,
+    locationId: string | undefined,
+    target: 'receipt' | 'kitchen',
+    text: string,
+  ) {
+    const location = await this.resolvePosLocation(staff, brandSlug, locationId);
+    const host =
+      target === 'kitchen'
+        ? location.kitchenPrinterHost
+        : location.receiptPrinterHost;
+    const port =
+      (target === 'kitchen'
+        ? location.kitchenPrinterPort
+        : location.receiptPrinterPort) ?? 9100;
+
+    if (!host) {
+      throw new BadRequestException(
+        `No ${target} printer configured for this location.`,
+      );
+    }
+
+    const net = await import('net');
+    await new Promise<void>((resolve, reject) => {
+      const socket = net.createConnection({ host, port }, () => {
+        socket.write(text, () => {
+          socket.end();
+          resolve();
+        });
+      });
+      socket.setTimeout(5000);
+      socket.on('timeout', () => {
+        socket.destroy();
+        reject(new BadRequestException('Printer connection timed out'));
+      });
+      socket.on('error', (err) => reject(err));
+    });
+
+    return { ok: true, host, port };
+  }
+
+  private async assertManagerActionToken(token?: string) {
+    if (!token) {
+      throw new ForbiddenException('Manager PIN approval required.');
+    }
+    try {
+      const payload = await this.jwtService.verifyAsync<{
+        sub: string;
+        type?: string;
+        role?: string;
+      }>(token);
+      if (payload.type !== MANAGER_ACTION_TYPE) {
+        throw new ForbiddenException('Invalid manager token.');
+      }
+      if (
+        payload.role !== UserRole.MANAGER &&
+        payload.role !== UserRole.ADMIN
+      ) {
+        throw new ForbiddenException('Manager role required.');
+      }
+    } catch {
+      throw new ForbiddenException('Manager PIN approval expired or invalid.');
+    }
+  }
+
+  private roundMoney(value: number): number {
+    return Math.round(value * 100) / 100;
   }
 }

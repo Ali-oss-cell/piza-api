@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   ParseIntPipe,
@@ -25,6 +26,18 @@ import {
   LinklySettlementDto,
   RefundCardPaymentDto,
 } from './dto/payment.dto';
+import {
+  AddFavouriteDto,
+  CashRefundDto,
+  CloseShiftDto,
+  EscPosPrintDto,
+  OpenShiftDto,
+  SetPosPinDto,
+  ToggleTrainingDto,
+  UpdatePrinterSettingsDto,
+  VerifyPosPinDto,
+  VoidOrderDto,
+} from './dto/pos-ops.dto';
 import { UpdatePosOrderStatusDto } from './dto/update-pos-order-status.dto';
 import { PosService } from './pos.service';
 
@@ -75,6 +88,21 @@ export class PosController {
     });
   }
 
+  @Get('orders/by-phone')
+  findByPhone(
+    @CurrentUser() staff: AuthenticatedUser,
+    @Query('phone') phone: string,
+    @BrandSlug() brandSlug?: string,
+    @LocationId() locationId?: string,
+  ) {
+    return this.posService.findOrdersByPhone(
+      phone,
+      staff,
+      brandSlug,
+      locationId,
+    );
+  }
+
   @Patch('orders/:id/status')
   updateStatus(
     @Param('id') id: string,
@@ -83,12 +111,186 @@ export class PosController {
     return this.posService.updateStatus(id, dto.status);
   }
 
+  @Post('orders/:id/void')
+  voidOrder(
+    @Param('id') id: string,
+    @Body() dto: VoidOrderDto,
+    @CurrentUser() staff: AuthenticatedUser,
+  ) {
+    return this.posService.voidUnpaidOrder(
+      id,
+      dto.reason,
+      dto.managerActionToken,
+      staff,
+    );
+  }
+
   @Get('payment-methods')
   getPaymentMethods(
     @BrandSlug() brandSlug?: string,
     @LocationId() locationId?: string,
   ) {
     return this.posService.getPaymentMethods(brandSlug, locationId);
+  }
+
+  @Get('settings')
+  getSettings(
+    @CurrentUser() staff: AuthenticatedUser,
+    @BrandSlug() brandSlug?: string,
+    @LocationId() locationId?: string,
+  ) {
+    return this.posService.getLocationPosSettings(staff, brandSlug, locationId);
+  }
+
+  @Patch('settings/printers')
+  updatePrinters(
+    @Body() dto: UpdatePrinterSettingsDto,
+    @CurrentUser() staff: AuthenticatedUser,
+    @BrandSlug() brandSlug?: string,
+    @LocationId() locationId?: string,
+  ) {
+    return this.posService.updatePrinterSettings(
+      staff,
+      brandSlug,
+      locationId,
+      dto,
+    );
+  }
+
+  @Post('settings/training')
+  toggleTraining(
+    @Body() dto: ToggleTrainingDto,
+    @CurrentUser() staff: AuthenticatedUser,
+    @BrandSlug() brandSlug?: string,
+    @LocationId() locationId?: string,
+  ) {
+    return this.posService.toggleTraining(
+      dto.enabled,
+      dto.managerActionToken,
+      staff,
+      brandSlug,
+      locationId,
+    );
+  }
+
+  @Post('auth/verify-pin')
+  verifyPin(
+    @Body() dto: VerifyPosPinDto,
+    @CurrentUser() staff: AuthenticatedUser,
+  ) {
+    return this.posService.verifyPin(dto.pin, staff);
+  }
+
+  @Post('auth/set-pin')
+  setPin(
+    @Body() dto: SetPosPinDto,
+    @CurrentUser() staff: AuthenticatedUser,
+  ) {
+    return this.posService.setPin(dto.userId, dto.pin, staff);
+  }
+
+  @Get('auth/staff')
+  listStaff(
+    @CurrentUser() staff: AuthenticatedUser,
+    @BrandSlug() brandSlug?: string,
+  ) {
+    return this.posService.listStaffForPin(staff, brandSlug);
+  }
+
+  @Get('favourites')
+  listFavourites(
+    @CurrentUser() staff: AuthenticatedUser,
+    @BrandSlug() brandSlug?: string,
+    @LocationId() locationId?: string,
+  ) {
+    return this.posService.listFavourites(staff, brandSlug, locationId);
+  }
+
+  @Post('favourites')
+  addFavourite(
+    @Body() dto: AddFavouriteDto,
+    @CurrentUser() staff: AuthenticatedUser,
+    @BrandSlug() brandSlug?: string,
+    @LocationId() locationId?: string,
+  ) {
+    return this.posService.addFavourite(
+      dto.menuItemId,
+      staff,
+      brandSlug,
+      locationId,
+    );
+  }
+
+  @Delete('favourites/:menuItemId')
+  removeFavourite(
+    @Param('menuItemId') menuItemId: string,
+    @CurrentUser() staff: AuthenticatedUser,
+    @BrandSlug() brandSlug?: string,
+    @LocationId() locationId?: string,
+  ) {
+    return this.posService.removeFavourite(
+      menuItemId,
+      staff,
+      brandSlug,
+      locationId,
+    );
+  }
+
+  @Get('shifts/current')
+  currentShift(
+    @CurrentUser() staff: AuthenticatedUser,
+    @BrandSlug() brandSlug?: string,
+    @LocationId() locationId?: string,
+  ) {
+    return this.posService
+      .getLocationPosSettings(staff, brandSlug, locationId)
+      .then((s) => s.openShift);
+  }
+
+  @Post('shifts/open')
+  openShift(
+    @Body() dto: OpenShiftDto,
+    @CurrentUser() staff: AuthenticatedUser,
+    @BrandSlug() brandSlug?: string,
+    @LocationId() locationId?: string,
+  ) {
+    return this.posService.openShift(
+      staff,
+      brandSlug,
+      locationId,
+      dto.openingFloat ?? 0,
+      dto.registerId,
+    );
+  }
+
+  @Get('shifts/:id/report')
+  shiftReport(@Param('id') id: string) {
+    return this.posService.getShiftReport(id);
+  }
+
+  @Post('shifts/:id/close')
+  closeShift(
+    @Param('id') id: string,
+    @Body() dto: CloseShiftDto,
+    @CurrentUser() staff: AuthenticatedUser,
+  ) {
+    return this.posService.closeShift(id, dto.closingCountedCash, staff);
+  }
+
+  @Post('print/escpos')
+  printEscPos(
+    @Body() dto: EscPosPrintDto,
+    @CurrentUser() staff: AuthenticatedUser,
+    @BrandSlug() brandSlug?: string,
+    @LocationId() locationId?: string,
+  ) {
+    return this.posService.printEscPos(
+      staff,
+      brandSlug,
+      locationId,
+      dto.target,
+      dto.text,
+    );
   }
 
   @Post('payments/card')
@@ -136,6 +338,20 @@ export class PosController {
       dto.orderId,
       staff,
       dto.amountCents,
+    );
+  }
+
+  @Post('payments/refund-cash')
+  refundCash(
+    @Body() dto: CashRefundDto,
+    @CurrentUser() staff: AuthenticatedUser,
+  ) {
+    return this.posService.cashRefund(
+      dto.orderId,
+      dto.reason,
+      dto.managerActionToken,
+      staff,
+      dto.amount,
     );
   }
 
