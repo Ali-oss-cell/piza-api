@@ -16,9 +16,44 @@ import { UpdateMenuItemDto } from './dto/update-menu-item.dto';
 import {
   createDefaultSizeOptions,
   deriveBasePrice,
+  normalizeSizeOptions,
   toLegacySizePricing,
   type SizeOptions,
 } from './size-options.util';
+
+function isBrokenLegacyPricing(
+  pricing: Record<'small' | 'large' | 'family', number> | null | undefined,
+): boolean {
+  if (!pricing) {
+    return true;
+  }
+  return pricing.small <= 0 && pricing.large <= 0 && pricing.family <= 0;
+}
+
+function normalizeLegacyPricing(
+  value: unknown,
+  fallbackPrice: number,
+): Record<'small' | 'large' | 'family', number> | undefined {
+  if (!value || typeof value !== 'object') {
+    return fallbackPrice > 0
+      ? { small: fallbackPrice, large: fallbackPrice, family: fallbackPrice }
+      : undefined;
+  }
+  const raw = value as Record<string, number | undefined>;
+  const pricing = {
+    small: Number(raw.small ?? 0),
+    large: Number(raw.large ?? 0),
+    family: Number(raw.family ?? 0),
+  };
+  if (isBrokenLegacyPricing(pricing) && fallbackPrice > 0) {
+    return { small: fallbackPrice, large: fallbackPrice, family: fallbackPrice };
+  }
+  return {
+    small: pricing.small > 0 ? pricing.small : fallbackPrice,
+    large: pricing.large > 0 ? pricing.large : fallbackPrice,
+    family: pricing.family > 0 ? pricing.family : fallbackPrice,
+  };
+}
 
 @Injectable()
 export class MenuService {
@@ -277,7 +312,8 @@ export class MenuService {
       dto.sizeOptions === null
         ? null
         : dto.sizeOptions
-          ? (dto.sizeOptions as unknown as SizeOptions)
+          ? normalizeSizeOptions(dto.sizeOptions) ??
+            (dto.sizeOptions as unknown as SizeOptions)
           : undefined;
 
     return {
@@ -327,7 +363,7 @@ export class MenuService {
 
   private resolveSizeOptions(dto: CreateMenuItemDto): SizeOptions | undefined {
     if (dto.sizeOptions) {
-      return dto.sizeOptions as unknown as SizeOptions;
+      return normalizeSizeOptions(dto.sizeOptions) ?? (dto.sizeOptions as unknown as SizeOptions);
     }
 
     if (dto.sizePricing) {
@@ -347,9 +383,17 @@ export class MenuService {
       item.brandId,
     );
 
+    const normalized = normalizeSizeOptions(item.sizeOptions);
+    const sizePricing =
+      normalized && !isBrokenLegacyPricing(toLegacySizePricing(normalized))
+        ? toLegacySizePricing(normalized)
+        : normalizeLegacyPricing(item.sizePricing, Number(item.price));
+
     return {
       ...item,
       ingredients,
+      ...(normalized ? { sizeOptions: normalized as unknown as typeof item.sizeOptions } : {}),
+      ...(sizePricing ? { sizePricing: sizePricing as unknown as typeof item.sizePricing } : {}),
     };
   }
 

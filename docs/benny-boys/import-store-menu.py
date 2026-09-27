@@ -184,10 +184,9 @@ ENSURE_ITEMS = [
         "categorySlug": "basic-pizzas",
         "price": 10.90,
         "sizeOptions": {
-            "SMALL": {"enabled": True, "price": 10.90},
-            "MEDIUM": {"enabled": False, "price": 0},
-            "LARGE": {"enabled": True, "price": 14.90},
-            "FAMILY": {"enabled": True, "price": 20.90},
+            "small": {"enabled": True, "price": 10.90},
+            "large": {"enabled": True, "price": 14.90},
+            "family": {"enabled": True, "price": 20.90},
         },
     },
     {
@@ -196,10 +195,9 @@ ENSURE_ITEMS = [
         "categorySlug": "basic-pizzas",
         "price": 10.90,
         "sizeOptions": {
-            "SMALL": {"enabled": True, "price": 10.90},
-            "MEDIUM": {"enabled": False, "price": 0},
-            "LARGE": {"enabled": True, "price": 14.90},
-            "FAMILY": {"enabled": True, "price": 20.90},
+            "small": {"enabled": True, "price": 10.90},
+            "large": {"enabled": True, "price": 14.90},
+            "family": {"enabled": True, "price": 20.90},
         },
     },
     {
@@ -263,17 +261,28 @@ def docx_paragraphs(path: Path) -> list[str]:
 
 
 def parse_money(text: str) -> float | None:
+    """Parse $10.90, ($20.90), or bare price in parentheses."""
     m = re.search(r"\$\s*([0-9]+(?:\.[0-9]{1,2})?)", text)
-    return float(m.group(1)) if m else None
+    if m:
+        return float(m.group(1))
+    m = re.search(r"\(\s*([0-9]+(?:\.[0-9]{1,2})?)\s*\)", text)
+    if m:
+        return float(m.group(1))
+    return None
 
 
 def parse_size_row(line: str) -> dict[str, float] | None:
-    """Parse 'Small: $10.90 | Large: $14.90 | Family: $20.90'."""
-    if "small" not in line.lower() or "$" not in line:
+    """Parse 'Small: $10.90 | Large: $14.90 | Family: $20.90' (also glued 'PizzasSmall:')."""
+    low = line.lower()
+    if "small" not in low or "$" not in line:
         return None
     sizes: dict[str, float] = {}
-    for label, key in (("small", "SMALL"), ("large", "LARGE"), ("family", "FAMILY")):
-        m = re.search(rf"{label}\s*:\s*\$\s*([0-9]+(?:\.[0-9]+)?)", line, re.I)
+    for label, key in (("small", "small"), ("large", "large"), ("family", "family")):
+        m = re.search(
+            rf"{label}\s*:?\s*\$\s*([0-9]+(?:\.[0-9]{{1,2}})?)",
+            line,
+            re.I,
+        )
         if m:
             sizes[key] = float(m.group(1))
     return sizes or None
@@ -281,12 +290,37 @@ def parse_size_row(line: str) -> dict[str, float] | None:
 
 def is_section_header(line: str) -> str | None:
     key = normalize_key(line)
-    # Strip trailing size pricing glued onto header, e.g. "Chicken Pizzas Small: $11.90..."
-    key = re.split(r"\s+small\s*:", key)[0].strip()
+    # Strip trailing size pricing, including glued "Chicken PizzasSmall: $11.90..."
+    key = re.split(r"\s*small\s*:", key)[0].strip()
     for name, slug in SECTION_TO_CATEGORY.items():
-        if key == name or key.startswith(name + " "):
+        if key == name or key.startswith(name + " ") or re.match(
+            rf"^{re.escape(name)}(?![a-z])", key
+        ):
             return slug
     return None
+
+
+def pizza_size_options(size_prices: dict[str, float]) -> dict:
+    """API expects lowercase size keys (small/large/family)."""
+    return {
+        "small": {"enabled": True, "price": float(size_prices.get("small", 10.9))},
+        "large": {"enabled": True, "price": float(size_prices.get("large", 14.9))},
+        "family": {"enabled": True, "price": float(size_prices.get("family", 20.9))},
+    }
+
+
+def normalize_menu_line(line: str) -> str:
+    text = (
+        line.replace("\u2013", "-")
+        .replace("\u2014", "-")
+        .replace("\u2015", "-")
+        .replace("\u2212", "-")
+    )
+    text = re.sub(r"(?i)(pizzas)(small\s*:)", r"\1 \2", text)
+    text = re.sub(r"(?i)(deals)\(", r"\1 (", text)
+    text = re.sub(r"(?i)(parmas)\s*-?\s*\$", r"\1 - $", text)
+    text = re.sub(r"(\$\s*[0-9]+\.[0-9]{2})(\d)", r"\1 \2", text)
+    return text
 
 
 def clean_item_name(raw: str) -> str:
@@ -298,13 +332,13 @@ def clean_item_name(raw: str) -> str:
 
 
 def parse_menu(docx_path: Path) -> list[dict]:
-    lines = docx_paragraphs(docx_path)
+    lines = [normalize_menu_line(line) for line in docx_paragraphs(docx_path)]
     items: list[dict] = []
     category = "basic-pizzas"
     size_prices: dict[str, float] = {
-        "SMALL": 10.90,
-        "LARGE": 14.90,
-        "FAMILY": 20.90,
+        "small": 10.90,
+        "large": 14.90,
+        "family": 20.90,
     }
     flat_price: float | None = None
     drinks_can = 3.50
@@ -481,13 +515,8 @@ def parse_menu(docx_path: Path) -> list[dict]:
         price = inline_price
         size_options = None
         if category.endswith("-pizzas"):
-            size_options = {
-                "SMALL": {"enabled": True, "price": size_prices.get("SMALL", 10.9)},
-                "MEDIUM": {"enabled": False, "price": 0},
-                "LARGE": {"enabled": True, "price": size_prices.get("LARGE", 14.9)},
-                "FAMILY": {"enabled": True, "price": size_prices.get("FAMILY", 20.9)},
-            }
-            price = size_prices.get("SMALL", price or 10.9)
+            size_options = pizza_size_options(size_prices)
+            price = size_prices.get("small", price or 10.9)
         elif category == "pasta":
             price = price or flat_price or 18.90
             if "seafood" in normalize_key(name):
@@ -499,7 +528,7 @@ def parse_menu(docx_path: Path) -> list[dict]:
 
         if not price:
             # try extract from description
-            price = parse_money(desc) or 0
+            price = parse_money(desc) or parse_money(line) or 0
 
         items.append(
             {

@@ -52,6 +52,39 @@ export function toLegacySizePricing(
   };
 }
 
+/** Accept SMALL/LARGE/FAMILY from bad imports and normalize to lowercase keys. */
+export function normalizeSizeOptions(
+  value: unknown,
+): SizeOptions | undefined {
+  if (!value || typeof value !== 'object') {
+    return undefined;
+  }
+
+  const raw = value as Record<string, { enabled?: boolean; price?: number } | undefined>;
+  const small = raw.small ?? raw.SMALL;
+  const large = raw.large ?? raw.LARGE;
+  const family = raw.family ?? raw.FAMILY;
+
+  if (!small && !large && !family) {
+    return undefined;
+  }
+
+  return {
+    small: {
+      enabled: small?.enabled ?? true,
+      price: Number(small?.price ?? 0),
+    },
+    large: {
+      enabled: large?.enabled ?? true,
+      price: Number(large?.price ?? 0),
+    },
+    family: {
+      enabled: family?.enabled ?? true,
+      price: Number(family?.price ?? 0),
+    },
+  };
+}
+
 export function parseIngredients(value: string): string[] {
   return value
     .split(',')
