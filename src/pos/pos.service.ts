@@ -7,6 +7,7 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
+import { assertUniquePosCode } from '../common/pos-code';
 import {
   AuditAction,
   DeliveryMode,
@@ -1100,6 +1101,7 @@ export class PosService {
     if (currentPin === newPin) {
       throw new BadRequestException('Choose a different code.');
     }
+    await assertUniquePosCode(this.prisma, newPin, staff.id);
     const hash = await bcrypt.hash(newPin, 12);
     await this.prisma.user.update({
       where: { id: staff.id },
@@ -1123,6 +1125,7 @@ export class PosService {
     if (!/^\d{4,6}$/.test(pin)) {
       throw new BadRequestException('PIN must be 4–6 digits.');
     }
+    await assertUniquePosCode(this.prisma, pin, targetUserId);
     const hash = await bcrypt.hash(pin, 12);
     await this.prisma.user.update({
       where: { id: targetUserId },

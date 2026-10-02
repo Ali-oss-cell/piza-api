@@ -1,6 +1,7 @@
 import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { StoreMembershipRole, User, UserRole } from '@prisma/client';
+import { findUsersByPosCode } from '../common/pos-code';
 import { PrismaService } from '../prisma/prisma.service';
 import { UsersService } from '../users/users.service';
 import { AuthResponseDto, AuthStoreDto, AuthUserDto } from './dto/auth-response.dto';
@@ -30,6 +31,41 @@ export class AuthService {
 
     if (!isValidPassword) {
       throw new UnauthorizedException('Invalid credentials');
+    }
+
+    return this.buildAuthResponse(user);
+  }
+
+  async loginWithPosCode(code: string): Promise<AuthResponseDto> {
+    const matches = await findUsersByPosCode(this.prisma, code);
+    if (matches.length === 0) {
+      throw new UnauthorizedException('That code is not recognised.');
+    }
+    if (matches.length > 1) {
+      throw new UnauthorizedException(
+        'This code is used by more than one person. Ask a manager to change it.',
+      );
+    }
+
+    const user = matches[0];
+    if (!user) {
+      throw new UnauthorizedException('That code is not recognised.');
+    }
+    const canUseRegister =
+      user.role === UserRole.ADMIN ||
+      user.role === UserRole.MANAGER ||
+      user.role === UserRole.STAFF;
+    if (!canUseRegister) {
+      throw new UnauthorizedException('This code cannot open the register.');
+    }
+
+    if (user.role !== UserRole.ADMIN) {
+      const activeStores = await this.prisma.userStore.count({
+        where: { userId: user.id, isActive: true },
+      });
+      if (activeStores === 0) {
+        throw new UnauthorizedException('This account is turned off.');
+      }
     }
 
     return this.buildAuthResponse(user);

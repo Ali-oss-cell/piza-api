@@ -7,6 +7,7 @@ import { AuditAction, StoreMembershipRole, UserRole } from '@prisma/client';
 import { randomBytes } from 'crypto';
 import * as bcrypt from 'bcrypt';
 import { AuthenticatedUser } from '../auth/interfaces/authenticated-user.interface';
+import { assertUniquePosCode } from '../common/pos-code';
 import { AuditService } from '../audit/audit.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { UsersService } from '../users/users.service';
@@ -23,7 +24,7 @@ export class TeamService {
 
   async listForStore(brandSlug: string): Promise<unknown[]> {
     const brand = await this.resolveBrand(brandSlug);
-    return this.prisma.userStore.findMany({
+    const rows = await this.prisma.userStore.findMany({
       where: { storeId: brand.id },
       include: {
         user: {
@@ -33,6 +34,7 @@ export class TeamService {
             firstName: true,
             lastName: true,
             role: true,
+            posPinHash: true,
           },
         },
         location: {
@@ -44,6 +46,18 @@ export class TeamService {
       },
       orderBy: [{ isActive: 'desc' }, { createdAt: 'desc' }],
     });
+
+    return rows.map((row) => ({
+      ...row,
+      user: {
+        id: row.user.id,
+        email: row.user.email,
+        firstName: row.user.firstName,
+        lastName: row.user.lastName,
+        role: row.user.role,
+        hasPin: Boolean(row.user.posPinHash),
+      },
+    }));
   }
 
   async listAll(brandSlug?: string): Promise<unknown[]> {
@@ -167,6 +181,7 @@ export class TeamService {
       if (!/^\d{4,6}$/.test(dto.posPin)) {
         throw new BadRequestException('POS code must be 4–6 digits.');
       }
+      await assertUniquePosCode(this.prisma, dto.posPin, user.id);
       const hash = await bcrypt.hash(dto.posPin, 12);
       await this.prisma.user.update({
         where: { id: user.id },
@@ -248,6 +263,39 @@ export class TeamService {
       }
     }
 
+    const userData: {
+      firstName?: string;
+      lastName?: string;
+      email?: string;
+      posPinHash?: string;
+      posPinMustChange?: boolean;
+    } = {};
+    if (dto.firstName !== undefined) {
+      userData.firstName = dto.firstName.trim();
+    }
+    if (dto.lastName !== undefined) {
+      userData.lastName = dto.lastName.trim();
+    }
+    if (dto.email !== undefined) {
+      const email = dto.email.trim().toLowerCase();
+      const existing = await this.usersService.findByEmail(email);
+      if (existing && existing.id !== membership.userId) {
+        throw new BadRequestException('That email is already used.');
+      }
+      userData.email = email;
+    }
+    if (dto.posPin) {
+      await assertUniquePosCode(this.prisma, dto.posPin, membership.userId);
+      userData.posPinHash = await bcrypt.hash(dto.posPin, 12);
+      userData.posPinMustChange = true;
+    }
+    if (Object.keys(userData).length > 0) {
+      await this.prisma.user.update({
+        where: { id: membership.userId },
+        data: userData,
+      });
+    }
+
     const updated = await this.prisma.userStore.update({
       where: { id: membershipId },
       data: {
@@ -280,12 +328,13 @@ export class TeamService {
       dto.isActive === false
         ? AuditAction.MEMBERSHIP_DEACTIVATED
         : AuditAction.MEMBERSHIP_UPDATED;
+    const { posPin, ...auditPayload } = dto;
     await this.auditService.log(
       actor.id,
       membership.storeId,
       action,
       `Membership ${membershipId} updated`,
-      { ...dto },
+      { ...auditPayload, posPinReset: Boolean(posPin) },
     );
 
     return updated;

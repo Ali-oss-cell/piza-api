@@ -4,6 +4,7 @@ import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { AuthenticatedUser } from './interfaces/authenticated-user.interface';
 import { AuthService } from './auth.service';
 import { AuthResponseDto, AuthUserDto } from './dto/auth-response.dto';
+import { LoginPosCodeDto } from './dto/login-pos-code.dto';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
 
@@ -14,6 +15,11 @@ export class AuthController {
   @Post('login')
   login(@Body() dto: LoginDto): Promise<AuthResponseDto> {
     return this.authService.login(dto);
+  }
+
+  @Post('pos-code')
+  loginWithPosCode(@Body() dto: LoginPosCodeDto): Promise<AuthResponseDto> {
+    return this.authService.loginWithPosCode(dto.code);
   }
 
   @Post('register')
