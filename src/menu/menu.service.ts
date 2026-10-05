@@ -34,10 +34,10 @@ function normalizeLegacyPricing(
   value: unknown,
   fallbackPrice: number,
 ): Record<'small' | 'large' | 'family', number> | undefined {
+  // Do NOT invent size pricing from base price alone — that makes deals/pasta
+  // show fake Small/Large/Family at the same price.
   if (!value || typeof value !== 'object') {
-    return fallbackPrice > 0
-      ? { small: fallbackPrice, large: fallbackPrice, family: fallbackPrice }
-      : undefined;
+    return undefined;
   }
   const raw = value as Record<string, number | undefined>;
   const pricing = {
@@ -45,8 +45,8 @@ function normalizeLegacyPricing(
     large: Number(raw.large ?? 0),
     family: Number(raw.family ?? 0),
   };
-  if (isBrokenLegacyPricing(pricing) && fallbackPrice > 0) {
-    return { small: fallbackPrice, large: fallbackPrice, family: fallbackPrice };
+  if (isBrokenLegacyPricing(pricing)) {
+    return undefined;
   }
   return {
     small: pricing.small > 0 ? pricing.small : fallbackPrice,
@@ -386,16 +386,33 @@ export class MenuService {
     );
 
     const normalized = normalizeSizeOptions(item.sizeOptions);
-    const sizePricing =
-      normalized && !isBrokenLegacyPricing(toLegacySizePricing(normalized))
-        ? toLegacySizePricing(normalized)
-        : normalizeLegacyPricing(item.sizePricing, Number(item.price));
+    const hasEnabledSizes = Boolean(
+      normalized &&
+        (normalized.small.enabled ||
+          normalized.large.enabled ||
+          normalized.family.enabled),
+    );
+    const isSizedCategory =
+      item.categorySlug.endsWith('-pizzas') || item.categorySlug.includes('pizza');
+
+    // Only expose size pricing for pizza-style items (or explicit size options).
+    // Prevents deals/pasta/sides from showing fake Small/Large/Family controls.
+    let sizePricing: Record<'small' | 'large' | 'family', number> | undefined;
+    if (hasEnabledSizes && normalized) {
+      sizePricing = toLegacySizePricing(normalized);
+    } else if (isSizedCategory) {
+      sizePricing = normalizeLegacyPricing(item.sizePricing, Number(item.price));
+    }
 
     return {
       ...item,
       ingredients,
-      ...(normalized ? { sizeOptions: normalized as unknown as typeof item.sizeOptions } : {}),
-      ...(sizePricing ? { sizePricing: sizePricing as unknown as typeof item.sizePricing } : {}),
+      ...(hasEnabledSizes && normalized
+        ? { sizeOptions: normalized as unknown as typeof item.sizeOptions }
+        : { sizeOptions: null }),
+      ...(sizePricing
+        ? { sizePricing: sizePricing as unknown as typeof item.sizePricing }
+        : { sizePricing: null }),
     };
   }
 
