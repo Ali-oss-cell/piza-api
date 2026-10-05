@@ -1,5 +1,20 @@
 Import **Benny Boy's Pizza (Wantirna South)** menu into the Marina API.
 
+## Sync extras + removable ingredients (from live site)
+
+Matches [wantirnasouth.bbpizza.com.au](https://wantirnasouth.bbpizza.com.au/) add-on prices and per-pizza removable ingredients.
+
+```bash
+cd ~/piza/piza-api
+git pull origin main
+export ADMIN_PASSWORD='your-password'
+bash docs/benny-boys/sync-benny-boys-addons.sh --brand benny-boys
+```
+
+Catalog: `docs/benny-boys/live-site-addons-and-ingredients.json`
+
+Also runs automatically at the end of `import-store-menu.sh` (unless you pass `--skip-addons`).
+
 ## Import from Word + local `pic/` (recommended for updates)
 
 See **[IMPORT_MENU.md](./IMPORT_MENU.md)**. Short version on the droplet:

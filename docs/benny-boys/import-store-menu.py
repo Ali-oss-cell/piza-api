@@ -879,6 +879,7 @@ def main() -> int:
     parser.add_argument("--brand", default=None, help="Brand slug (skip interactive picker)")
     parser.add_argument("--replace", action="store_true", help="Clear store catalog first")
     parser.add_argument("--dry-run", action="store_true")
+    parser.add_argument("--skip-addons", action="store_true", help="Skip extras/ingredients sync")
     parser.add_argument("--write-json", type=Path, help="Write parsed menu JSON and exit/import")
     parser.add_argument("--parse-only", action="store_true", help="Only parse + match images")
     args = parser.parse_args()
@@ -936,6 +937,27 @@ def main() -> int:
         clear_catalog(api)
     ensure_categories(api)
     import_items(api, enriched, args.pic)
+
+    if not args.skip_addons:
+        print("\n→ Syncing Benny Boys extras + ingredients…")
+        catalog_path = SCRIPT_DIR / "live-site-addons-and-ingredients.json"
+        sync_path = SCRIPT_DIR / "sync-benny-boys-addons.py"
+        if catalog_path.exists() and sync_path.exists():
+            import importlib.util
+
+            spec = importlib.util.spec_from_file_location(
+                "sync_benny_boys_addons", sync_path
+            )
+            if spec and spec.loader:
+                mod = importlib.util.module_from_spec(spec)
+                spec.loader.exec_module(mod)
+                catalog = json.loads(catalog_path.read_text(encoding="utf-8"))
+                mod.run_sync(api, catalog)
+            else:
+                print("  ! could not load sync-benny-boys-addons.py")
+        else:
+            print("  ! missing addons catalog/script — skipped")
+
     return 0
 
 

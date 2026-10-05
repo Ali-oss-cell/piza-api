@@ -1,0 +1,241 @@
+{
+  "source": "https://wantirnasouth.bbpizza.com.au/",
+  "scrapedAt": "2026-10-05",
+  "toppingCategories": [
+    { "slug": "meats", "label": "Meats", "sortOrder": 0 },
+    { "slug": "seafood", "label": "Seafood", "sortOrder": 1 },
+    { "slug": "vegetables", "label": "Vegetables", "sortOrder": 2 },
+    { "slug": "cheeses", "label": "Cheeses", "sortOrder": 3 },
+    { "slug": "sauces", "label": "Sauces", "sortOrder": 4 },
+    { "slug": "extras", "label": "Extras", "sortOrder": 5 }
+  ],
+  "ingredientCategories": [
+    { "slug": "bases", "label": "Bases & sauces", "sortOrder": 0 },
+    { "slug": "cheeses", "label": "Cheeses", "sortOrder": 1 },
+    { "slug": "meats", "label": "Meats", "sortOrder": 2 },
+    { "slug": "seafood", "label": "Seafood", "sortOrder": 3 },
+    { "slug": "vegetables", "label": "Vegetables", "sortOrder": 4 },
+    { "slug": "herbs", "label": "Herbs & spices", "sortOrder": 5 }
+  ],
+  "extras": [
+    { "slug": "anchovies", "label": "Anchovies", "categorySlug": "seafood", "priceDelta": 2.0 },
+    { "slug": "baby-spinach", "label": "Baby Spinach", "categorySlug": "vegetables", "priceDelta": 2.0 },
+    { "slug": "bacon", "label": "Bacon", "categorySlug": "meats", "priceDelta": 2.0 },
+    { "slug": "bbq-sauce", "label": "BBQ Sauce", "categorySlug": "sauces", "priceDelta": 1.0 },
+    { "slug": "beef", "label": "Beef", "categorySlug": "meats", "priceDelta": 2.0 },
+    { "slug": "capsicum", "label": "Capsicum", "categorySlug": "vegetables", "priceDelta": 1.0 },
+    { "slug": "cashew-nuts", "label": "Cashew Nuts", "categorySlug": "extras", "priceDelta": 2.0 },
+    { "slug": "cheese", "label": "Cheese", "categorySlug": "cheeses", "priceDelta": 1.0 },
+    { "slug": "chicken", "label": "Chicken", "categorySlug": "meats", "priceDelta": 2.0 },
+    { "slug": "chilli-flakes", "label": "Chilli Flakes", "categorySlug": "extras", "priceDelta": 1.0 },
+    { "slug": "egg", "label": "Egg", "categorySlug": "extras", "priceDelta": 1.0 },
+    { "slug": "feta-cheese", "label": "Feta Cheese", "categorySlug": "cheeses", "priceDelta": 1.0 },
+    { "slug": "garlic", "label": "Garlic", "categorySlug": "extras", "priceDelta": 0.0 },
+    { "slug": "ham", "label": "Ham", "categorySlug": "meats", "priceDelta": 2.0 },
+    { "slug": "jalapeno", "label": "Jalapeno", "categorySlug": "vegetables", "priceDelta": 1.0 },
+    { "slug": "marinara-mix", "label": "Marinara Mix", "categorySlug": "seafood", "priceDelta": 2.0 },
+    { "slug": "mushroom", "label": "Mushroom", "categorySlug": "vegetables", "priceDelta": 1.0 },
+    { "slug": "olives", "label": "Olives", "categorySlug": "vegetables", "priceDelta": 1.0 },
+    { "slug": "onion", "label": "Onion", "categorySlug": "vegetables", "priceDelta": 1.0 },
+    { "slug": "oregano", "label": "Oregano", "categorySlug": "extras", "priceDelta": 1.0 },
+    { "slug": "pineapple", "label": "Pineapple", "categorySlug": "vegetables", "priceDelta": 1.0 },
+    { "slug": "prawns", "label": "Prawns", "categorySlug": "seafood", "priceDelta": 2.0 },
+    { "slug": "red-pepper", "label": "Red Pepper", "categorySlug": "vegetables", "priceDelta": 1.0 },
+    { "slug": "salami", "label": "Salami", "categorySlug": "meats", "priceDelta": 2.0 },
+    { "slug": "sundried-tomato", "label": "Sundried Tomato", "categorySlug": "vegetables", "priceDelta": 2.0 },
+    { "slug": "tomato", "label": "Tomato", "categorySlug": "vegetables", "priceDelta": 1.0 }
+  ],
+  "ingredients": [
+    { "slug": "tomato-sauce", "label": "Tomato Sauce", "categorySlug": "bases" },
+    { "slug": "bbq-sauce", "label": "BBQ Sauce", "categorySlug": "bases" },
+    { "slug": "tandoori-sauce", "label": "Tandoori Sauce", "categorySlug": "bases" },
+    { "slug": "satay-sauce", "label": "Satay Sauce", "categorySlug": "bases" },
+    { "slug": "chilli-sauce", "label": "Chilli Sauce", "categorySlug": "bases" },
+    { "slug": "pesto", "label": "Pesto", "categorySlug": "bases" },
+    { "slug": "cheese", "label": "Cheese", "categorySlug": "cheeses" },
+    { "slug": "feta-cheese", "label": "Feta Cheese", "categorySlug": "cheeses" },
+    { "slug": "ham", "label": "Ham", "categorySlug": "meats" },
+    { "slug": "bacon", "label": "Bacon", "categorySlug": "meats" },
+    { "slug": "salami", "label": "Salami", "categorySlug": "meats" },
+    { "slug": "hot-salami", "label": "Hot Salami", "categorySlug": "meats" },
+    { "slug": "chicken", "label": "Chicken", "categorySlug": "meats" },
+    { "slug": "beef", "label": "Beef", "categorySlug": "meats" },
+    { "slug": "beef-mince", "label": "Beef Mince", "categorySlug": "meats" },
+    { "slug": "egg", "label": "Egg", "categorySlug": "meats" },
+    { "slug": "anchovies", "label": "Anchovies", "categorySlug": "seafood" },
+    { "slug": "prawns", "label": "Prawns", "categorySlug": "seafood" },
+    { "slug": "mixed-seafood", "label": "Mixed Seafood", "categorySlug": "seafood" },
+    { "slug": "mushroom", "label": "Mushroom", "categorySlug": "vegetables" },
+    { "slug": "onion", "label": "Onion", "categorySlug": "vegetables" },
+    { "slug": "capsicum", "label": "Capsicum", "categorySlug": "vegetables" },
+    { "slug": "olives", "label": "Olives", "categorySlug": "vegetables" },
+    { "slug": "pineapple", "label": "Pineapple", "categorySlug": "vegetables" },
+    { "slug": "tomato", "label": "Tomato", "categorySlug": "vegetables" },
+    { "slug": "sundried-tomato", "label": "Sundried Tomato", "categorySlug": "vegetables" },
+    { "slug": "jalapeno", "label": "Jalapeno", "categorySlug": "vegetables" },
+    { "slug": "baby-spinach", "label": "Baby Spinach", "categorySlug": "vegetables" },
+    { "slug": "red-pepper", "label": "Red Pepper", "categorySlug": "vegetables" },
+    { "slug": "garlic", "label": "Garlic", "categorySlug": "herbs" },
+    { "slug": "oregano", "label": "Oregano", "categorySlug": "herbs" },
+    { "slug": "chili", "label": "Chili", "categorySlug": "herbs" },
+    { "slug": "chilli-flakes", "label": "Chilli Flakes", "categorySlug": "herbs" },
+    { "slug": "basil", "label": "Basil", "categorySlug": "herbs" }
+  ],
+  "crusts": [
+    { "slug": "classic", "label": "Classic", "priceDelta": 0.0, "sortOrder": 0 },
+    {
+      "slug": "gluten-free",
+      "label": "Gluten Free - Large 11\"",
+      "priceDelta": 3.0,
+      "sortOrder": 1,
+      "note": "Live site: Large $14.90 + $3 = GF Large 11\" $17.90"
+    }
+  ],
+  "items": [
+    {
+      "name": "Capricciosa",
+      "matchNames": ["Capricciosa"],
+      "description": "Ham, mushroom, olives and anchovies",
+      "ingredients": ["ham", "mushroom", "olives", "anchovies", "cheese", "tomato-sauce"]
+    },
+    {
+      "name": "American Style",
+      "matchNames": ["American Style", "Americana", "American Style Pizza"],
+      "description": "Ham, hot salami",
+      "ingredients": ["ham", "hot-salami", "cheese", "tomato-sauce"]
+    },
+    {
+      "name": "Margherita",
+      "matchNames": ["Margherita", "Margherita Pizza"],
+      "description": "Tomato sauce, double cheese and oregano",
+      "ingredients": ["tomato-sauce", "cheese", "oregano"]
+    },
+    {
+      "name": "Garlic Pizza",
+      "matchNames": ["Garlic Pizza", "Garlic pizza"],
+      "description": "Garlic, cheese, oregano",
+      "ingredients": ["garlic", "cheese", "oregano"]
+    },
+    {
+      "name": "Napolitana",
+      "matchNames": ["Napolitana", "Napoletana"],
+      "description": "Anchovies, olives and garlic on Top",
+      "ingredients": ["anchovies", "olives", "garlic", "cheese", "tomato-sauce"]
+    },
+    {
+      "name": "Hawaiian",
+      "matchNames": ["Hawaiian", "Hawaiian Pizza"],
+      "description": "Ham and pineapple",
+      "ingredients": ["cheese", "ham", "pineapple", "tomato-sauce"],
+      "ingredientsVerifiedInModal": true
+    },
+    {
+      "name": "Marinara",
+      "matchNames": ["Marinara", "Marinara Pizza"],
+      "description": "Mixed seafood, garlic and oregano",
+      "ingredients": ["mixed-seafood", "garlic", "oregano", "cheese", "tomato-sauce"]
+    },
+    {
+      "name": "Vegetarian",
+      "matchNames": ["Vegetarian", "Vegetarian Pizza"],
+      "description": "Mushroom, onion, capsicum and olives",
+      "ingredients": ["mushroom", "onion", "capsicum", "olives", "cheese", "tomato-sauce"]
+    },
+    {
+      "name": "Mexicana",
+      "matchNames": ["Mexicana", "Mexicana Pizza"],
+      "description": "Hot salami, capsicum, olives and chili",
+      "ingredients": ["hot-salami", "capsicum", "olives", "chili", "cheese", "tomato-sauce"]
+    },
+    {
+      "name": "Aussie",
+      "matchNames": ["Aussie", "Aussie Pizza"],
+      "description": "Ham, bacon and egg",
+      "ingredients": ["ham", "bacon", "egg", "cheese", "tomato-sauce"]
+    },
+    {
+      "name": "Pepperoni",
+      "matchNames": ["Pepperoni", "Pepperoni Pizza"],
+      "description": "Hot salami and cheese",
+      "ingredients": ["hot-salami", "cheese", "tomato-sauce"]
+    },
+    {
+      "name": "Super Supreme",
+      "matchNames": ["Super Supreme"],
+      "description": "Ham, mushroom, salami, onion, capsicum, pineapple, prawn and olives",
+      "ingredients": ["ham", "mushroom", "salami", "onion", "capsicum", "pineapple", "prawns", "olives", "cheese", "tomato-sauce"]
+    },
+    {
+      "name": "Benny Boy's Supreme",
+      "matchNames": ["Benny Boy's Supreme", "Benny Boys Supreme", "Benny Boy's Supreme Pizza"],
+      "description": "Ham, mushroom, salami, chicken, onion, beef, jalapeno, oregano and garlic",
+      "ingredients": ["ham", "mushroom", "salami", "chicken", "onion", "beef", "jalapeno", "oregano", "garlic", "cheese", "tomato-sauce"]
+    },
+    {
+      "name": "Meat Supreme",
+      "matchNames": ["Meat Supreme", "Meat Suprem", "Meat Lovers"],
+      "description": "Ham, salami, bacon, beef mince and BBQ Sauce",
+      "ingredients": ["ham", "salami", "bacon", "beef-mince", "bbq-sauce", "cheese", "tomato-sauce"]
+    },
+    {
+      "name": "Tomato Supreme",
+      "matchNames": ["Tomato Supreme"],
+      "description": "Mushroom, salami, onion, capsicum, fresh sliced tomato and beef",
+      "ingredients": ["mushroom", "salami", "onion", "capsicum", "tomato", "beef", "cheese", "tomato-sauce"]
+    },
+    {
+      "name": "Tandoori Chicken",
+      "matchNames": ["Tandoori Chicken"],
+      "description": "Chicken, onion, capsicum, home-made tandoori Sauce",
+      "ingredients": ["chicken", "onion", "capsicum", "tandoori-sauce", "cheese"]
+    },
+    {
+      "name": "Pesto Chicken",
+      "matchNames": ["Pesto Chicken"],
+      "description": "Chicken, onion and pesto on top",
+      "ingredients": ["chicken", "onion", "pesto", "cheese"]
+    },
+    {
+      "name": "Satay Chicken",
+      "matchNames": ["Satay Chicken"],
+      "description": "Chicken, onion, capsicum and satay sauce",
+      "ingredients": ["chicken", "onion", "capsicum", "satay-sauce", "cheese"]
+    },
+    {
+      "name": "BBQ Chicken",
+      "matchNames": ["BBQ Chicken", "Tropical BBQ Chicken", "Classic BBQ Chicken", "BBQ Chicken Pizza"],
+      "description": "Chicken, pineapple and BBQ sauce",
+      "ingredients": ["chicken", "pineapple", "bbq-sauce", "cheese"]
+    },
+    {
+      "name": "Hot & Spicy Chicken",
+      "matchNames": ["Hot & Spicy Chicken", "Hot and Spicy Chicken"],
+      "description": "Chicken, red pepper, onion, jalapenos, chilli sauce and fresh chili",
+      "ingredients": ["chicken", "red-pepper", "onion", "jalapeno", "chilli-sauce", "chili", "cheese"]
+    },
+    {
+      "name": "Chicken Supreme",
+      "matchNames": ["Chicken Supreme"],
+      "description": "Chicken, pineapple, onion, mushroom, oregano and garlic",
+      "ingredients": ["chicken", "pineapple", "onion", "mushroom", "oregano", "garlic", "cheese"]
+    },
+    {
+      "name": "Mediterranean",
+      "matchNames": ["Mediterranean", "Mediterranean Pizza"],
+      "description": "Baby spinach, fresh tomato, red pepper, olives and Feta cheese, topped with basil and pesto",
+      "ingredients": ["baby-spinach", "tomato", "red-pepper", "olives", "feta-cheese", "basil", "pesto", "cheese"]
+    },
+    {
+      "name": "Red Devil",
+      "matchNames": ["Red Devil"],
+      "description": "Fresh tomato, red pepper, sundried tomato, jalapeno, kalamata olives and chili flakes",
+      "ingredients": ["tomato", "red-pepper", "sundried-tomato", "jalapeno", "olives", "chilli-flakes", "cheese"]
+    },
+    {
+      "name": "Gourmet Vegetarian",
+      "matchNames": ["Gourmet Vegetarian"],
+      "description": "Baby spinach, mushroom, fresh capsicums, pineapple, Spanish onion and kalamata olives and Feta cheese",
+      "ingredients": ["baby-spinach", "mushroom", "capsicum", "pineapple", "onion", "olives", "feta-cheese", "cheese"]
+    }
+  ]
+}

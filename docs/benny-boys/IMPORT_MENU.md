@@ -38,6 +38,15 @@ bash docs/benny-boys/import-store-menu.sh --brand benny-boys --dry-run
 bash docs/benny-boys/import-store-menu.sh --brand benny-boys --replace
 ```
 
+After menu items, the importer also syncs **extras + removable ingredients** from
+`live-site-addons-and-ingredients.json` (pass `--skip-addons` to skip).
+
+To sync addons only (no menu re-import):
+
+```bash
+bash docs/benny-boys/sync-benny-boys-addons.sh --brand benny-boys
+```
+
 Without `--brand`, the script lists stores and asks you to pick a number (needs an interactive SSH session).
 
 ## Notes

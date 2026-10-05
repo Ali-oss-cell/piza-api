@@ -706,6 +706,20 @@ def main() -> int:
     update_store_branding(api, menu, hero_url)
     ensure_categories(api)
     import_menu_items(api, menu)
+
+    catalog_path = Path(__file__).resolve().parent / "live-site-addons-and-ingredients.json"
+    sync_path = Path(__file__).resolve().parent / "sync-benny-boys-addons.py"
+    if catalog_path.exists() and sync_path.exists() and not args.dry_run:
+        print("\n→ Syncing extras + ingredients…")
+        import importlib.util
+
+        spec = importlib.util.spec_from_file_location("sync_benny_boys_addons", sync_path)
+        if spec and spec.loader:
+            mod = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(mod)
+            catalog = json.loads(catalog_path.read_text(encoding="utf-8"))
+            mod.run_sync(api, catalog)
+
     print_summary(api)
     return 0
 
