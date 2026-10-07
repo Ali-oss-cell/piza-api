@@ -25,6 +25,7 @@ GitHub → Actions → **Deploy …** → **Run workflow**.
 
 ## Notes
 
-- Same concurrency group `deploy-droplet` so deploys don’t overlap.
+- Same concurrency group `deploy-droplet` so deploys don’t overlap **within one repo** (API / web / POS are separate repos — avoid pushing all three at once).
+- Droplet clones use `git reset --hard origin/main` (not `pull --ff-only`) so a diverged server branch cannot block deploy.
 - `COMPOSE_BAKE=false` avoids the buildx warning on small Droplets.
 - Web builds are heavy; later we can build images in CI and only `pull` on the server.
