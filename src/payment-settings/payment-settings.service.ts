@@ -13,6 +13,7 @@ import {
   encryptLinklySecret,
 } from '../payments/linkly-crypto';
 import { LinklyService } from '../payments/linkly.service';
+import { PlatformSecretsService } from '../platform-secrets/platform-secrets.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { PairLinklyDto } from './dto/pair-linkly.dto';
 import { UpdatePaymentSettingsDto } from './dto/update-payment-settings.dto';
@@ -58,6 +59,7 @@ export class PaymentSettingsService {
     private readonly audit: AuditService,
     private readonly linkly: LinklyService,
     private readonly config: ConfigService,
+    private readonly platformSecrets: PlatformSecretsService,
   ) {}
 
   async getForStore(brandSlug?: string): Promise<PaymentSettingsResponse> {
@@ -375,6 +377,25 @@ export class PaymentSettingsService {
     if (!settings.cashEnabled) {
       throw new BadRequestException('Cash payments are disabled for this store.');
     }
+  }
+
+  /**
+   * Website checkout: whether card-online is on and which publishable key to use.
+   */
+  async getOnlineCheckoutConfig(storeId: string): Promise<{
+    enabled: boolean;
+    publishableKey: string | null;
+  }> {
+    const settings = await this.ensureSettings(storeId);
+    const secretOk = Boolean(
+      settings.stripeSecretKeyRef?.trim() ||
+        this.platformSecrets.getPlain('STRIPE_SECRET_KEY'),
+    );
+
+    return {
+      enabled: Boolean(settings.cardOnlineEnabled && secretOk),
+      publishableKey: settings.stripePublishableKey?.trim() || null,
+    };
   }
 
   /**

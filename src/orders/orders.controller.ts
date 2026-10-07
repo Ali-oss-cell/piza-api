@@ -41,6 +41,12 @@ export class OrdersController {
     return this.ordersService.findAll(brandSlug);
   }
 
+  /** Guest checkout confirmation — no JWT (only id + payment/ticket status). */
+  @Get(':id/checkout-status')
+  getCheckoutStatus(@Param('id', ParseUUIDPipe) id: string) {
+    return this.ordersService.getCheckoutStatus(id);
+  }
+
   @Get(':id')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN, UserRole.USER)

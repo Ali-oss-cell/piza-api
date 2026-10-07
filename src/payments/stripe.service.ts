@@ -6,7 +6,7 @@ import {
   ServiceUnavailableException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { PaymentMethod, PaymentStatus } from '@prisma/client';
+import { OrderStatus, PaymentMethod, PaymentStatus } from '@prisma/client';
 import StripeLib from 'stripe';
 import { PrismaService } from '../prisma/prisma.service';
 import { CrmService } from '../crm/crm.service';
@@ -112,6 +112,55 @@ export class StripeService {
     }
 
     return order.location.brandId;
+  }
+
+  /* ─────────────────────────────── online (website) payment ── */
+
+  /**
+   * Card-not-present PaymentIntent for storefront checkout.
+   * Returns client_secret for Stripe.js Payment Element.
+   */
+  async createOnlinePaymentIntent(params: {
+    orderId: string;
+    amountCents: number;
+    customerEmail?: string | null;
+  }) {
+    if (params.amountCents < 50) {
+      throw new BadRequestException(
+        'Payment amount must be at least $0.50 AUD.',
+      );
+    }
+
+    const storeId = await this.resolveStoreIdForOrder(params.orderId);
+    const stripe = await this.getStripeClientForStore(storeId);
+
+    const paymentIntent = await stripe.paymentIntents.create({
+      amount: params.amountCents,
+      currency: 'aud',
+      automatic_payment_methods: { enabled: true },
+      capture_method: 'automatic',
+      metadata: { orderId: params.orderId, channel: 'WEB' },
+      ...(params.customerEmail?.trim()
+        ? { receipt_email: params.customerEmail.trim() }
+        : {}),
+    });
+
+    await this.prisma.order.update({
+      where: { id: params.orderId },
+      data: {
+        stripePaymentIntentId: paymentIntent.id,
+        paymentStatus: PaymentStatus.REQUIRES_PAYMENT,
+        paymentMethod: PaymentMethod.CARD_ONLINE,
+      },
+    });
+
+    if (!paymentIntent.client_secret) {
+      throw new ServiceUnavailableException(
+        'Stripe did not return a client secret for this payment.',
+      );
+    }
+
+    return paymentIntent;
   }
 
   /* ─────────────────────────────── terminal payment ── */
@@ -273,6 +322,13 @@ export class StripeService {
       return;
     }
 
+    /* WEB online orders become CONFIRMED so they appear on POS kitchen "New". */
+    const nextStatus =
+      order.status === OrderStatus.PENDING ||
+      order.status === OrderStatus.CONFIRMED
+        ? OrderStatus.CONFIRMED
+        : undefined;
+
     await this.prisma.order.update({
       where: { id: orderId },
       data: {
@@ -283,6 +339,10 @@ export class StripeService {
           typeof paymentIntent.latest_charge === 'string'
             ? paymentIntent.latest_charge
             : paymentIntent.latest_charge?.id,
+        ...(nextStatus ? { status: nextStatus } : {}),
+        ...(order.paymentMethod
+          ? {}
+          : { paymentMethod: PaymentMethod.CARD_ONLINE }),
       },
     });
 
