@@ -1,5 +1,5 @@
 import { DeliveryMode } from '@prisma/client';
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import {
   ArrayMinSize,
   IsDateString,
@@ -13,6 +13,14 @@ import {
   ValidateNested,
 } from 'class-validator';
 import { CreateOrderItemDto } from './create-order-item.dto';
+
+function toMoney(value: unknown): number {
+  const n = typeof value === 'string' ? Number(value) : Number(value);
+  if (!Number.isFinite(n)) {
+    return n;
+  }
+  return Math.round((n + Number.EPSILON) * 100) / 100;
+}
 
 export class CreateOrderDto {
   @IsEnum(DeliveryMode)
@@ -64,14 +72,17 @@ export class CreateOrderDto {
   @IsString()
   notes?: string;
 
+  @Transform(({ value }) => toMoney(value))
   @IsNumber({ maxDecimalPlaces: 2 })
   @Min(0)
   subtotal!: number;
 
+  @Transform(({ value }) => toMoney(value))
   @IsNumber({ maxDecimalPlaces: 2 })
   @Min(0)
   deliveryFee!: number;
 
+  @Transform(({ value }) => toMoney(value))
   @IsNumber({ maxDecimalPlaces: 2 })
   @Min(0)
   total!: number;

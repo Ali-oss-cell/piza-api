@@ -1,3 +1,4 @@
+import { Transform } from 'class-transformer';
 import {
   IsInt,
   IsNumber,
@@ -6,6 +7,14 @@ import {
   IsUUID,
   Min,
 } from 'class-validator';
+
+function toMoney(value: unknown): number {
+  const n = typeof value === 'string' ? Number(value) : Number(value);
+  if (!Number.isFinite(n)) {
+    return n;
+  }
+  return Math.round((n + Number.EPSILON) * 100) / 100;
+}
 
 export class CreateOrderItemDto {
   @IsOptional()
@@ -18,6 +27,7 @@ export class CreateOrderItemDto {
   @IsString()
   description!: string;
 
+  @Transform(({ value }) => toMoney(value))
   @IsNumber({ maxDecimalPlaces: 2 })
   @Min(0)
   price!: number;
