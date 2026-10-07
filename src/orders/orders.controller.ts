@@ -47,6 +47,15 @@ export class OrdersController {
     return this.ordersService.getCheckoutStatus(id);
   }
 
+  /**
+   * Guest: after Stripe.js succeeds, confirm PaymentIntent server-side
+   * so POS sees PAID even if the Stripe webhook is delayed/missing.
+   */
+  @Post(':id/confirm-payment')
+  confirmPayment(@Param('id', ParseUUIDPipe) id: string) {
+    return this.ordersService.confirmOnlinePayment(id);
+  }
+
   @Get(':id')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN, UserRole.USER)

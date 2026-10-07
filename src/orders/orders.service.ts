@@ -213,6 +213,12 @@ export class OrdersService {
     return order;
   }
 
+  /** Guest: sync order to Stripe PaymentIntent status after card form succeeds. */
+  async confirmOnlinePayment(id: string) {
+    await this.stripeService.confirmOnlineOrderPayment(id);
+    return this.getCheckoutStatus(id);
+  }
+
   async findAll(brandSlug?: string): Promise<Order[]> {
     const brandId = await this.brandsService.resolveBrandId(brandSlug);
 

@@ -20,10 +20,6 @@ export class StripeWebhookController {
     @Req() request: RawBodyRequest<Request>,
     @Headers('stripe-signature') signature?: string,
   ): Promise<{ received: true }> {
-    if (!this.stripeService.isConfigured()) {
-      throw new ServiceUnavailableException('Stripe is not configured');
-    }
-
     if (!signature) {
       throw new ServiceUnavailableException('Missing Stripe signature');
     }
@@ -34,7 +30,10 @@ export class StripeWebhookController {
       throw new ServiceUnavailableException('Missing raw request body');
     }
 
-    const event = this.stripeService.constructWebhookEvent(rawBody, signature);
+    const event = await this.stripeService.constructWebhookEventAsync(
+      rawBody,
+      signature,
+    );
     await this.stripeService.handleWebhookEvent(event);
 
     return { received: true };

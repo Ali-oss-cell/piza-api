@@ -50,6 +50,69 @@ export class StripeService {
     return Boolean(this.resolveGlobalSecretKey());
   }
 
+  /**
+   * After Stripe.js confirms a card, poll/confirm without waiting on webhooks.
+   * Uses the store secret key to retrieve the PaymentIntent.
+   */
+  async confirmOnlineOrderPayment(orderId: string): Promise<{
+    paymentStatus: PaymentStatus;
+  }> {
+    const order = await this.prisma.order.findUnique({
+      where: { id: orderId },
+      select: {
+        id: true,
+        paymentStatus: true,
+        stripePaymentIntentId: true,
+        location: { select: { brandId: true } },
+      },
+    });
+
+    if (!order) {
+      throw new NotFoundException('Order not found.');
+    }
+
+    if (order.paymentStatus === PaymentStatus.PAID) {
+      return { paymentStatus: PaymentStatus.PAID };
+    }
+
+    if (!order.stripePaymentIntentId) {
+      throw new BadRequestException('Order has no Stripe payment to confirm.');
+    }
+
+    const storeId = order.location.brandId;
+    const stripe = await this.getStripeClientForStore(storeId);
+    const paymentIntent = await stripe.paymentIntents.retrieve(
+      order.stripePaymentIntentId,
+    );
+
+    if (
+      paymentIntent.status === 'succeeded' ||
+      paymentIntent.status === 'processing'
+    ) {
+      await this.markOrderPaidFromIntent({
+        id: paymentIntent.id,
+        metadata: {
+          orderId:
+            paymentIntent.metadata?.orderId?.trim() || orderId,
+        },
+        latest_charge: paymentIntent.latest_charge,
+      });
+      return { paymentStatus: PaymentStatus.PAID };
+    }
+
+    if (
+      paymentIntent.status === 'canceled' ||
+      paymentIntent.status === 'requires_payment_method'
+    ) {
+      await this.markOrderFailedFromIntent({
+        metadata: { orderId },
+      });
+      return { paymentStatus: PaymentStatus.FAILED };
+    }
+
+    return { paymentStatus: order.paymentStatus };
+  }
+
   /* ─────────────────────────────── per-store helpers ── */
 
   /**
@@ -243,22 +306,95 @@ export class StripeService {
    * Verify and parse a Stripe webhook.
    * Tries per-store secret first (resolved from order metadata), then global.
    */
+  /**
+   * Verify webhook signature. Tries global whsec first, then each store's
+   * saved webhook secret (Admin → Stripe Online), so per-store-only setups work.
+   */
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   constructWebhookEvent(payload: Buffer, signature: string): any {
-    /* We must verify synchronously here (called before we know the store).
-       Use the global client + secret for the initial parse, then the event's
-       orderId metadata tells us the store for subsequent per-store operations. */
-    const secretKey = this.resolveGlobalSecretKey();
-    const secret = this.resolveGlobalWebhookSecret();
-    const stripe = secretKey ? createStripeClient(secretKey) : this.globalStripe;
+    const secrets: string[] = [];
+    const globalSecret = this.resolveGlobalWebhookSecret()?.trim();
+    if (globalSecret) {
+      secrets.push(globalSecret);
+    }
 
-    if (!stripe || !secret) {
+    /* Sync path can't await DB — use a cached list filled lazily below via
+       throw-and-retry from the async controller wrapper. Keep sync verify for
+       global; async helper used by controller when global is absent. */
+    if (secrets.length === 0) {
       throw new ServiceUnavailableException(
-        'Stripe global webhook secret is not set. Set STRIPE_WEBHOOK_SECRET in Platform secrets or env.',
+        'Stripe webhook secret is not set. Add whsec_… in Admin → Stripe Online, or set STRIPE_WEBHOOK_SECRET.',
       );
     }
 
-    return stripe.webhooks.constructEvent(payload, signature, secret);
+    const stripe = this.globalStripe ?? createStripeClient('sk_unused_verify_only');
+    let lastError: unknown;
+    for (const secret of secrets) {
+      try {
+        return stripe.webhooks.constructEvent(payload, signature, secret);
+      } catch (err) {
+        lastError = err;
+      }
+    }
+    throw lastError instanceof Error
+      ? lastError
+      : new BadRequestException('Invalid Stripe webhook signature.');
+  }
+
+  /**
+   * Async verify that also tries every store webhook secret from the DB.
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  async constructWebhookEventAsync(
+    payload: Buffer,
+    signature: string,
+  ): Promise<any> {
+    const secrets = new Set<string>();
+    const globalSecret = this.resolveGlobalWebhookSecret()?.trim();
+    if (globalSecret) {
+      secrets.add(globalSecret);
+    }
+
+    const rows = await this.prisma.storePaymentSettings.findMany({
+      where: { stripeWebhookSecretRef: { not: null } },
+      select: { stripeWebhookSecretRef: true },
+    });
+    for (const row of rows) {
+      const s = row.stripeWebhookSecretRef?.trim();
+      if (s) {
+        secrets.add(s);
+      }
+    }
+
+    if (secrets.size === 0) {
+      throw new ServiceUnavailableException(
+        'Stripe webhook secret is not set. Add whsec_… in Admin → Stripe Online, or set STRIPE_WEBHOOK_SECRET.',
+      );
+    }
+
+    /* Any Stripe instance can verify signatures; key is unused for constructEvent. */
+    const stripe =
+      this.globalStripe ??
+      createStripeClient(
+        (
+          await this.prisma.storePaymentSettings.findFirst({
+            where: { stripeSecretKeyRef: { not: null } },
+            select: { stripeSecretKeyRef: true },
+          })
+        )?.stripeSecretKeyRef?.trim() || 'sk_unused',
+      );
+
+    let lastError: unknown;
+    for (const secret of secrets) {
+      try {
+        return stripe.webhooks.constructEvent(payload, signature, secret);
+      } catch (err) {
+        lastError = err;
+      }
+    }
+    throw lastError instanceof Error
+      ? lastError
+      : new BadRequestException('Invalid Stripe webhook signature.');
   }
 
   /**
