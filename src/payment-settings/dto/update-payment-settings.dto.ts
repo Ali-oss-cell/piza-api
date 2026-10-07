@@ -20,18 +20,18 @@ export class UpdatePaymentSettingsDto {
 
   @IsOptional()
   @IsString()
-  @MaxLength(200)
+  @MaxLength(255)
   stripePublishableKey?: string | null;
 
   /** Opaque ref / vault key name — never return the raw secret. */
   @IsOptional()
   @IsString()
-  @MaxLength(200)
+  @MaxLength(255)
   stripeSecretKeyRef?: string | null;
 
   @IsOptional()
   @IsString()
-  @MaxLength(200)
+  @MaxLength(255)
   stripeWebhookSecretRef?: string | null;
 
   @IsOptional()
