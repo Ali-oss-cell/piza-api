@@ -4,11 +4,20 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { Deal, DealScope, Prisma } from '@prisma/client';
+import { Deal, DealDiscountType, DealScope, Prisma } from '@prisma/client';
 import { BrandsService } from '../brands/brands.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateDealDto } from './dto/create-deal.dto';
 import { UpdateDealDto } from './dto/update-deal.dto';
+
+export interface AppliedPromo {
+  code: string;
+  dealId: string;
+  title: string;
+  discountType: DealDiscountType;
+  discountValue: number;
+  discountAmount: number;
+}
 
 @Injectable()
 export class DealsService {
@@ -32,6 +41,59 @@ export class DealsService {
       },
       orderBy: [{ sortOrder: 'asc' }, { title: 'asc' }],
     });
+  }
+
+  /** Public check used by the checkout before the order is placed. */
+  async validatePromoCode(
+    code: string,
+    subtotal: number,
+    brandSlug?: string,
+  ): Promise<AppliedPromo> {
+    const brandId = await this.brandsService.resolveBrandId(brandSlug);
+    return this.applyPromoCode(code, subtotal, brandId);
+  }
+
+  /**
+   * Resolves an active, in-date promo code for the brand and works out the
+   * discount against the subtotal. Throws if the code can't be used.
+   */
+  async applyPromoCode(
+    code: string,
+    subtotal: number,
+    brandId: string,
+  ): Promise<AppliedPromo> {
+    const promoCode = code.trim().toUpperCase();
+    const deal = promoCode
+      ? await this.prisma.deal.findFirst({ where: { brandId, promoCode } })
+      : null;
+    const now = new Date();
+
+    if (
+      !deal ||
+      !deal.isActive ||
+      (deal.validFrom && deal.validFrom > now) ||
+      (deal.validUntil && deal.validUntil < now)
+    ) {
+      throw new BadRequestException('This promo code is invalid or has expired.');
+    }
+
+    const discountValue = Number(deal.discountValue);
+    const rawDiscount =
+      deal.discountType === DealDiscountType.PERCENTAGE
+        ? (subtotal * discountValue) / 100
+        : discountValue;
+    const discountAmount =
+      Math.round((Math.min(Math.max(rawDiscount, 0), subtotal) + Number.EPSILON) * 100) /
+      100;
+
+    return {
+      code: promoCode,
+      dealId: deal.id,
+      title: deal.title,
+      discountType: deal.discountType,
+      discountValue,
+      discountAmount,
+    };
   }
 
   async findAllForAdmin(brandSlug?: string): Promise<Deal[]> {

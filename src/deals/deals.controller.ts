@@ -3,12 +3,14 @@ import {
   Controller,
   Delete,
   Get,
+  HttpCode,
   Param,
   ParseUUIDPipe,
   Post,
   Put,
   UseGuards,
 } from '@nestjs/common';
+import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
 import { UserRole } from '@prisma/client';
 import { BrandSlug } from '../common/decorators/brand-slug.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
@@ -17,6 +19,7 @@ import { RolesGuard } from '../common/guards/roles.guard';
 import { DealsService } from './deals.service';
 import { CreateDealDto } from './dto/create-deal.dto';
 import { UpdateDealDto } from './dto/update-deal.dto';
+import { ValidatePromoDto } from './dto/validate-promo.dto';
 
 @Controller('deals')
 export class DealsController {
@@ -25,6 +28,14 @@ export class DealsController {
   @Get()
   findActiveDeals(@BrandSlug() brandSlug?: string) {
     return this.dealsService.findActiveDeals(brandSlug);
+  }
+
+  @Post('promo/validate')
+  @HttpCode(200)
+  @UseGuards(ThrottlerGuard)
+  @Throttle({ default: { ttl: 60_000, limit: 10 } })
+  validatePromo(@Body() dto: ValidatePromoDto, @BrandSlug() brandSlug?: string) {
+    return this.dealsService.validatePromoCode(dto.code, dto.subtotal, brandSlug);
   }
 
   @Get('manage/all')

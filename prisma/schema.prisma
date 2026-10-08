@@ -618,6 +618,8 @@ model Order {
   deliverySuburb        String?         @map("delivery_suburb")
   deliveryState         String?         @map("delivery_state")
   deliveryPostcode      String?         @map("delivery_postcode")
+  deliveryLatitude      Decimal?        @map("delivery_latitude") @db.Decimal(9, 6)
+  deliveryLongitude     Decimal?        @map("delivery_longitude") @db.Decimal(9, 6)
   scheduledAt           DateTime?       @map("scheduled_at")
   channel               OrderChannel    @default(WEB)
   deliveryMode          DeliveryMode    @map("delivery_mode")

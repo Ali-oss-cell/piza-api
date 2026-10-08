@@ -6,6 +6,7 @@ import {
   ServiceUnavailableException,
 } from '@nestjs/common';
 import {
+  DealDiscountType,
   DeliveryMode,
   FulfillmentType,
   Order,
@@ -13,12 +14,14 @@ import {
   OrderStatus,
   PaymentMethod,
   PaymentStatus,
+  PosDiscountType,
   Prisma,
   UserRole,
 } from '@prisma/client';
 import { AuthenticatedUser } from '../auth/interfaces/authenticated-user.interface';
 import { BrandsService } from '../brands/brands.service';
 import { CrmService } from '../crm/crm.service';
+import { DealsService } from '../deals/deals.service';
 import { PaymentSettingsService } from '../payment-settings/payment-settings.service';
 import { StripeService } from '../payments/stripe.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -39,6 +42,7 @@ export class OrdersService {
     private readonly orderSchedulingService: OrderSchedulingService,
     private readonly brandsService: BrandsService,
     private readonly crmService: CrmService,
+    private readonly dealsService: DealsService,
     private readonly paymentSettings: PaymentSettingsService,
     private readonly stripeService: StripeService,
   ) {}
@@ -86,6 +90,27 @@ export class OrdersService {
       location.brandId,
     );
 
+    const promo = dto.promoCode?.trim()
+      ? await this.dealsService.applyPromoCode(
+          dto.promoCode,
+          dto.subtotal,
+          location.brandId,
+        )
+      : null;
+    const discountAmount = promo?.discountAmount ?? 0;
+    // Never trust the client's total once a discount is involved.
+    const total = promo
+      ? Math.max(
+          0,
+          Math.round((dto.subtotal + dto.deliveryFee - discountAmount) * 100) / 100,
+        )
+      : dto.total;
+    const isDelivery = dto.deliveryMode === DeliveryMode.DELIVERY;
+    const hasCoordinates =
+      isDelivery &&
+      dto.deliveryLatitude !== undefined &&
+      dto.deliveryLongitude !== undefined;
+
     const data: Prisma.OrderCreateInput = {
       location: { connect: { id: location.id } },
       channel: OrderChannel.WEB,
@@ -96,7 +121,15 @@ export class OrdersService {
       ticketNumber,
       subtotal: dto.subtotal,
       deliveryFee: dto.deliveryFee,
-      total: dto.total,
+      total,
+      promoCode: promo?.code,
+      discountAmount,
+      discountType: promo
+        ? promo.discountType === DealDiscountType.PERCENTAGE
+          ? PosDiscountType.PERCENT
+          : PosDiscountType.AMOUNT
+        : undefined,
+      discountReason: promo ? `Promo: ${promo.title}` : undefined,
       scheduledAt,
       notes: dto.notes?.trim() || undefined,
       guestEmail: user ? undefined : dto.guestEmail?.trim(),
@@ -107,6 +140,8 @@ export class OrdersService {
       deliverySuburb: dto.deliverySuburb?.trim(),
       deliveryState: dto.deliveryState?.trim() || 'VIC',
       deliveryPostcode: dto.deliveryPostcode?.trim(),
+      deliveryLatitude: hasCoordinates ? dto.deliveryLatitude : undefined,
+      deliveryLongitude: hasCoordinates ? dto.deliveryLongitude : undefined,
       user: user ? { connect: { id: user.id } } : undefined,
       items: {
         create: dto.items.map((item) => ({

@@ -5,10 +5,13 @@ import {
   IsDateString,
   IsEmail,
   IsEnum,
+  IsLatitude,
+  IsLongitude,
   IsNumber,
   IsOptional,
   IsString,
   Min,
+  MaxLength,
   MinLength,
   ValidateNested,
 } from 'class-validator';
@@ -64,6 +67,21 @@ export class CreateOrderDto {
   @IsOptional()
   @IsString()
   deliveryPostcode?: string;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsLatitude()
+  deliveryLatitude?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsLongitude()
+  deliveryLongitude?: number;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(64)
+  promoCode?: string;
 
   @IsDateString()
   scheduledAt!: string;
