@@ -190,22 +190,32 @@ export class PosService {
         locationId: location.id,
         paymentStatus: PaymentStatus.PAID,
         isTraining: false,
-        status: {
-          in: [
-            OrderStatus.PENDING,
-            OrderStatus.CONFIRMED,
-            OrderStatus.PREPARING,
-            OrderStatus.READY,
-            OrderStatus.COMPLETED,
-          ],
-        },
         channel: {
           in: [OrderChannel.POS, OrderChannel.WEB, OrderChannel.PHONE],
         },
+        /* Every open ticket, plus today's finished ones (old completed orders
+           used to fill the cap and push live tickets off the board). */
+        OR: [
+          {
+            status: {
+              in: [
+                OrderStatus.PENDING,
+                OrderStatus.CONFIRMED,
+                OrderStatus.PREPARING,
+                OrderStatus.READY,
+                OrderStatus.OUT_FOR_DELIVERY,
+              ],
+            },
+          },
+          {
+            status: OrderStatus.COMPLETED,
+            updatedAt: { gte: new Date(Date.now() - 12 * 60 * 60 * 1000) },
+          },
+        ],
       },
       include: { items: true, staffUser: true },
       orderBy: { createdAt: 'desc' },
-      take: 80,
+      take: 150,
     });
   }
 
@@ -247,7 +257,11 @@ export class PosService {
     status: OrderStatus,
     staff: AuthenticatedUser,
   ): Promise<Order> {
-    await this.ensurePosOrder(id, staff);
+    await this.ensurePosOrder(id, staff, [
+      OrderChannel.POS,
+      OrderChannel.WEB,
+      OrderChannel.PHONE,
+    ]);
 
     return this.prisma.order.update({
       where: { id },
@@ -985,13 +999,15 @@ export class PosService {
   private async ensurePosOrder(
     orderId: string,
     staff: AuthenticatedUser,
+    /* Payments are counter-only; kitchen status also covers online/phone orders. */
+    channels: OrderChannel[] = [OrderChannel.POS],
   ): Promise<Order> {
     const order = await this.prisma.order.findUnique({
       where: { id: orderId },
       include: { location: { select: { brand: { select: { slug: true } } } } },
     });
 
-    if (!order || order.channel !== OrderChannel.POS) {
+    if (!order || !channels.includes(order.channel)) {
       throw new NotFoundException('POS order not found');
     }
 
