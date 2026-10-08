@@ -15,7 +15,11 @@ export class PrismaService
     const { adapter, pool } = createPrismaAdapter(
       configService.getOrThrow<string>('DATABASE_URL'),
     );
-    super({ adapter });
+    super({
+      adapter,
+      /* Never serialise credentials. Opt back in per query with omit: { password: false }. */
+      omit: { user: { password: true, posPinHash: true } },
+    });
     this.pool = pool;
   }
 

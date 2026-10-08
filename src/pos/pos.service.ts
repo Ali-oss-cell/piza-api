@@ -7,6 +7,7 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
+import { assertCanChangeCredentials } from '../common/credential-access';
 import { assertUniquePosCode } from '../common/pos-code';
 import {
   AuditAction,
@@ -35,6 +36,8 @@ import { CreatePosOrderDto } from './dto/create-pos-order.dto';
 import { QuoteRequestDto } from '../pricing/dto/quote-request.dto';
 
 const MANAGER_ACTION_TYPE = 'manager_action';
+/** Must match the audience JwtStrategy rejects, so approval tokens never work as logins. */
+export const MANAGER_ACTION_AUDIENCE = 'manager-action';
 
 @Injectable()
 export class PosService {
@@ -239,8 +242,12 @@ export class PosService {
     return order;
   }
 
-  async updateStatus(id: string, status: OrderStatus): Promise<Order> {
-    await this.ensurePosOrder(id);
+  async updateStatus(
+    id: string,
+    status: OrderStatus,
+    staff: AuthenticatedUser,
+  ): Promise<Order> {
+    await this.ensurePosOrder(id, staff);
 
     return this.prisma.order.update({
       where: { id },
@@ -255,7 +262,7 @@ export class PosService {
     staff?: AuthenticatedUser,
     inventoryOverrideReason?: string,
   ) {
-    const order = await this.ensurePosOrder(orderId);
+    const order = await this.ensurePosOrder(orderId, this.requireStaff(staff));
 
     if (order.paymentStatus === PaymentStatus.PAID) {
       throw new BadRequestException('Order is already paid');
@@ -315,7 +322,7 @@ export class PosService {
       order.paymentStatus === PaymentStatus.PROCESSING &&
       order.linklySessionId
     ) {
-      const recovered = await this.recoverLinklyPayment(orderId);
+      const recovered = await this.recoverLinklyPayment(orderId, this.requireStaff(staff));
       const recoveredFlags = recovered as {
         paymentStatus: PaymentStatus;
         linklyInProgress?: boolean;
@@ -363,7 +370,7 @@ export class PosService {
       location.id,
     );
     // Re-read order in case recover updated status/session fields.
-    const freshOrder = await this.ensurePosOrder(orderId);
+    const freshOrder = await this.ensurePosOrder(orderId, this.requireStaff(staff));
     const txnRef = (freshOrder.ticketNumber
       ? `T${freshOrder.ticketNumber}${Date.now().toString().slice(-8)}`
       : freshOrder.id.replace(/-/g, '').slice(0, 16)
@@ -392,7 +399,7 @@ export class PosService {
       });
     } catch (error: unknown) {
       // VPP may have finished (approve/decline) even if Cloud HTTP timed out.
-      const recovered = await this.recoverLinklyPayment(orderId).catch(
+      const recovered = await this.recoverLinklyPayment(orderId, this.requireStaff(staff)).catch(
         () => null,
       );
       if (recovered?.paymentStatus === PaymentStatus.PAID) {
@@ -548,8 +555,8 @@ export class PosService {
     }));
   }
 
-  async getPaymentStatus(orderId: string) {
-    const order = await this.ensurePosOrder(orderId);
+  async getPaymentStatus(orderId: string, staff: AuthenticatedUser) {
+    const order = await this.ensurePosOrder(orderId, staff);
 
     return {
       orderId: order.id,
@@ -566,11 +573,11 @@ export class PosService {
    * Recover after timeout/power fail: GET Linkly transaction status for the
    * session saved on the order, then mark PAID / FAILED accordingly.
    */
-  async recoverLinklyPayment(orderId: string) {
-    const order = await this.ensurePosOrder(orderId);
+  async recoverLinklyPayment(orderId: string, staff: AuthenticatedUser) {
+    const order = await this.ensurePosOrder(orderId, staff);
 
     if (order.paymentStatus === PaymentStatus.PAID) {
-      return this.getPaymentStatus(orderId);
+      return this.getPaymentStatus(orderId, staff);
     }
 
     if (!order.linklySessionId) {
@@ -682,7 +689,7 @@ export class PosService {
     staff?: AuthenticatedUser,
     amountCents?: number,
   ) {
-    const order = await this.ensurePosOrder(orderId);
+    const order = await this.ensurePosOrder(orderId, this.requireStaff(staff));
 
     if (order.paymentStatus === PaymentStatus.REFUNDED) {
       return {
@@ -855,7 +862,7 @@ export class PosService {
     staff?: AuthenticatedUser,
     inventoryOverrideReason?: string,
   ): Promise<Order> {
-    const order = await this.ensurePosOrder(orderId);
+    const order = await this.ensurePosOrder(orderId, this.requireStaff(staff));
 
     if (order.paymentStatus === PaymentStatus.PAID) {
       await this.inventoryService.deductForPaidOrder(orderId);
@@ -936,7 +943,7 @@ export class PosService {
     brandSlug: string,
     locationId?: string,
   ): Promise<void> {
-    if (staff.role === UserRole.ADMIN) {
+    if (staff.role === UserRole.ADMIN && staff.scope !== 'pos') {
       return;
     }
 
@@ -945,6 +952,8 @@ export class PosService {
         userId: staff.id,
         isActive: true,
         store: { slug: brandSlug, isActive: true },
+        /* A PIN session is locked to the store it signed in to. */
+        ...(staff.scope === 'pos' ? { storeId: staff.storeId } : {}),
       },
     });
 
@@ -965,14 +974,40 @@ export class PosService {
     }
   }
 
-  private async ensurePosOrder(orderId: string): Promise<Order> {
-    const order = await this.prisma.order.findUnique({ where: { id: orderId } });
+  private requireStaff(staff?: AuthenticatedUser): AuthenticatedUser {
+    if (!staff) {
+      throw new UnauthorizedException('Sign in to the POS first.');
+    }
+    return staff;
+  }
+
+  /** Loads a POS order and proves the caller works at that order's store. */
+  private async ensurePosOrder(
+    orderId: string,
+    staff: AuthenticatedUser,
+  ): Promise<Order> {
+    const order = await this.prisma.order.findUnique({
+      where: { id: orderId },
+      include: { location: { select: { brand: { select: { slug: true } } } } },
+    });
 
     if (!order || order.channel !== OrderChannel.POS) {
       throw new NotFoundException('POS order not found');
     }
 
-    return order;
+    try {
+      await this.assertStaffCanAccessStore(
+        staff,
+        order.location.brand.slug,
+        order.locationId,
+      );
+    } catch {
+      /* 404, not 403: don't confirm that another store's order id exists. */
+      throw new NotFoundException('POS order not found');
+    }
+
+    const { location: _location, ...rest } = order;
+    return rest;
   }
 
   private async nextTicketNumber(locationId: string): Promise<number> {
@@ -1063,7 +1098,7 @@ export class PosService {
                 type: MANAGER_ACTION_TYPE,
                 role: user.role,
               },
-              { expiresIn: '5m' },
+              { expiresIn: '5m', audience: MANAGER_ACTION_AUDIENCE },
             )
           : null;
 
@@ -1115,13 +1150,7 @@ export class PosService {
     pin: string,
     actor: AuthenticatedUser,
   ) {
-    if (
-      actor.role !== UserRole.MANAGER &&
-      actor.role !== UserRole.ADMIN &&
-      actor.id !== targetUserId
-    ) {
-      throw new ForbiddenException('Only managers can set another user PIN.');
-    }
+    await assertCanChangeCredentials(this.prisma, actor, targetUserId);
     if (!/^\d{4,6}$/.test(pin)) {
       throw new BadRequestException('PIN must be 4–6 digits.');
     }
@@ -1129,7 +1158,8 @@ export class PosService {
     const hash = await bcrypt.hash(pin, 12);
     await this.prisma.user.update({
       where: { id: targetUserId },
-      data: { posPinHash: hash },
+      /* A code someone else chose must be replaced by its owner on first use. */
+      data: { posPinHash: hash, posPinMustChange: actor.id !== targetUserId },
     });
     await this.prisma.auditEvent.create({
       data: {
@@ -1183,7 +1213,7 @@ export class PosService {
     staff: AuthenticatedUser,
   ) {
     await this.assertManagerActionToken(managerActionToken);
-    const order = await this.ensurePosOrder(orderId);
+    const order = await this.ensurePosOrder(orderId, staff);
     if (order.paymentStatus === PaymentStatus.PAID) {
       throw new BadRequestException('Paid orders must be refunded, not voided.');
     }
@@ -1496,7 +1526,7 @@ export class PosService {
     amount?: number,
   ) {
     await this.assertManagerActionToken(managerActionToken);
-    const order = await this.ensurePosOrder(orderId);
+    const order = await this.ensurePosOrder(orderId, staff);
     if (order.paymentStatus !== PaymentStatus.PAID) {
       throw new BadRequestException('Only paid orders can be refunded.');
     }
@@ -1602,7 +1632,7 @@ export class PosService {
         sub: string;
         type?: string;
         role?: string;
-      }>(token);
+      }>(token, { audience: MANAGER_ACTION_AUDIENCE });
       if (payload.type !== MANAGER_ACTION_TYPE) {
         throw new ForbiddenException('Invalid manager token.');
       }

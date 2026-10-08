@@ -1,3 +1,4 @@
+import { DEFAULT_BRAND_SLUG } from '../common/constants/brands';
 import {
   BadRequestException,
   Controller,
@@ -9,8 +10,10 @@ import {
   UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { diskStorage } from 'multer';
-import { extname, join } from 'path';
+import { memoryStorage } from 'multer';
+import { join } from 'path';
+import { writeFile } from 'fs/promises';
+import sharp from 'sharp';
 import { existsSync, mkdirSync } from 'fs';
 import { randomUUID } from 'crypto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
@@ -50,6 +53,63 @@ function ensureSeoDir(): void {
   }
 }
 
+const FORMAT_EXT: Record<string, string> = {
+  jpeg: '.jpg',
+  png: '.png',
+  webp: '.webp',
+  gif: '.gif',
+};
+
+/**
+ * Writes an upload only after decoding it: the extension comes from the real
+ * image format, never from the client's filename or MIME type, so an HTML or
+ * SVG file labelled image/png can't end up served from our domain.
+ */
+async function saveVerifiedImage(
+  file: Express.Multer.File | undefined,
+  dir: string,
+  label: string,
+): Promise<{ filename: string; path: string }> {
+  if (!file) {
+    throw new BadRequestException('No image file uploaded.');
+  }
+  let format: string | undefined;
+  try {
+    format = (await sharp(file.buffer).metadata()).format;
+  } catch {
+    format = undefined;
+  }
+  const ext = format ? FORMAT_EXT[format] : undefined;
+  if (!ext) {
+    throw new BadRequestException(
+      `${label} must be a JPEG, PNG, WebP, or GIF image.`,
+    );
+  }
+  const filename = `${randomUUID()}${ext}`;
+  const path = join(dir, filename);
+  await writeFile(path, file.buffer);
+  return { filename, path };
+}
+
+function imageUpload(maxBytes: number, label: string) {
+  return FileInterceptor('file', {
+    storage: memoryStorage(),
+    limits: { fileSize: maxBytes, files: 1 },
+    fileFilter: (_req, file, cb) => {
+      if (!ALLOWED_MIME.has(file.mimetype)) {
+        cb(
+          new BadRequestException(
+            `${label} must be a JPEG, PNG, WebP, or GIF image.`,
+          ) as unknown as Error,
+          false,
+        );
+        return;
+      }
+      cb(null, true);
+    },
+  });
+}
+
 @Controller('uploads')
 @UseGuards(JwtAuthGuard)
 export class UploadsController {
@@ -59,33 +119,7 @@ export class UploadsController {
   ) {}
 
   @Post('logo')
-  @UseInterceptors(
-    FileInterceptor('file', {
-      storage: diskStorage({
-        destination: (_req, _file, cb) => {
-          ensureLogosDir();
-          cb(null, LOGOS_DIR);
-        },
-        filename: (_req, file, cb) => {
-          const ext = extname(file.originalname).toLowerCase() || '.png';
-          cb(null, `${randomUUID()}${ext}`);
-        },
-      }),
-      limits: { fileSize: 2 * 1024 * 1024 },
-      fileFilter: (_req, file, cb) => {
-        if (!ALLOWED_MIME.has(file.mimetype)) {
-          cb(
-            new BadRequestException(
-              'Logo must be a JPEG, PNG, WebP, or GIF image.',
-            ) as unknown as Error,
-            false,
-          );
-          return;
-        }
-        cb(null, true);
-      },
-    }),
-  )
+  @UseInterceptors(imageUpload(2 * 1024 * 1024, 'Logo'))
   async uploadLogo(
     @UploadedFile() file: Express.Multer.File | undefined,
     @CurrentUser() user: AuthenticatedUser,
@@ -94,47 +128,19 @@ export class UploadsController {
       throw new ForbiddenException('Admin access required.');
     }
 
-    if (!file) {
-      throw new BadRequestException('No image file uploaded.');
-    }
-
-    const blurHash = await blurHashFromFile(file.path);
+    ensureLogosDir();
+    const saved = await saveVerifiedImage(file, LOGOS_DIR, 'Logo');
+    const blurHash = await blurHashFromFile(saved.path);
 
     return {
-      url: `/api/uploads/logos/${file.filename}`,
-      filename: file.filename,
+      url: `/api/uploads/logos/${saved.filename}`,
+      filename: saved.filename,
       blurHash,
     };
   }
 
   @Post('hero')
-  @UseInterceptors(
-    FileInterceptor('file', {
-      storage: diskStorage({
-        destination: (_req, _file, cb) => {
-          ensureHeroesDir();
-          cb(null, HEROES_DIR);
-        },
-        filename: (_req, file, cb) => {
-          const ext = extname(file.originalname).toLowerCase() || '.jpg';
-          cb(null, `${randomUUID()}${ext}`);
-        },
-      }),
-      limits: { fileSize: 5 * 1024 * 1024 },
-      fileFilter: (_req, file, cb) => {
-        if (!ALLOWED_MIME.has(file.mimetype)) {
-          cb(
-            new BadRequestException(
-              'Hero image must be a JPEG, PNG, WebP, or GIF image.',
-            ) as unknown as Error,
-            false,
-          );
-          return;
-        }
-        cb(null, true);
-      },
-    }),
-  )
+  @UseInterceptors(imageUpload(5 * 1024 * 1024, 'Hero image'))
   async uploadHero(
     @UploadedFile() file: Express.Multer.File | undefined,
     @CurrentUser() user: AuthenticatedUser,
@@ -143,48 +149,20 @@ export class UploadsController {
       throw new ForbiddenException('Admin access required.');
     }
 
-    if (!file) {
-      throw new BadRequestException('No image file uploaded.');
-    }
-
-    const blurHash = await blurHashFromFile(file.path);
+    ensureHeroesDir();
+    const saved = await saveVerifiedImage(file, HEROES_DIR, 'Hero image');
+    const blurHash = await blurHashFromFile(saved.path);
 
     return {
-      url: `/api/uploads/heroes/${file.filename}`,
-      filename: file.filename,
+      url: `/api/uploads/heroes/${saved.filename}`,
+      filename: saved.filename,
       blurHash,
     };
   }
 
   @Post('seo')
   @UseGuards(SeoAccessGuard)
-  @UseInterceptors(
-    FileInterceptor('file', {
-      storage: diskStorage({
-        destination: (_req, _file, cb) => {
-          ensureSeoDir();
-          cb(null, SEO_DIR);
-        },
-        filename: (_req, file, cb) => {
-          const ext = extname(file.originalname).toLowerCase() || '.jpg';
-          cb(null, `${randomUUID()}${ext}`);
-        },
-      }),
-      limits: { fileSize: 5 * 1024 * 1024 },
-      fileFilter: (_req, file, cb) => {
-        if (!ALLOWED_MIME.has(file.mimetype)) {
-          cb(
-            new BadRequestException(
-              'SEO image must be a JPEG, PNG, WebP, or GIF image.',
-            ) as unknown as Error,
-            false,
-          );
-          return;
-        }
-        cb(null, true);
-      },
-    }),
-  )
+  @UseInterceptors(imageUpload(5 * 1024 * 1024, 'SEO image'))
   async uploadSeoImage(
     @UploadedFile() file: Express.Multer.File | undefined,
     @BrandSlug() brandSlug: string | undefined,
@@ -194,18 +172,17 @@ export class UploadsController {
     @Query('section') section?: string,
     @Query('altText') altText?: string,
   ) {
-    if (!file) {
-      throw new BadRequestException('No image file uploaded.');
-    }
+    ensureSeoDir();
+    const saved = await saveVerifiedImage(file, SEO_DIR, 'SEO image');
 
     const normalizedDomainId =
       domainId === 'null' || domainId === '' ? null : domainId;
 
     const record = await this.seoService.createImageRecord({
-      brandSlug: brandSlug ?? 'leovorno',
+      brandSlug: brandSlug ?? DEFAULT_BRAND_SLUG,
       domainId: normalizedDomainId,
-      filename: file.filename,
-      filePath: `/api/uploads/seo/${file.filename}`,
+      filename: saved.filename,
+      filePath: `/api/uploads/seo/${saved.filename}`,
       label,
       page,
       section,

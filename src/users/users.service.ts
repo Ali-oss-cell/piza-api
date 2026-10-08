@@ -19,6 +19,14 @@ export class UsersService {
     return this.prisma.user.findUnique({ where: { email } });
   }
 
+  /** Only for password checks — every other query has the hash omitted globally. */
+  findByEmailWithPassword(email: string): Promise<User | null> {
+    return this.prisma.user.findUnique({
+      where: { email },
+      omit: { password: false },
+    });
+  }
+
   findById(id: string): Promise<User | null> {
     return this.prisma.user.findUnique({ where: { id } });
   }

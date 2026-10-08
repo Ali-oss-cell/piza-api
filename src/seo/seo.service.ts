@@ -8,6 +8,7 @@ import { existsSync, unlinkSync } from 'fs';
 import { join } from 'path';
 import { BrandsService } from '../brands/brands.service';
 import { DEFAULT_BRAND_SLUG } from '../common/constants/brands';
+import { cleanRichHtml } from '../common/utils/rich-html.util';
 import { PrismaService } from '../prisma/prisma.service';
 import {
   BulkSeoContentDto,
@@ -198,8 +199,15 @@ export class SeoService {
     });
   }
 
-  async updateContent(id: string, dto: UpdateSeoContentDto): Promise<SeoContent> {
-    const existing = await this.prisma.seoContent.findUnique({ where: { id } });
+  async updateContent(
+    id: string,
+    brandSlug: string,
+    dto: UpdateSeoContentDto,
+  ): Promise<SeoContent> {
+    const storeId = await this.resolveStoreId(brandSlug);
+    const existing = await this.prisma.seoContent.findFirst({
+      where: { id, storeId },
+    });
     if (!existing) {
       throw new NotFoundException('SEO content row not found.');
     }
@@ -465,7 +473,7 @@ export class SeoService {
         include: { thumbnail: true },
       });
       if (domainPost) {
-        return domainPost;
+        return { ...domainPost, content: cleanRichHtml(domainPost.content) };
       }
     }
 
@@ -483,7 +491,8 @@ export class SeoService {
       throw new NotFoundException('Blog post not found.');
     }
 
-    return storePost;
+    /* Also clean on read: covers posts saved before HTML was cleaned on save. */
+    return { ...storePost, content: cleanRichHtml(storePost.content) };
   }
 
   async saveBlogPost(brandSlug: string, dto: SaveBlogPostDto) {
@@ -527,7 +536,7 @@ export class SeoService {
           slug,
           title: dto.title,
           excerpt: dto.excerpt,
-          content: dto.content ?? '',
+          content: cleanRichHtml(dto.content ?? ''),
           author: dto.author,
           status,
           publishedAt,
@@ -555,7 +564,7 @@ export class SeoService {
         slug,
         title: dto.title,
         excerpt: dto.excerpt,
-        content: dto.content ?? '',
+        content: cleanRichHtml(dto.content ?? ''),
         author: dto.author,
         status,
         publishedAt,

@@ -6,4 +6,7 @@ export class AuthenticatedUser {
   role!: UserRole;
   firstName!: string;
   lastName!: string;
+  /** Present when the session came from a POS PIN login. */
+  scope?: 'pos';
+  storeId?: string;
 }

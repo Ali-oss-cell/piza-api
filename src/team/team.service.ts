@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -7,6 +8,7 @@ import { AuditAction, StoreMembershipRole, UserRole } from '@prisma/client';
 import { randomBytes } from 'crypto';
 import * as bcrypt from 'bcrypt';
 import { AuthenticatedUser } from '../auth/interfaces/authenticated-user.interface';
+import { assertCanChangeCredentials } from '../common/credential-access';
 import { assertUniquePosCode } from '../common/pos-code';
 import { AuditService } from '../audit/audit.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -166,26 +168,31 @@ export class TeamService {
     }
 
     let user = await this.usersService.findByEmail(email);
-    if (!user) {
-      const password = dto.temporaryPassword ?? this.generateTemporaryPassword();
+    let temporaryPassword: string | undefined;
+    if (user) {
+      /* Inviting someone who already has an account only adds a membership.
+         Their login details belong to them (see assertCanChangeCredentials). */
+      if (dto.posPin) {
+        throw new BadRequestException(
+          'This person already has an account. They set their own POS code, or a manager sets it from the team list.',
+        );
+      }
+      const existing = await this.prisma.userStore.findUnique({
+        where: { userId_storeId: { userId: user.id, storeId: brand.id } },
+        select: { role: true },
+      });
+      if (existing?.role === StoreMembershipRole.PLATFORM_ADMIN) {
+        throw new ForbiddenException('This person is a platform admin.');
+      }
+    } else {
+      temporaryPassword =
+        dto.temporaryPassword ?? this.generateTemporaryPassword();
       user = await this.usersService.createUser({
         email,
-        password,
+        password: temporaryPassword,
         firstName: dto.firstName.trim(),
         lastName: dto.lastName.trim(),
         role: UserRole.STAFF,
-      });
-    }
-
-    if (dto.posPin) {
-      if (!/^\d{4,6}$/.test(dto.posPin)) {
-        throw new BadRequestException('POS code must be 4–6 digits.');
-      }
-      await assertUniquePosCode(this.prisma, dto.posPin, user.id);
-      const hash = await bcrypt.hash(dto.posPin, 12);
-      await this.prisma.user.update({
-        where: { id: user.id },
-        data: { posPinHash: hash, posPinMustChange: true },
       });
     }
 
@@ -230,7 +237,22 @@ export class TeamService {
       { membershipId: membership.id, role: dto.role, userId: user.id },
     );
 
-    return membership;
+    if (dto.posPin) {
+      if (!/^\d{4,6}$/.test(dto.posPin)) {
+        throw new BadRequestException('POS code must be 4–6 digits.');
+      }
+      await assertUniquePosCode(this.prisma, dto.posPin, user.id);
+      await this.prisma.user.update({
+        where: { id: user.id },
+        data: {
+          posPinHash: await bcrypt.hash(dto.posPin, 12),
+          posPinMustChange: true,
+        },
+      });
+    }
+
+    /* Shown once in the dashboard; only present when we created the account. */
+    return { membership, temporaryPassword };
   }
 
   async updateMembership(
@@ -276,8 +298,17 @@ export class TeamService {
     if (dto.lastName !== undefined) {
       userData.lastName = dto.lastName.trim();
     }
-    if (dto.email !== undefined) {
-      const email = dto.email.trim().toLowerCase();
+    const target = await this.prisma.user.findUnique({
+      where: { id: membership.userId },
+      select: { email: true },
+    });
+    const newEmail = dto.email?.trim().toLowerCase();
+    const emailChanges = newEmail !== undefined && newEmail !== target?.email;
+    if (emailChanges || dto.posPin) {
+      await assertCanChangeCredentials(this.prisma, actor, membership.userId);
+    }
+    if (emailChanges && newEmail) {
+      const email = newEmail;
       const existing = await this.usersService.findByEmail(email);
       if (existing && existing.id !== membership.userId) {
         throw new BadRequestException('That email is already used.');

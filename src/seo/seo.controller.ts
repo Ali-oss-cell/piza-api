@@ -1,3 +1,4 @@
+import { DEFAULT_BRAND_SLUG } from '../common/constants/brands';
 import {
   Body,
   Controller,
@@ -57,15 +58,23 @@ export class SeoController {
     @Query('domainId') domainId?: string,
   ) {
     return this.seoService.getAdminContent(
-      brandSlug ?? 'leovorno',
+      brandSlug ?? DEFAULT_BRAND_SLUG,
       domainId === 'null' || domainId === '' ? null : domainId,
     );
   }
 
   @Patch('content/:id')
   @UseGuards(JwtAuthGuard, SeoAccessGuard)
-  updateContent(@Param('id') id: string, @Body() dto: UpdateSeoContentDto) {
-    return this.seoService.updateContent(id, dto);
+  updateContent(
+    @Param('id') id: string,
+    @Body() dto: UpdateSeoContentDto,
+    @BrandSlug() brandSlug?: string,
+  ) {
+    return this.seoService.updateContent(
+      id,
+      brandSlug ?? DEFAULT_BRAND_SLUG,
+      dto,
+    );
   }
 
   @Post('content/bulk')
@@ -74,13 +83,13 @@ export class SeoController {
     @BrandSlug() brandSlug: string | undefined,
     @Body() dto: BulkSeoContentDto,
   ) {
-    return this.seoService.bulkUpsertContent(brandSlug ?? 'leovorno', dto);
+    return this.seoService.bulkUpsertContent(brandSlug ?? DEFAULT_BRAND_SLUG, dto);
   }
 
   @Get('domains')
   @UseGuards(JwtAuthGuard, SeoAccessGuard)
   listDomains(@BrandSlug() brandSlug?: string) {
-    return this.seoService.listDomains(brandSlug ?? 'leovorno');
+    return this.seoService.listDomains(brandSlug ?? DEFAULT_BRAND_SLUG);
   }
 
   @Get('images')
@@ -90,7 +99,7 @@ export class SeoController {
     @Query('domainId') domainId?: string,
   ) {
     return this.seoService.listImages(
-      brandSlug ?? 'leovorno',
+      brandSlug ?? DEFAULT_BRAND_SLUG,
       domainId === 'null' || domainId === '' ? null : domainId,
     );
   }
@@ -102,13 +111,13 @@ export class SeoController {
     @BrandSlug() brandSlug: string | undefined,
     @Body() dto: UpdateSeoImageDto,
   ) {
-    return this.seoService.updateImage(id, brandSlug ?? 'leovorno', dto);
+    return this.seoService.updateImage(id, brandSlug ?? DEFAULT_BRAND_SLUG, dto);
   }
 
   @Delete('images/:id')
   @UseGuards(JwtAuthGuard, SeoAccessGuard)
   deleteImage(@Param('id') id: string, @BrandSlug() brandSlug?: string) {
-    return this.seoService.deleteImage(id, brandSlug ?? 'leovorno');
+    return this.seoService.deleteImage(id, brandSlug ?? DEFAULT_BRAND_SLUG);
   }
 
   @Get('images/verify')
@@ -118,7 +127,7 @@ export class SeoController {
     @Query('domainId') domainId?: string,
   ) {
     return this.seoService.verifyImages(
-      brandSlug ?? 'leovorno',
+      brandSlug ?? DEFAULT_BRAND_SLUG,
       domainId === 'null' || domainId === '' ? null : domainId,
     );
   }
@@ -131,7 +140,7 @@ export class SeoController {
   @Get('redirects')
   @UseGuards(JwtAuthGuard, SeoAccessGuard)
   listRedirects(@BrandSlug() brandSlug?: string) {
-    return this.seoService.listRedirects(brandSlug ?? 'leovorno');
+    return this.seoService.listRedirects(brandSlug ?? DEFAULT_BRAND_SLUG);
   }
 
   @Post('redirects')
@@ -140,13 +149,13 @@ export class SeoController {
     @BrandSlug() brandSlug: string | undefined,
     @Body() dto: SaveSeoRedirectDto,
   ) {
-    return this.seoService.saveRedirect(brandSlug ?? 'leovorno', dto);
+    return this.seoService.saveRedirect(brandSlug ?? DEFAULT_BRAND_SLUG, dto);
   }
 
   @Delete('redirects/:id')
   @UseGuards(JwtAuthGuard, SeoAccessGuard)
   deleteRedirect(@Param('id') id: string, @BrandSlug() brandSlug?: string) {
-    return this.seoService.deleteRedirect(id, brandSlug ?? 'leovorno');
+    return this.seoService.deleteRedirect(id, brandSlug ?? DEFAULT_BRAND_SLUG);
   }
 
   @Get('blog')
@@ -201,13 +210,13 @@ export class SeoController {
     @BrandSlug() brandSlug: string | undefined,
     @Body() dto: SaveBlogPostDto,
   ) {
-    return this.seoService.saveBlogPost(brandSlug ?? 'leovorno', dto);
+    return this.seoService.saveBlogPost(brandSlug ?? DEFAULT_BRAND_SLUG, dto);
   }
 
   @Delete('blog/:id')
   @UseGuards(JwtAuthGuard, SeoAccessGuard)
   deleteBlogPost(@Param('id') id: string, @BrandSlug() brandSlug?: string) {
-    return this.seoService.deleteBlogPost(id, brandSlug ?? 'leovorno');
+    return this.seoService.deleteBlogPost(id, brandSlug ?? DEFAULT_BRAND_SLUG);
   }
 
   @Get('sitemap-data')
@@ -239,7 +248,7 @@ export class SeoController {
     @Query('domainId') domainId?: string,
   ) {
     return this.seoService.getLaunchChecklist(
-      brandSlug ?? 'leovorno',
+      brandSlug ?? DEFAULT_BRAND_SLUG,
       domainId === 'null' || domainId === '' ? null : domainId ?? null,
     );
   }
@@ -250,7 +259,7 @@ export class SeoController {
     @BrandSlug() brandSlug: string | undefined,
     @Body() dto: UpdateSeoGscSettingsDto,
   ) {
-    return this.seoService.updateGscSettings(brandSlug ?? 'leovorno', dto);
+    return this.seoService.updateGscSettings(brandSlug ?? DEFAULT_BRAND_SLUG, dto);
   }
 
   @Post('fill-from-store')
@@ -260,7 +269,7 @@ export class SeoController {
     @Body() body: { domainId?: string | null; overwrite?: boolean },
   ) {
     return this.seoService.fillFromStore(
-      brandSlug ?? 'leovorno',
+      brandSlug ?? DEFAULT_BRAND_SLUG,
       body.domainId === undefined
         ? null
         : body.domainId === null
@@ -277,7 +286,7 @@ export class SeoController {
     @Body() body: { domainId?: string | null },
   ) {
     return this.seoService.ensureStarterBlog(
-      brandSlug ?? 'leovorno',
+      brandSlug ?? DEFAULT_BRAND_SLUG,
       body.domainId ?? null,
     );
   }

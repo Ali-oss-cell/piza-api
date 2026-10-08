@@ -9,6 +9,10 @@ import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
 import { JwtPayload } from './interfaces/jwt-payload.interface';
 
+/** bcrypt(cost 12) of a random throwaway string; never matches anything. */
+const DUMMY_PASSWORD_HASH =
+  '$2b$12$HXonFP9Pg74jboAjqG84YOCvH3vnbBOafSyt2eB8qQFRZb9wmwy4O';
+
 @Injectable()
 export class AuthService {
   constructor(
@@ -18,9 +22,11 @@ export class AuthService {
   ) {}
 
   async login(dto: LoginDto): Promise<AuthResponseDto> {
-    const user = await this.usersService.findByEmail(dto.email);
+    const user = await this.usersService.findByEmailWithPassword(dto.email);
 
     if (!user) {
+      /* Same bcrypt cost as a real check so response time doesn't reveal which emails exist. */
+      await this.usersService.validatePassword(dto.password, DUMMY_PASSWORD_HASH);
       throw new UnauthorizedException('Invalid credentials');
     }
 
@@ -36,39 +42,30 @@ export class AuthService {
     return this.buildAuthResponse(user);
   }
 
-  async loginWithPosCode(code: string): Promise<AuthResponseDto> {
-    const matches = await findUsersByPosCode(this.prisma, code);
-    if (matches.length === 0) {
+  async loginWithPosCode(
+    code: string,
+    storeSlug: string,
+  ): Promise<AuthResponseDto> {
+    const store = await this.prisma.brand.findFirst({
+      where: { slug: storeSlug, isActive: true },
+      select: { id: true },
+    });
+    if (!store) {
       throw new UnauthorizedException('That code is not recognised.');
-    }
-    if (matches.length > 1) {
-      throw new UnauthorizedException(
-        'This code is used by more than one person. Ask a manager to change it.',
-      );
     }
 
-    const user = matches[0];
-    if (!user) {
+    const matches = await findUsersByPosCode(this.prisma, code, store.id);
+    if (matches.length !== 1) {
+      /* Same message for "no match" and "shared code" so the endpoint is not a PIN oracle. */
       throw new UnauthorizedException('That code is not recognised.');
     }
-    const canUseRegister =
-      user.role === UserRole.ADMIN ||
-      user.role === UserRole.MANAGER ||
-      user.role === UserRole.STAFF;
-    if (!canUseRegister) {
+
+    const user = matches[0]!;
+    if (user.role !== UserRole.MANAGER && user.role !== UserRole.STAFF) {
       throw new UnauthorizedException('This code cannot open the register.');
     }
 
-    if (user.role !== UserRole.ADMIN) {
-      const activeStores = await this.prisma.userStore.count({
-        where: { userId: user.id, isActive: true },
-      });
-      if (activeStores === 0) {
-        throw new UnauthorizedException('This account is turned off.');
-      }
-    }
-
-    return this.buildAuthResponse(user);
+    return this.buildAuthResponse(user, { scope: 'pos', storeId: store.id });
   }
 
   async register(dto: RegisterDto): Promise<AuthResponseDto> {
@@ -76,30 +73,42 @@ export class AuthService {
     return this.buildAuthResponse(user);
   }
 
-  async getProfile(userId: string): Promise<AuthUserDto> {
+  /** `posStoreId` set = PIN session: only that store is offered. */
+  async getProfile(userId: string, posStoreId?: string): Promise<AuthUserDto> {
     const user = await this.usersService.findById(userId);
 
     if (!user) {
       throw new UnauthorizedException('User no longer exists');
     }
 
-    return this.toAuthUser(user);
+    return this.toAuthUser(user, posStoreId);
   }
 
-  private async buildAuthResponse(user: User): Promise<AuthResponseDto> {
+  private async buildAuthResponse(
+    user: User,
+    pos?: { scope: 'pos'; storeId: string },
+  ): Promise<AuthResponseDto> {
     const payload: JwtPayload = {
       sub: user.id,
       email: user.email,
       role: user.role,
+      ...pos,
     };
 
     return {
-      accessToken: this.jwtService.sign(payload),
-      user: await this.toAuthUser(user),
+      accessToken: this.jwtService.sign(
+        payload,
+        pos ? { expiresIn: '12h' } : undefined,
+      ),
+      user: await this.toAuthUser(user, pos?.storeId),
     };
   }
 
-  private async toAuthUser(user: User): Promise<AuthUserDto> {
+  private async toAuthUser(
+    user: User,
+    posStoreId?: string,
+  ): Promise<AuthUserDto> {
+    const stores = await this.listAccessibleStores(user);
     return {
       id: user.id,
       email: user.email,
@@ -107,7 +116,9 @@ export class AuthService {
       lastName: user.lastName,
       role: user.role,
       posPinMustChange: user.posPinMustChange,
-      stores: await this.listAccessibleStores(user),
+      stores: posStoreId
+        ? stores.filter((store) => store.id === posStoreId)
+        : stores,
     };
   }
 

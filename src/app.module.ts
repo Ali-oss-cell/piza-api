@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { APP_FILTER } from '@nestjs/core';
 import { ScheduleModule } from '@nestjs/schedule';
+import { ThrottlerModule } from '@nestjs/throttler';
 import { SentryGlobalFilter, SentryModule } from '@sentry/nestjs/setup';
 import { AuthModule } from './auth/auth.module';
 import { AuditModule } from './audit/audit.module';
@@ -39,6 +40,9 @@ import { WebhooksModule } from './webhooks/webhooks.module';
     }),
     SentryModule.forRoot(),
     ScheduleModule.forRoot(),
+    /* Limits are opt-in per route (@UseGuards(ThrottlerGuard)): the website's
+       server-side rendering calls the API from one IP, so no global limit. */
+    ThrottlerModule.forRoot([{ ttl: 60_000, limit: 60 }]),
     PrismaModule,
     MailModule,
     AuditModule,

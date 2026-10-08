@@ -11,6 +11,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { UserRole } from '@prisma/client';
+import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
@@ -108,8 +109,9 @@ export class PosController {
   updateStatus(
     @Param('id') id: string,
     @Body() dto: UpdatePosOrderStatusDto,
+    @CurrentUser() staff: AuthenticatedUser,
   ) {
-    return this.posService.updateStatus(id, dto.status);
+    return this.posService.updateStatus(id, dto.status, staff);
   }
 
   @Post('orders/:id/void')
@@ -175,6 +177,8 @@ export class PosController {
   }
 
   @Post('auth/verify-pin')
+  @UseGuards(ThrottlerGuard)
+  @Throttle({ default: { ttl: 60_000, limit: 20 } })
   verifyPin(
     @Body() dto: VerifyPosPinDto,
     @CurrentUser() staff: AuthenticatedUser,
@@ -183,6 +187,8 @@ export class PosController {
   }
 
   @Post('auth/change-pin')
+  @UseGuards(ThrottlerGuard)
+  @Throttle({ default: { ttl: 60_000, limit: 5 } })
   changePin(
     @Body() dto: ChangePosPinDto,
     @CurrentUser() staff: AuthenticatedUser,
@@ -191,6 +197,8 @@ export class PosController {
   }
 
   @Post('auth/set-pin')
+  @UseGuards(ThrottlerGuard)
+  @Throttle({ default: { ttl: 60_000, limit: 10 } })
   setPin(
     @Body() dto: SetPosPinDto,
     @CurrentUser() staff: AuthenticatedUser,
@@ -329,13 +337,19 @@ export class PosController {
   }
 
   @Get('payments/:orderId/status')
-  getPaymentStatus(@Param('orderId') orderId: string) {
-    return this.posService.getPaymentStatus(orderId);
+  getPaymentStatus(
+    @Param('orderId') orderId: string,
+    @CurrentUser() staff: AuthenticatedUser,
+  ) {
+    return this.posService.getPaymentStatus(orderId, staff);
   }
 
   @Post('payments/:orderId/linkly-recover')
-  recoverLinklyPayment(@Param('orderId') orderId: string) {
-    return this.posService.recoverLinklyPayment(orderId);
+  recoverLinklyPayment(
+    @Param('orderId') orderId: string,
+    @CurrentUser() staff: AuthenticatedUser,
+  ) {
+    return this.posService.recoverLinklyPayment(orderId, staff);
   }
 
   @Post('payments/refund')
