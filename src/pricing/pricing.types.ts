@@ -1,5 +1,6 @@
 export interface QuoteLineResult {
-  menuItemId: string;
+  type: 'ITEM' | 'COMBO';
+  menuItemId: string | null;
   name: string;
   quantity: number;
   unitPrice: number;
@@ -8,6 +9,9 @@ export interface QuoteLineResult {
   crust?: string;
   toppingIds: string[];
   removedIngredients: string[];
+  comboDealId?: string;
+  comboInstanceId?: string;
+  isComboHeader?: boolean;
 }
 
 export interface QuoteResult {

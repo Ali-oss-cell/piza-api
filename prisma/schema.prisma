@@ -112,6 +112,11 @@ enum InquiryStatus {
   ARCHIVED
 }
 
+enum ComboSlotSourceType {
+  CATEGORY
+  ITEM
+}
+
 enum DealScope {
   STORE
   PLATFORM
@@ -238,6 +243,7 @@ model Brand {
   suppliers            Supplier[]
   purchaseOrders       PurchaseOrder[]
   deals                Deal[]
+  comboDeals           ComboDeal[]
   domains              StoreDomain[]
   paymentSettings      StorePaymentSettings?
   memberships          UserStore[]
@@ -463,6 +469,7 @@ model MenuItem {
   orderItems        OrderItem[]
   recipeLines       MenuItemRecipeLine[]
   favourites        PosFavouriteItem[]
+  comboDealSlots    ComboDealSlot[]
 
   @@unique([brandId, slug])
   @@index([brandId, categorySlug])
@@ -600,6 +607,53 @@ model Deal {
   @@unique([brandId, slug])
   @@unique([brandId, promoCode])
   @@map("deals")
+}
+
+/// Fixed-price combo / special (Zwift-style): slots pick from categories or items.
+model ComboDeal {
+  id          String   @id @default(uuid()) @db.Uuid
+  brandId     String   @map("brand_id") @db.Uuid
+  slug        String
+  name        String
+  description String   @default("")
+  imageUrl    String?  @map("image_url")
+  imageAlt    String?  @map("image_alt")
+  bundlePrice Decimal  @map("bundle_price") @db.Decimal(10, 2)
+  sortOrder   Int      @default(0) @map("sort_order")
+  isActive    Boolean  @default(true) @map("is_active")
+  validFrom   DateTime? @map("valid_from")
+  validUntil  DateTime? @map("valid_until")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  brand Brand           @relation(fields: [brandId], references: [id], onDelete: Cascade)
+  slots ComboDealSlot[]
+
+  @@unique([brandId, slug])
+  @@index([brandId, isActive, sortOrder])
+  @@map("combo_deals")
+}
+
+model ComboDealSlot {
+  id              String               @id @default(uuid()) @db.Uuid
+  comboDealId     String               @map("combo_deal_id") @db.Uuid
+  label           String
+  sortOrder       Int                  @default(0) @map("sort_order")
+  quantity        Int                  @default(1)
+  sourceType      ComboSlotSourceType  @map("source_type")
+  categorySlug    String?              @map("category_slug")
+  menuItemId      String?              @map("menu_item_id") @db.Uuid
+  /// JSON string array e.g. ["small","large"] — null means any/no size required
+  allowedSizes    Json?                @map("allowed_sizes")
+  allowModifiers  Boolean              @default(true) @map("allow_modifiers")
+  createdAt       DateTime             @default(now()) @map("created_at")
+  updatedAt       DateTime             @updatedAt @map("updated_at")
+
+  comboDeal ComboDeal @relation(fields: [comboDealId], references: [id], onDelete: Cascade)
+  menuItem  MenuItem? @relation(fields: [menuItemId], references: [id], onDelete: SetNull)
+
+  @@index([comboDealId, sortOrder])
+  @@map("combo_deal_slots")
 }
 
 model Order {
@@ -757,11 +811,15 @@ model OrderItem {
   crust              String?
   toppings           Json?
   removedIngredients String[]  @default([]) @map("removed_ingredients")
+  comboDealId        String?   @map("combo_deal_id") @db.Uuid
+  comboInstanceId    String?   @map("combo_instance_id") @db.Uuid
+  isComboHeader      Boolean   @default(false) @map("is_combo_header")
   createdAt          DateTime  @default(now()) @map("created_at")
   order              Order     @relation(fields: [orderId], references: [id], onDelete: Cascade)
   menuItem           MenuItem? @relation(fields: [menuItemId], references: [id], onDelete: SetNull)
 
   @@index([orderId])
+  @@index([comboInstanceId])
   @@map("order_items")
 }
 

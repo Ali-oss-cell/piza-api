@@ -10,6 +10,7 @@ import { BrandsModule } from './brands/brands.module';
 import { DatabaseBootstrapService } from './bootstrap/database-bootstrap.service';
 import { CrmModule } from './crm/crm.module';
 import { HealthController } from './health/health.controller';
+import { ComboDealsModule } from './combo-deals/combo-deals.module';
 import { DealsModule } from './deals/deals.module';
 import { CustomizationsModule } from './customizations/customizations.module';
 import { HqModule } from './hq/hq.module';
@@ -53,6 +54,7 @@ import { WebhooksModule } from './webhooks/webhooks.module';
     MenuModule,
     CustomizationsModule,
     DealsModule,
+    ComboDealsModule,
     OrdersModule,
     SettingsModule,
     PricingModule,

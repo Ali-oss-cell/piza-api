@@ -149,6 +149,9 @@ export class PosService {
           crust: line.crust,
           toppings: line.toppingIds,
           removedIngredients: line.removedIngredients,
+          comboDealId: line.comboDealId,
+          comboInstanceId: line.comboInstanceId,
+          isComboHeader: line.isComboHeader ?? false,
         })),
       },
     };
