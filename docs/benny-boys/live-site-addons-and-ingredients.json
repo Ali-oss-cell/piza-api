@@ -1,6 +1,7 @@
 {
   "source": "https://wantirnasouth.bbpizza.com.au/",
-  "scrapedAt": "2026-10-05",
+  "scrapedAt": "2026-10-10",
+  "notes": "2026-10-10: added missing extras pesto, satay-sauce, tandoori-sauce, chilli-sauce, basil",
   "toppingCategories": [
     { "slug": "meats", "label": "Meats", "sortOrder": 0 },
     { "slug": "seafood", "label": "Seafood", "sortOrder": 1 },
@@ -38,11 +39,16 @@
     { "slug": "olives", "label": "Olives", "categorySlug": "vegetables", "priceDelta": 1.0 },
     { "slug": "onion", "label": "Onion", "categorySlug": "vegetables", "priceDelta": 1.0 },
     { "slug": "oregano", "label": "Oregano", "categorySlug": "extras", "priceDelta": 1.0 },
+    { "slug": "pesto", "label": "Pesto", "categorySlug": "sauces", "priceDelta": 1.0 },
     { "slug": "pineapple", "label": "Pineapple", "categorySlug": "vegetables", "priceDelta": 1.0 },
     { "slug": "prawns", "label": "Prawns", "categorySlug": "seafood", "priceDelta": 2.0 },
     { "slug": "red-pepper", "label": "Red Pepper", "categorySlug": "vegetables", "priceDelta": 1.0 },
     { "slug": "salami", "label": "Salami", "categorySlug": "meats", "priceDelta": 2.0 },
+    { "slug": "satay-sauce", "label": "Satay Sauce", "categorySlug": "sauces", "priceDelta": 1.0 },
     { "slug": "sundried-tomato", "label": "Sundried Tomato", "categorySlug": "vegetables", "priceDelta": 2.0 },
+    { "slug": "tandoori-sauce", "label": "Tandoori Sauce", "categorySlug": "sauces", "priceDelta": 1.0 },
+    { "slug": "chilli-sauce", "label": "Chilli Sauce", "categorySlug": "sauces", "priceDelta": 1.0 },
+    { "slug": "basil", "label": "Basil", "categorySlug": "extras", "priceDelta": 1.0 },
     { "slug": "tomato", "label": "Tomato", "categorySlug": "vegetables", "priceDelta": 1.0 }
   ],
   "ingredients": [
