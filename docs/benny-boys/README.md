@@ -2,6 +2,8 @@ Import **Benny Boy's Pizza (Wantirna South)** menu into the Marina API.
 
 - **Store catalog (source of truth draft):** [`WANTIRNA_SOUTH_FULL_MENU.md`](./WANTIRNA_SOUTH_FULL_MENU.md)
 - **What’s missing vs current scrape:** [`MENU_GAP_CHECK.md`](./MENU_GAP_CHECK.md)
+- **Apply store S/L/F + missing items to live API:**
+  `bash docs/benny-boys/apply-wantirna-store-catalog.sh --brand benny-boys`
 
 ## Sync extras + removable ingredients (from live site)
 
