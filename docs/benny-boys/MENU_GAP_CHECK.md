@@ -22,21 +22,23 @@ Checked: 2026-10-10
 
 ---
 
-## Missing as menu items (not in Uber scrape)
+## Missing as menu items — **applied 2026-10-10**
 
-These are in your official menu but **not** found as their own products in the current scrape:
+Live API updated via `apply-wantirna-store-catalog.sh` (store prices + new items).
 
-| # | Item | Your store price | Notes |
-|---|------|------------------|-------|
-| 1 | **Family Deal 2** | $52.50 | Uber only has one “Family Deal” |
-| 2 | **Chicken Schnitzel + Chips** | $16–$19.90 | Uber has boneless chicken pcs instead |
-| 3 | **Benny Boy's Fries** | $6.90–$8.90 | Not in scrape |
-| 4 | **Chicken Nuggets** (side) | $8.90 | Not in scrape |
-| 5 | **Calamari Rings** (side) | $8.90 | Not in scrape |
-| 6 | **4 Chicken Nuggets and Chips** (kids) | $9.90 | Kids category missing |
-| 7 | **4 Calamari Rings and Chips** (kids) | $9.90 | Kids category missing |
-| 8 | **Small Margherita + Juice** (kids) | $11.50 | Not as a combo item |
-| 9 | **Small Hawaiian + Juice** (kids) | $11.50 | Not as a combo item |
+| # | Item | Store price | Status |
+|---|------|-------------|--------|
+| 1 | **Family Deal 2** | $52.50 | Added |
+| 2 | **Chicken Schnitzel + Chips** | $16.00 | Added |
+| 3 | **Benny Boy's Fries** | $6.90 | Price set |
+| 4 | **Chicken Nuggets** (side) | $8.90 | Added |
+| 5 | **Calamari Rings** (side) | $8.90 | Added |
+| 6 | **4 Chicken Nuggets and Chips** (kids) | $9.90 | Added |
+| 7 | **4 Calamari Rings and Chips** (kids) | $9.90 | Added |
+| 8 | **Small Margherita Pizza + Juice** (kids) | $11.50 | Added |
+| 9 | **Small Hawaiian Pizza + Juice** (kids) | $11.50 | Added |
+
+Also: pizza S/L/F store tiers, pasta $15.90, deal prices, GF crust +$4, Vegetarian Pizza, Lasagna/Carbonara, duplicate “X Pizza” rows cleaned.
 
 ---
 
