@@ -52,13 +52,17 @@ PIZZA_CATEGORY_TIERS = {
     "vegetarian-pizzas": PREMIUM_SIZES,
 }
 
+# Live Zwift Specials (wantirnasouth.bbpizza.com.au/api/get-specials)
 DEAL_PRICES = {
-    "single deal": 19.90,
-    "double deal": 36.90,
+    "single deal": 16.90,
+    "double deal": 35.90,
     "family deal": 49.90,  # Family Deal 1
     "family deal 1": 49.90,
-    "party deal": 89.90,
-    "party deal 1": 89.90,
+    "party deal": 79.90,
+    "party deal 1": 79.90,
+    "6 wings special": 9.90,
+    "12 wings special": 18.90,
+    "family deal 2": 52.50,  # not on Zwift specials; keep if present
 }
 
 SIDE_PRICES = {

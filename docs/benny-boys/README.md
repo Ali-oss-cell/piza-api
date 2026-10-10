@@ -4,6 +4,8 @@ Import **Benny Boy's Pizza (Wantirna South)** menu into the Marina API.
 - **What’s missing vs current scrape:** [`MENU_GAP_CHECK.md`](./MENU_GAP_CHECK.md)
 - **Apply store S/L/F + missing items to live API:**
   `bash docs/benny-boys/apply-wantirna-store-catalog.sh --brand benny-boys`
+- **Sync deals from live Zwift Specials** ([trending page](https://wantirnasouth.bbpizza.com.au/?group=trending)):
+  `python3 docs/benny-boys/sync-live-specials.py --brand benny-boys`
 
 ## Sync extras + removable ingredients (from live site)
 

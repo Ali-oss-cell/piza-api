@@ -1,0 +1,184 @@
+[
+  {
+    "retailerSpecialId": 11273,
+    "retailerId": 1482,
+    "name": "Single Deal",
+    "description": "1 x Small Basic Pizza\r\n1 x Garlic Bread\r\n1 x Can of Drink",
+    "price": 16.9,
+    "available": true,
+    "priority": 1,
+    "availableForAllHours": true,
+    "specialDelivMethod": 0,
+    "specialSurchargeForHalfHalf": 0,
+    "showInSpecialSelector": true,
+    "heroImageURL": "single-deal.jpg",
+    "retailerSpecialItems": [
+      {
+        "productId": -1,
+        "productGroupId": 7988,
+        "retailerProductSizeId": 11880,
+        "qty": 1
+      },
+      {
+        "productId": 52569,
+        "productGroupId": -1,
+        "retailerProductSizeId": -1,
+        "qty": 1
+      },
+      {
+        "productId": -1,
+        "productGroupId": 5880,
+        "retailerProductSizeId": 11932,
+        "qty": 1
+      }
+    ]
+  },
+  {
+    "retailerSpecialId": 10452,
+    "retailerId": 1482,
+    "name": "Double Deal",
+    "description": "2 x Large Basic Pizzas\r\n1 x Garlic Bread\r\n1 x 1.25L Drink",
+    "price": 35.9,
+    "available": true,
+    "priority": 2,
+    "availableForAllHours": true,
+    "specialDelivMethod": 0,
+    "specialSurchargeForHalfHalf": 0,
+    "showInSpecialSelector": true,
+    "heroImageURL": "double-deal-2.jpg",
+    "retailerSpecialItems": [
+      {
+        "productId": 52569,
+        "productGroupId": -1,
+        "retailerProductSizeId": -1,
+        "qty": 1
+      },
+      {
+        "productId": -1,
+        "productGroupId": 5880,
+        "retailerProductSizeId": 11888,
+        "qty": 1
+      },
+      {
+        "productId": -1,
+        "productGroupId": 7988,
+        "retailerProductSizeId": 21820,
+        "qty": 2
+      }
+    ]
+  },
+  {
+    "retailerSpecialId": 10451,
+    "retailerId": 1482,
+    "name": "Family Deal 1",
+    "description": "3 x Large Basic Pizzas\r\n1 x Garlic Bread\r\n1 x 1.25L Drink",
+    "price": 49.9,
+    "available": true,
+    "priority": 3,
+    "availableForAllHours": true,
+    "specialDelivMethod": 0,
+    "specialSurchargeForHalfHalf": 0,
+    "showInSpecialSelector": true,
+    "heroImageURL": "family-deal-2.jpg",
+    "retailerSpecialItems": [
+      {
+        "productId": 52569,
+        "productGroupId": -1,
+        "retailerProductSizeId": -1,
+        "qty": 1
+      },
+      {
+        "productId": -1,
+        "productGroupId": -1,
+        "retailerProductSizeId": 11888,
+        "qty": 1
+      },
+      {
+        "productId": -1,
+        "productGroupId": 7988,
+        "retailerProductSizeId": 21820,
+        "qty": 3
+      }
+    ]
+  },
+  {
+    "retailerSpecialId": 10450,
+    "retailerId": 1482,
+    "name": "Party Deal 1",
+    "description": "5 x Large Basic Pizzas\r\n2 x Garlic Bread\r\n2 x 1.25L Drink",
+    "price": 79.9,
+    "available": true,
+    "priority": 2,
+    "availableForAllHours": true,
+    "specialDelivMethod": 0,
+    "specialSurchargeForHalfHalf": 0,
+    "showInSpecialSelector": true,
+    "heroImageURL": "part-deal.jpg",
+    "retailerSpecialItems": [
+      {
+        "productId": 52569,
+        "productGroupId": -1,
+        "retailerProductSizeId": -1,
+        "qty": 2
+      },
+      {
+        "productId": -1,
+        "productGroupId": 7988,
+        "retailerProductSizeId": 21820,
+        "qty": 5
+      },
+      {
+        "productId": -1,
+        "productGroupId": 5880,
+        "retailerProductSizeId": 11888,
+        "qty": 2
+      }
+    ]
+  },
+  {
+    "retailerSpecialId": 14038,
+    "retailerId": 1482,
+    "name": "6 Wings Special",
+    "description": "6 Fresh bone-in wings, cooked to a crisp and tossed in your choice of house sauce\r\n\r\nEnds Sunday!",
+    "price": 9.9,
+    "available": true,
+    "priority": 10,
+    "expiry": "2026-10-11T23:30:00",
+    "availableForAllHours": true,
+    "specialDelivMethod": 0,
+    "specialSurchargeForHalfHalf": 0,
+    "showInSpecialSelector": true,
+    "heroImageURL": "wings.jpg",
+    "retailerSpecialItems": [
+      {
+        "productId": 166196,
+        "productGroupId": -1,
+        "retailerProductSizeId": 30766,
+        "qty": 1
+      }
+    ]
+  },
+  {
+    "retailerSpecialId": 14039,
+    "retailerId": 1482,
+    "name": "12 Wings Special",
+    "description": "12 Fresh bone-in wings, cooked to a crisp and tossed in your choice of house sauce\r\n\r\nEnds Sunday!",
+    "price": 18.9,
+    "available": true,
+    "priority": 20,
+    "expiry": "2026-10-11T23:30:00",
+    "availableForAllHours": true,
+    "specialDelivMethod": 0,
+    "specialSurchargeForHalfHalf": 0,
+    "showInSpecialSelector": true,
+    "heroImageURL": "wings.jpg",
+    "retailerSpecialItems": [
+      {
+        "productId": 166196,
+        "productGroupId": -1,
+        "retailerProductSizeId": 30765,
+        "qty": 1
+      }
+    ]
+  }
+]
