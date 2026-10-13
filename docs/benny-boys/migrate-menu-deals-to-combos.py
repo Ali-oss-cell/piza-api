@@ -118,24 +118,36 @@ def find_item(items: list[dict], *names: str) -> dict | None:
     return None
 
 
+def _drinks(items: list[dict], *, active_only: bool) -> list[dict]:
+    out = [i for i in items if i.get("categorySlug") == "drinks"]
+    if active_only:
+        out = [i for i in out if i.get("isActive")]
+    return out
+
+
 def find_drink_can(items: list[dict]) -> dict | None:
-    drinks = [i for i in items if i.get("categorySlug") == "drinks" and i.get("isActive")]
-    for needle in ("coca cola can", "coke can", "375ml", "can"):
-        hit = find_item(drinks, needle)
-        if hit:
-            return hit
-    return drinks[0] if drinks else None
+    # Prefer active cans; fall back to any drink (names vary: Pepsi, Coke Can, 375ML).
+    for pool in (_drinks(items, active_only=True), _drinks(items, active_only=False)):
+        for needle in ("coca cola can", "coke can", "375ml", "375 ml", "can"):
+            hit = find_item(pool, needle)
+            if hit:
+                return hit
+        if pool:
+            return pool[0]
+    return None
 
 
 def find_drink_1250(items: list[dict]) -> dict | None:
-    drinks = [i for i in items if i.get("categorySlug") == "drinks" and i.get("isActive")]
-    for needle in ("1.25l", "1 25l", "1250", "coca cola 1.25"):
-        hit = find_item(drinks, needle)
-        if hit:
-            return hit
-    for d in drinks:
-        if "1.25" in d.get("name", "").lower() or "1.25" in d.get("slug", "").lower():
-            return d
+    # 1.25L rows are often inactive duplicates of short names — include inactive.
+    for pool in (_drinks(items, active_only=True), _drinks(items, active_only=False)):
+        for needle in ("1.25l", "1 25l", "1250", "coca cola 1.25", "pepsi 1.25"):
+            hit = find_item(pool, needle)
+            if hit:
+                return hit
+        for d in pool:
+            name = f"{d.get('name', '')} {d.get('slug', '')}".lower()
+            if "1.25" in name:
+                return d
     return None
 
 
