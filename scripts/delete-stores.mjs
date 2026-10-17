@@ -13,6 +13,8 @@
  *
  * Or use SQL (no script needed) — see README in docs/benny-boys/
  */
+import { createRequire } from 'node:module';
+const require = createRequire(import.meta.url);
 const { Pool } = require('pg');
 const { PrismaPg } = require('@prisma/adapter-pg');
 const { PrismaClient } = require('@prisma/client');

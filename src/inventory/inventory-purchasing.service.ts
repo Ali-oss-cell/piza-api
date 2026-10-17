@@ -345,9 +345,9 @@ export class InventoryPurchasingService {
         'Add an email on this supplier before sending the purchase order.',
       );
     }
-    if (!this.mailService.isConfigured()) {
+    if (!(await this.mailService.isConfiguredFor(existing.brandId))) {
       throw new BadRequestException(
-        'Email is not configured on the server (MAIL_FROM + RESEND_API_KEY or SMTP).',
+        'Email is not configured for this store. Add SMTP settings in Infrastructure → Email.',
       );
     }
 
@@ -368,11 +368,12 @@ export class InventoryPurchasingService {
       .filter(Boolean)
       .join('\n');
 
-    await this.mailService.send({
-      to: supplierEmail,
-      subject,
-      text,
-      html: `<p>Hello ${escapeHtml(existing.supplier.name)},</p>
+    await this.mailService.send(
+      {
+        to: supplierEmail,
+        subject,
+        text,
+        html: `<p>Hello ${escapeHtml(existing.supplier.name)},</p>
         <p>Please find purchase order <strong>#${existing.number}</strong> attached.</p>
         ${
           existing.expectedAt
@@ -381,14 +382,16 @@ export class InventoryPurchasingService {
         }
         ${existing.notes ? `<p>Notes: ${escapeHtml(existing.notes)}</p>` : ''}
         <p>— ${escapeHtml(brand.name)}</p>`,
-      attachments: [
-        {
-          filename: `PO-${existing.number}.pdf`,
-          content: pdf,
-          contentType: 'application/pdf',
-        },
-      ],
-    });
+        attachments: [
+          {
+            filename: `PO-${existing.number}.pdf`,
+            content: pdf,
+            contentType: 'application/pdf',
+          },
+        ],
+      },
+      existing.brandId,
+    );
 
     const updated = await this.prisma.purchaseOrder.update({
       where: { id },

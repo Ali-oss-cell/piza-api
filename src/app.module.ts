@@ -15,6 +15,7 @@ import { DealsModule } from './deals/deals.module';
 import { CustomizationsModule } from './customizations/customizations.module';
 import { HqModule } from './hq/hq.module';
 import { InquiriesModule } from './inquiries/inquiries.module';
+import { EmailSettingsModule } from './email-settings/email-settings.module';
 import { InventoryModule } from './inventory/inventory.module';
 import { LocationsAdminModule } from './locations-admin/locations-admin.module';
 import { MailModule } from './mail/mail.module';
@@ -46,6 +47,7 @@ import { WebhooksModule } from './webhooks/webhooks.module';
     ThrottlerModule.forRoot([{ ttl: 60_000, limit: 60 }]),
     PrismaModule,
     MailModule,
+    EmailSettingsModule,
     AuditModule,
     BrandsModule,
     PlatformSecretsModule,

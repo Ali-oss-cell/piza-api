@@ -45,6 +45,10 @@ export type StockItemResponse = {
   notes: string | null;
   isActive: boolean;
   isLowStock: boolean;
+  supplierId: string | null;
+  packSize: string | null;
+  guideQty: string | null;
+  sheetOrder: number;
   createdAt: Date;
   updatedAt: Date;
 };
@@ -574,6 +578,13 @@ export class InventoryService {
           costPerUnit: openingCost,
           notes: dto.notes?.trim() || null,
           isActive: dto.isActive ?? true,
+          supplierId: await this.resolveSupplierId(tx, brandId, dto.supplierId),
+          packSize: dto.packSize?.trim() || null,
+          guideQty:
+            dto.guideQty === undefined || dto.guideQty === null
+              ? null
+              : new Prisma.Decimal(dto.guideQty),
+          sheetOrder: dto.sheetOrder ?? 0,
         },
       });
 
@@ -798,10 +809,47 @@ export class InventoryService {
           ? { notes: dto.notes?.trim() || null }
           : {}),
         ...(dto.isActive !== undefined ? { isActive: dto.isActive } : {}),
+        ...(dto.supplierId !== undefined
+          ? {
+              supplierId: await this.resolveSupplierId(
+                this.prisma,
+                brandId,
+                dto.supplierId,
+              ),
+            }
+          : {}),
+        ...(dto.packSize !== undefined
+          ? { packSize: dto.packSize?.trim() || null }
+          : {}),
+        ...(dto.guideQty !== undefined
+          ? {
+              guideQty:
+                dto.guideQty === null ? null : new Prisma.Decimal(dto.guideQty),
+            }
+          : {}),
+        ...(dto.sheetOrder !== undefined ? { sheetOrder: dto.sheetOrder } : {}),
       },
     });
 
     return this.toItemResponse(updated);
+  }
+
+  private async resolveSupplierId(
+    client: Pick<PrismaService, 'supplier'> | Prisma.TransactionClient,
+    brandId: string,
+    supplierId: string | null | undefined,
+  ): Promise<string | null> {
+    if (!supplierId) {
+      return null;
+    }
+    const supplier = await client.supplier.findFirst({
+      where: { id: supplierId, brandId },
+      select: { id: true },
+    });
+    if (!supplier) {
+      throw new BadRequestException('Vendor not found for this store.');
+    }
+    return supplier.id;
   }
 
   async deactivateItem(
@@ -1725,6 +1773,10 @@ export class InventoryService {
       notes: item.notes,
       isActive: item.isActive,
       isLowStock,
+      supplierId: item.supplierId,
+      packSize: item.packSize,
+      guideQty: item.guideQty?.toString() ?? null,
+      sheetOrder: item.sheetOrder,
       createdAt: item.createdAt,
       updatedAt: item.updatedAt,
     };

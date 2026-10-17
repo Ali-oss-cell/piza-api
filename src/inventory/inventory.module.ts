@@ -5,6 +5,7 @@ import { InventoryAlertsService } from './inventory-alerts.service';
 import { InventoryController } from './inventory.controller';
 import { InventoryPurchasingService } from './inventory-purchasing.service';
 import { InventoryService } from './inventory.service';
+import { WeeklyOrdersService } from './weekly-orders.service';
 
 @Module({
   imports: [AuditModule, MailModule],
@@ -13,6 +14,7 @@ import { InventoryService } from './inventory.service';
     InventoryService,
     InventoryPurchasingService,
     InventoryAlertsService,
+    WeeklyOrdersService,
   ],
   exports: [InventoryService, InventoryPurchasingService],
 })

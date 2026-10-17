@@ -147,6 +147,7 @@ enum AuditAction {
   POS_SHIFT_CLOSE
   POS_TRAINING_TOGGLE
   POS_PIN_SET
+  EMAIL_SETTINGS_UPDATED
 }
 
 enum PosDiscountType {
@@ -164,6 +165,13 @@ enum StockUnit {
   CARTON
   PACK
   BAG
+  BOX
+  ROLL
+}
+
+enum WeeklyStockOrderStatus {
+  DRAFT
+  SENT
 }
 
 enum StockMovementType {
@@ -246,6 +254,8 @@ model Brand {
   comboDeals           ComboDeal[]
   domains              StoreDomain[]
   paymentSettings      StorePaymentSettings?
+  emailSettings        StoreEmailSettings?
+  weeklyStockOrders    WeeklyStockOrder[]
   memberships          UserStore[]
   auditEvents          AuditEvent[]
   menuTemplates        MenuTemplate[]        @relation("TemplateSourceBrand")
@@ -339,6 +349,30 @@ model StorePaymentSettings {
   store Brand @relation(fields: [storeId], references: [id], onDelete: Cascade)
 
   @@map("store_payment_settings")
+}
+
+/// Per-store outbound email (SMTP). Password is AES-GCM encrypted; falls back to server env when disabled.
+model StoreEmailSettings {
+  id           String    @id @default(uuid()) @db.Uuid
+  storeId      String    @unique @map("store_id") @db.Uuid
+  enabled      Boolean   @default(false)
+  host         String?
+  port         Int       @default(587)
+  secure       Boolean   @default(false)
+  username     String?
+  passwordEnc  String?   @map("password_enc")
+  fromName     String?   @map("from_name")
+  fromEmail    String?   @map("from_email")
+  replyTo      String?   @map("reply_to")
+  lastTestAt   DateTime? @map("last_test_at")
+  lastTestOk   Boolean?  @map("last_test_ok")
+  lastTestError String?  @map("last_test_error")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  store Brand @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@map("store_email_settings")
 }
 
 /// Optional per-location Linkly pinpad override. When paired, POS uses this
@@ -835,10 +869,18 @@ model StockItem {
   costPerUnit Decimal?  @map("cost_per_unit") @db.Decimal(10, 2)
   notes       String?
   isActive    Boolean   @default(true) @map("is_active")
+  /// Default vendor used by the weekly order sheet.
+  supplierId  String?   @map("supplier_id") @db.Uuid
+  packSize    String?   @map("pack_size")
+  /// Suggested weekly order for ~500 pizzas; null = no guide (never 0).
+  guideQty    Decimal?  @map("guide_qty") @db.Decimal(12, 3)
+  sheetOrder  Int       @default(0) @map("sheet_order")
   createdAt   DateTime  @default(now()) @map("created_at")
   updatedAt   DateTime  @updatedAt @map("updated_at")
 
   brand              Brand                    @relation(fields: [brandId], references: [id], onDelete: Cascade)
+  supplier           Supplier?                @relation(fields: [supplierId], references: [id], onDelete: SetNull)
+  weeklyOrderLines   WeeklyStockOrderLine[]
   movements          StockMovement[]
   recipeLines        MenuItemRecipeLine[]
   toppingRecipeLines ExtraToppingRecipeLine[]
@@ -847,6 +889,7 @@ model StockItem {
 
   @@unique([brandId, name])
   @@index([brandId, isActive])
+  @@index([supplierId])
   @@map("stock_items")
 }
 
@@ -947,6 +990,9 @@ model Supplier {
 
   brand          Brand           @relation(fields: [brandId], references: [id], onDelete: Cascade)
   purchaseOrders PurchaseOrder[]
+  stockItems     StockItem[]
+  weeklyLines    WeeklyStockOrderLine[]
+  weeklyDispatches WeeklyStockOrderDispatch[]
 
   @@unique([brandId, name])
   @@index([brandId, isActive])
@@ -991,6 +1037,72 @@ model PurchaseOrderLine {
 
   @@unique([purchaseOrderId, stockItemId])
   @@map("purchase_order_lines")
+}
+
+/// Weekly hand-fill stock order sheet (Benny Boy's form). Lines snapshot catalogue data.
+model WeeklyStockOrder {
+  id             String                 @id @default(uuid()) @db.Uuid
+  brandId        String                 @map("brand_id") @db.Uuid
+  number         Int
+  weekCommencing DateTime               @map("week_commencing") @db.Date
+  orderedBy      String?                @map("ordered_by")
+  pizzasExpected Int?                   @map("pizzas_expected")
+  supplierDay    String?                @map("supplier_day")
+  status         WeeklyStockOrderStatus @default(DRAFT)
+  notes          String?
+  createdById    String?                @map("created_by_id") @db.Uuid
+  sentAt         DateTime?              @map("sent_at")
+  createdAt      DateTime               @default(now()) @map("created_at")
+  updatedAt      DateTime               @updatedAt @map("updated_at")
+
+  brand      Brand                       @relation(fields: [brandId], references: [id], onDelete: Cascade)
+  lines      WeeklyStockOrderLine[]
+  dispatches WeeklyStockOrderDispatch[]
+
+  @@unique([brandId, number])
+  @@index([brandId, weekCommencing])
+  @@map("weekly_stock_orders")
+}
+
+model WeeklyStockOrderLine {
+  id           String    @id @default(uuid()) @db.Uuid
+  orderId      String    @map("order_id") @db.Uuid
+  stockItemId  String?   @map("stock_item_id") @db.Uuid
+  supplierId   String?   @map("supplier_id") @db.Uuid
+  category     String
+  name         String
+  unit         StockUnit
+  packSize     String?   @map("pack_size")
+  guideQty     Decimal?  @map("guide_qty") @db.Decimal(12, 3)
+  sheetOrder   Int       @default(0) @map("sheet_order")
+  stockOnHand  Decimal?  @map("stock_on_hand") @db.Decimal(12, 3)
+  orderQty     Decimal?  @map("order_qty") @db.Decimal(12, 3)
+  received     Boolean   @default(false)
+
+  order     WeeklyStockOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  stockItem StockItem?       @relation(fields: [stockItemId], references: [id], onDelete: SetNull)
+  supplier  Supplier?        @relation(fields: [supplierId], references: [id], onDelete: SetNull)
+
+  @@index([orderId, sheetOrder])
+  @@map("weekly_stock_order_lines")
+}
+
+model WeeklyStockOrderDispatch {
+  id           String   @id @default(uuid()) @db.Uuid
+  orderId      String   @map("order_id") @db.Uuid
+  supplierId   String?  @map("supplier_id") @db.Uuid
+  supplierName String   @map("supplier_name")
+  emailedTo    String   @map("emailed_to")
+  itemCount    Int      @map("item_count")
+  status       String
+  error        String?
+  sentAt       DateTime @default(now()) @map("sent_at")
+
+  order    WeeklyStockOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  supplier Supplier?        @relation(fields: [supplierId], references: [id], onDelete: SetNull)
+
+  @@index([orderId])
+  @@map("weekly_stock_order_dispatches")
 }
 
 model SeoContent {

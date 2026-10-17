@@ -19,11 +19,6 @@ export class InventoryAlertsService {
   /** Melbourne morning digest — one email per brand with low stock. */
   @Cron('0 8 * * *', { timeZone: 'Australia/Melbourne' })
   async cronLowStockDigest(): Promise<void> {
-    if (!this.mailService.isConfigured()) {
-      this.logger.debug('Skipping low-stock cron — mail not configured.');
-      return;
-    }
-
     try {
       const result = await this.sendLowStockAlerts();
       this.logger.log(
@@ -91,7 +86,7 @@ export class InventoryAlertsService {
         continue;
       }
 
-      if (!this.mailService.isConfigured()) {
+      if (!(await this.mailService.isConfiguredFor(brand.id))) {
         skipped += 1;
         details.push({
           brand: brand.slug,
@@ -131,7 +126,7 @@ export class InventoryAlertsService {
         <p>Open Inventory → Low stock to review and reorder.</p>
       `;
 
-      await this.mailService.send({ to, subject, text, html });
+      await this.mailService.send({ to, subject, text, html }, brand.id);
       sent += 1;
       details.push({
         brand: brand.slug,

@@ -37,6 +37,12 @@ import {
   UpdateSupplierDto,
 } from './dto/supplier.dto';
 import { UpdateStockItemDto } from './dto/update-stock-item.dto';
+import {
+  CreateWeeklyOrderDto,
+  SendWeeklyOrderDto,
+  UpdateWeeklyOrderDto,
+} from './dto/weekly-order.dto';
+import { WeeklyOrdersService } from './weekly-orders.service';
 import { InventoryAlertsService } from './inventory-alerts.service';
 import { InventoryPurchasingService } from './inventory-purchasing.service';
 import { InventoryService } from './inventory.service';
@@ -49,6 +55,7 @@ export class InventoryController {
     private readonly inventoryService: InventoryService,
     private readonly purchasingService: InventoryPurchasingService,
     private readonly alertsService: InventoryAlertsService,
+    private readonly weeklyOrdersService: WeeklyOrdersService,
   ) {}
 
   @Get('summary')
@@ -308,6 +315,90 @@ export class InventoryController {
     res.setHeader(
       'Content-Disposition',
       `attachment; filename="purchase-order-${id}.pdf"`,
+    );
+    res.send(pdf);
+  }
+  @Post('weekly-orders/seed-catalog')
+  seedWeeklyCatalog(@BrandSlug() brandSlug?: string) {
+    return this.weeklyOrdersService.seedCatalog(brandSlug);
+  }
+
+  @Get('weekly-orders')
+  listWeeklyOrders(@BrandSlug() brandSlug?: string) {
+    return this.weeklyOrdersService.list(brandSlug);
+  }
+
+  @Post('weekly-orders')
+  createWeeklyOrder(
+    @Body() dto: CreateWeeklyOrderDto,
+    @CurrentUser() user: AuthenticatedUser,
+    @BrandSlug() brandSlug?: string,
+  ) {
+    return this.weeklyOrdersService.create(dto, user.id, brandSlug);
+  }
+
+  @Get('weekly-orders/:id')
+  getWeeklyOrder(
+    @Param('id', ParseUUIDPipe) id: string,
+    @BrandSlug() brandSlug?: string,
+  ) {
+    return this.weeklyOrdersService.get(id, brandSlug);
+  }
+
+  @Patch('weekly-orders/:id')
+  updateWeeklyOrder(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: UpdateWeeklyOrderDto,
+    @BrandSlug() brandSlug?: string,
+  ) {
+    return this.weeklyOrdersService.update(id, dto, brandSlug);
+  }
+
+  @Delete('weekly-orders/:id')
+  deleteWeeklyOrder(
+    @Param('id', ParseUUIDPipe) id: string,
+    @BrandSlug() brandSlug?: string,
+  ) {
+    return this.weeklyOrdersService.remove(id, brandSlug);
+  }
+
+  @Get('weekly-orders/:id/preview')
+  previewWeeklyOrder(
+    @Param('id', ParseUUIDPipe) id: string,
+    @BrandSlug() brandSlug?: string,
+  ) {
+    return this.weeklyOrdersService.preview(id, brandSlug);
+  }
+
+  @Post('weekly-orders/:id/send')
+  sendWeeklyOrder(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: SendWeeklyOrderDto,
+    @BrandSlug() brandSlug?: string,
+  ) {
+    return this.weeklyOrdersService.send(id, dto ?? {}, brandSlug);
+  }
+
+  @Get('weekly-orders/:id/pdf')
+  async getWeeklyOrderPdf(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Res() res: Response,
+    @Query('blank') blank?: string,
+    @Query('supplierId') supplierId?: string,
+    @BrandSlug() brandSlug?: string,
+  ): Promise<void> {
+    const pdf = await this.weeklyOrdersService.buildPdf(
+      id,
+      {
+        blank: blank === 'true' || blank === '1',
+        supplierId: supplierId || undefined,
+      },
+      brandSlug,
+    );
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename="weekly-stock-order-${id}.pdf"`,
     );
     res.send(pdf);
   }
