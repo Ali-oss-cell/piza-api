@@ -4,7 +4,14 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { ExtraTopping, CrustOption, Ingredient, IngredientCategory, ToppingCategory } from '@prisma/client';
+import {
+  CrustOption,
+  ExtraTopping,
+  Ingredient,
+  IngredientCategory,
+  Prisma,
+  ToppingCategory,
+} from '@prisma/client';
 import { BrandsService } from '../brands/brands.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateCrustOptionDto } from './dto/create-crust-option.dto';
@@ -326,10 +333,38 @@ export class CustomizationsService {
         slug,
         label: dto.label.trim(),
         priceDelta: dto.priceDelta,
+        ...(dto.categoryPriceDeltas
+          ? {
+              categoryPriceDeltas: this.normalizeCategoryDeltas(
+                dto.categoryPriceDeltas,
+              ),
+            }
+          : {}),
         sortOrder: dto.sortOrder ?? 0,
         isActive: dto.isActive ?? true,
       },
     });
+  }
+
+  /** Validates `{ [categorySlug]: surcharge }`; returns Prisma JSON (or JsonNull when empty). */
+  private normalizeCategoryDeltas(
+    value: Record<string, number> | null,
+  ): Prisma.InputJsonValue | typeof Prisma.JsonNull {
+    if (value === null) {
+      return Prisma.JsonNull;
+    }
+    const out: Record<string, number> = {};
+    for (const [key, raw] of Object.entries(value)) {
+      const slug = key.trim().toLowerCase();
+      const amount = Number(raw);
+      if (!slug || !Number.isFinite(amount) || amount < 0) {
+        throw new BadRequestException(
+          `Invalid crust surcharge for category "${key}" — use a number >= 0.`,
+        );
+      }
+      out[slug] = Math.round(amount * 100) / 100;
+    }
+    return Object.keys(out).length > 0 ? out : Prisma.JsonNull;
   }
 
   async updateCrust(
@@ -363,6 +398,13 @@ export class CustomizationsService {
         ...(dto.slug ? { slug: dto.slug.trim().toLowerCase() } : {}),
         ...(dto.label ? { label: dto.label.trim() } : {}),
         ...(dto.priceDelta !== undefined ? { priceDelta: dto.priceDelta } : {}),
+        ...(dto.categoryPriceDeltas !== undefined
+          ? {
+              categoryPriceDeltas: this.normalizeCategoryDeltas(
+                dto.categoryPriceDeltas,
+              ),
+            }
+          : {}),
         ...(dto.sortOrder !== undefined ? { sortOrder: dto.sortOrder } : {}),
         ...(dto.isActive !== undefined ? { isActive: dto.isActive } : {}),
       },

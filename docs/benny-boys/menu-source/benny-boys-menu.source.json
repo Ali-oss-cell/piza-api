@@ -1,0 +1,841 @@
+{
+  "header": [
+    "Benny Boys Pizza",
+    "Menu & Pizza Making Guideline",
+    "100 Coleman Rd, Wantirna South, VIC 3152 | (03) 9801 2861",
+    "Menu and prices are transcribed from File 1. Preparation instructions are included where a matching pizza recipe appears in File 2. Original source wording is retained where practical."
+  ],
+  "standardSteps": [
+    "Before service: Take dough balls out to come to room temperature and rest so they stretch without tearing. Portion sauce, cheese and toppings into labelled containers with a scoop for each. Toppings must be cooked, drained and cold from the fridge. Preheat the oven fully.",
+    "1. Stretch the dough: Use one dough ball per pizza: 220g Small, 330g Large, 480g Family. Stretch by hand to the edge of the pan or screen. Keep the edge slightly thicker. No holes.",
+    "2. Sauce: Spiral the sauce from the centre outward with the ladle (60 / 90 / 140g), leaving a 1cm rim of bare dough.",
+    "3. Cheese: Spread mozzarella evenly right to the sauce edge. Weigh it - cheese is your biggest cost. Double-cheese pizzas (Margherita, Pepperoni) use the higher weight.",
+    "4. Toppings: Meats first, then vegetables, then feta or egg last. One even layer, no piles in the centre. Drain wet items (pineapple, capsicum, olives, mussels, jalapenos) so the centre stays crisp. Follow the build order on each pizza card.",
+    "5. Bake: Bake until the crust is golden, cheese is melted and lightly spotted, and the base is firm when lifted. Time and temperature depend on your oven - set them once, write them on the oven and keep them the same every time.",
+    "6. Finish: Add drizzles and garnishes shown under AFTER THE OVEN. Cut, then box (9\" / 12\" / 15\" box). Check the order slip against the box before closing the lid.",
+    "Quality check: Right size, right toppings, even cover, no bare patches, no burnt edge, cheese melted, cut all the way through. Remake anything that fails, and log remakes to track waste.",
+    "Hygiene and allergens: Wash hands and change gloves after handling raw egg or raw meat. Use clean tools for gluten-free bases. Tell customers about allergens on request (menu allergen advisory).",
+    "Rules that change the toppings: Only 1-2 meats on the pizza = meat +25%. Loaded pizzas (6+ toppings) = toppings -20%. Gluten-free base: same build, note it on the docket."
+  ],
+  "categories": [
+    {
+      "slug": "basic-pizzas",
+      "label": "Basic Pizzas",
+      "kind": "pizza",
+      "items": [
+        {
+          "number": 1,
+          "name": "Capricciosa",
+          "description": "Ham, mushroom, olives and anchovies",
+          "categorySlug": "basic-pizzas",
+          "prices": {
+            "small": 10.9,
+            "large": 14.9,
+            "glutenFreeLarge": 17.9,
+            "family": 20.9
+          },
+          "preparation": {
+            "base": "Napoli sauce (spiral from centre, 1cm rim)",
+            "build": [
+              "Mozzarella",
+              "Ham",
+              "Raw mushroom slices",
+              "Olives",
+              "Anchovies only if the customer asks (laid across the slices)"
+            ],
+            "bake": "Bake until golden, cheese bubbling",
+            "afterOven": null
+          }
+        },
+        {
+          "number": 2,
+          "name": "American Style",
+          "description": "Ham, hot salami",
+          "categorySlug": "basic-pizzas",
+          "prices": {
+            "small": 10.9,
+            "large": 14.9,
+            "glutenFreeLarge": 17.9,
+            "family": 20.9
+          },
+          "preparation": {
+            "base": "Napoli sauce (spiral from centre, 1cm rim)",
+            "build": [
+              "Mozzarella",
+              "Ham",
+              "Salami",
+              "Capsicum strips"
+            ],
+            "bake": "Bake until golden, cheese bubbling",
+            "afterOven": null
+          }
+        },
+        {
+          "number": 3,
+          "name": "Margherita",
+          "description": "Tomato sauce, double cheese and oregano",
+          "categorySlug": "basic-pizzas",
+          "prices": {
+            "small": 10.9,
+            "large": 14.9,
+            "glutenFreeLarge": 17.9,
+            "family": 20.9
+          },
+          "preparation": {
+            "base": "Napoli sauce (spiral from centre, 1cm rim)",
+            "build": [
+              "Double mozzarella, spread evenly to the sauce edge",
+              "Sprinkle oregano over the top"
+            ],
+            "bake": "Bake until golden, cheese bubbling",
+            "afterOven": null
+          }
+        },
+        {
+          "number": 4,
+          "name": "Garlic Pizza",
+          "description": "Garlic, cheese, oregano",
+          "categorySlug": "basic-pizzas",
+          "prices": {
+            "small": 10.9,
+            "large": 14.9,
+            "glutenFreeLarge": 17.9,
+            "family": 20.9
+          },
+          "preparation": {
+            "base": "No sauce, no cheese. Brush olive oil to the edge",
+            "build": [
+              "Smashed garlic",
+              "Rosemary",
+              "Sea salt"
+            ],
+            "bake": "Bake until golden, cheese bubbling",
+            "afterOven": null
+          }
+        },
+        {
+          "number": 5,
+          "name": "Napolitana",
+          "description": "Anchovies, olives and garlic on Top",
+          "categorySlug": "basic-pizzas",
+          "prices": {
+            "small": 10.9,
+            "large": 14.9,
+            "glutenFreeLarge": 17.9,
+            "family": 20.9
+          },
+          "preparation": {
+            "base": "Napoli sauce (spiral from centre, 1cm rim)",
+            "build": [
+              "Mozzarella",
+              "Olives",
+              "Anchovies laid across the slices",
+              "Oregano"
+            ],
+            "bake": "Bake until golden, cheese bubbling",
+            "afterOven": null
+          }
+        },
+        {
+          "number": 6,
+          "name": "Hawaiian",
+          "description": "Ham and pineapple",
+          "categorySlug": "basic-pizzas",
+          "prices": {
+            "small": 10.9,
+            "large": 14.9,
+            "glutenFreeLarge": 17.9,
+            "family": 20.9
+          },
+          "preparation": {
+            "base": "Napoli sauce (spiral from centre, 1cm rim)",
+            "build": [
+              "Mozzarella",
+              "Ham, fluffed and spread evenly",
+              "Pineapple, pressed dry"
+            ],
+            "bake": "Bake until golden, cheese bubbling",
+            "afterOven": null
+          }
+        },
+        {
+          "number": 7,
+          "name": "Marinara",
+          "description": "Mixed seafood, garlic and oregano",
+          "categorySlug": "basic-pizzas",
+          "prices": {
+            "small": 10.9,
+            "large": 14.9,
+            "glutenFreeLarge": 17.9,
+            "family": 20.9
+          },
+          "preparation": {
+            "base": "Napoli sauce (spiral from centre, 1cm rim)",
+            "build": [
+              "Mozzarella",
+              "Olives",
+              "Prawns and mussels, well drained, spread symmetrically",
+              "Anchovies laid across the slices",
+              "Garlic"
+            ],
+            "bake": "Bake until golden, cheese bubbling",
+            "afterOven": "Sprinkle parsley"
+          }
+        },
+        {
+          "number": 8,
+          "name": "Vegetarian",
+          "description": "Mushroom, onion, capsicum and olives",
+          "categorySlug": "basic-pizzas",
+          "prices": {
+            "small": 10.9,
+            "large": 14.9,
+            "glutenFreeLarge": 17.9,
+            "family": 20.9
+          },
+          "preparation": {
+            "base": "Napoli sauce (spiral from centre, 1cm rim)",
+            "build": [
+              "Mozzarella",
+              "Garlic",
+              "Mushrooms, onion, capsicum (drained)",
+              "Olives"
+            ],
+            "bake": "Bake until golden, cheese bubbling",
+            "afterOven": null
+          }
+        },
+        {
+          "number": 9,
+          "name": "Mexicana",
+          "description": "Hot salami, capsicum, olives and chili",
+          "categorySlug": "basic-pizzas",
+          "prices": {
+            "small": 10.9,
+            "large": 14.9,
+            "glutenFreeLarge": 17.9,
+            "family": 20.9
+          },
+          "preparation": {
+            "base": "Napoli sauce (spiral from centre, 1cm rim)",
+            "build": [
+              "Mozzarella",
+              "Pepperoni",
+              "Onion and capsicum",
+              "Chilli flakes over the top"
+            ],
+            "bake": "Bake until golden, cheese bubbling",
+            "afterOven": null
+          }
+        },
+        {
+          "number": 10,
+          "name": "Aussie",
+          "description": "Ham, bacon and egg",
+          "categorySlug": "basic-pizzas",
+          "prices": {
+            "small": 10.9,
+            "large": 14.9,
+            "glutenFreeLarge": 17.9,
+            "family": 20.9
+          },
+          "preparation": {
+            "base": "Napoli sauce (spiral from centre, 1cm rim)",
+            "build": [
+              "Mozzarella",
+              "Ham",
+              "Bacon pieces",
+              "Crack the egg in the centre last (2 eggs on Family). Check for shell"
+            ],
+            "bake": "Bake until golden, cheese bubbling",
+            "afterOven": null
+          }
+        },
+        {
+          "number": 11,
+          "name": "Pepperoni",
+          "description": "Hot salami and cheese",
+          "categorySlug": "basic-pizzas",
+          "prices": {
+            "small": 10.9,
+            "large": 14.9,
+            "glutenFreeLarge": 17.9,
+            "family": 20.9
+          },
+          "preparation": {
+            "base": "Napoli sauce (spiral from centre, 1cm rim)",
+            "build": [
+              "Double mozzarella",
+              "Pepperoni in a single layer (about 12 / 20 / 30 slices S / L / F)"
+            ],
+            "bake": "Bake until golden, cheese bubbling",
+            "afterOven": null
+          }
+        }
+      ]
+    },
+    {
+      "slug": "supreme-pizzas",
+      "label": "Supreme Pizzas",
+      "kind": "pizza",
+      "items": [
+        {
+          "number": 12,
+          "name": "Super Supreme",
+          "description": "Ham, mushroom, salami, onion, capsicum, pineapple, prawn and olives",
+          "categorySlug": "supreme-pizzas",
+          "prices": {
+            "small": 11.9,
+            "large": 16.9,
+            "glutenFreeLarge": 20.9,
+            "family": 22.9
+          },
+          "preparation": {
+            "base": "Napoli sauce (spiral from centre, 1cm rim)",
+            "build": [
+              "Mozzarella",
+              "Ham, salami, prawns",
+              "Mushrooms, capsicum, red onion, pineapple, olives",
+              "Loaded pizza: use the reduced toppings on the quantity sheet"
+            ],
+            "bake": "Bake until golden, cheese bubbling",
+            "afterOven": null
+          }
+        },
+        {
+          "number": 13,
+          "name": "Benny Boy's Supreme",
+          "description": "Ham, mushroom, salami, chicken, onion, beef, jalapeno, oregano and garlic",
+          "categorySlug": "supreme-pizzas",
+          "prices": {
+            "small": 11.9,
+            "large": 16.9,
+            "glutenFreeLarge": 20.9,
+            "family": 22.9
+          },
+          "preparation": {
+            "base": "Napoli sauce (spiral from centre, 1cm rim)",
+            "build": [
+              "Mozzarella",
+              "Ham, salami, chicken, beef",
+              "Mushrooms, red onion, jalapenos",
+              "Loaded pizza: use the reduced toppings on the quantity sheet"
+            ],
+            "bake": "Bake until golden, cheese bubbling",
+            "afterOven": "Drizzle garlic oil, sprinkle oregano"
+          }
+        },
+        {
+          "number": 14,
+          "name": "Meat Supreme",
+          "description": "Ham, salami, bacon, beef mince and BBQ Sauce",
+          "categorySlug": "supreme-pizzas",
+          "prices": {
+            "small": 11.9,
+            "large": 16.9,
+            "glutenFreeLarge": 20.9,
+            "family": 22.9
+          },
+          "preparation": {
+            "base": "Napoli sauce (spiral from centre, 1cm rim)",
+            "build": [
+              "Mozzarella",
+              "Ham, salami, bacon",
+              "Beef mince, cooked and crumbled evenly"
+            ],
+            "bake": "Bake until golden, cheese bubbling",
+            "afterOven": "BBQ sauce drizzle"
+          }
+        },
+        {
+          "number": 15,
+          "name": "Tomato Supreme",
+          "description": "Mushroom, salami, onion, capsicum, fresh sliced tomato and beef",
+          "categorySlug": "supreme-pizzas",
+          "prices": {
+            "small": 11.9,
+            "large": 16.9,
+            "glutenFreeLarge": 20.9,
+            "family": 22.9
+          },
+          "preparation": {
+            "base": "Napoli sauce (spiral from centre, 1cm rim)",
+            "build": [
+              "Mozzarella",
+              "Salami and beef",
+              "Mushrooms, onion, capsicum",
+              "Sun-dried tomato strips, lightly drained",
+              "Loaded pizza: use the reduced toppings"
+            ],
+            "bake": "Bake until golden, cheese bubbling",
+            "afterOven": null
+          }
+        }
+      ]
+    },
+    {
+      "slug": "chicken-pizzas",
+      "label": "Chicken Pizzas",
+      "kind": "pizza",
+      "items": [
+        {
+          "number": 16,
+          "name": "Tandoori Chicken",
+          "description": "Chicken, onion, capsicum, home-made tandoori Sauce",
+          "categorySlug": "chicken-pizzas",
+          "prices": {
+            "small": 11.9,
+            "large": 16.9,
+            "glutenFreeLarge": 20.9,
+            "family": 22.9
+          },
+          "preparation": {
+            "base": "Napoli sauce (spiral from centre, 1cm rim)",
+            "build": [
+              "Mozzarella",
+              "Chicken",
+              "Capsicum and onion"
+            ],
+            "bake": "Bake until golden, cheese bubbling",
+            "afterOven": "Tandoori sauce spiral"
+          }
+        },
+        {
+          "number": 17,
+          "name": "Pesto Chicken",
+          "description": "Chicken, onion and pesto on top",
+          "categorySlug": "chicken-pizzas",
+          "prices": {
+            "small": 11.9,
+            "large": 16.9,
+            "glutenFreeLarge": 20.9,
+            "family": 22.9
+          },
+          "preparation": {
+            "base": "Napoli sauce (spiral from centre, 1cm rim)",
+            "build": [
+              "Mozzarella",
+              "Chicken",
+              "Onion"
+            ],
+            "bake": "Bake until golden, cheese bubbling",
+            "afterOven": "Pesto zig-zag"
+          }
+        },
+        {
+          "number": 18,
+          "name": "Satay Chicken",
+          "description": "Chicken, onion, capsicum and satay sauce",
+          "categorySlug": "chicken-pizzas",
+          "prices": {
+            "small": 11.9,
+            "large": 16.9,
+            "glutenFreeLarge": 20.9,
+            "family": 22.9
+          },
+          "preparation": {
+            "base": "Satay sauce instead of Napoli (spiral, 1cm rim)",
+            "build": [
+              "Mozzarella",
+              "Chicken",
+              "Onion"
+            ],
+            "bake": "Bake until golden, cheese bubbling",
+            "afterOven": null
+          }
+        },
+        {
+          "number": 19,
+          "name": "BBQ Chicken",
+          "description": "Chicken, pineapple and BBQ sauce",
+          "categorySlug": "chicken-pizzas",
+          "prices": {
+            "small": 11.9,
+            "large": 16.9,
+            "glutenFreeLarge": 20.9,
+            "family": 22.9
+          },
+          "preparation": {
+            "base": "Napoli sauce (spiral from centre, 1cm rim)",
+            "build": [
+              "Mozzarella",
+              "Chicken",
+              "Mushrooms"
+            ],
+            "bake": "Bake until golden, cheese bubbling",
+            "afterOven": "BBQ sauce drizzle"
+          }
+        },
+        {
+          "number": 20,
+          "name": "Hot & Spicy Chicken",
+          "description": "Chicken, red pepper, onion, jalapenos, chilli sauce and fresh chili",
+          "categorySlug": "chicken-pizzas",
+          "prices": {
+            "small": 11.9,
+            "large": 16.9,
+            "glutenFreeLarge": 20.9,
+            "family": 22.9
+          },
+          "preparation": {
+            "base": "Napoli sauce (spiral from centre, 1cm rim)",
+            "build": [
+              "Mozzarella",
+              "Chicken",
+              "Capsicum, onion, jalapenos"
+            ],
+            "bake": "Bake until golden, cheese bubbling",
+            "afterOven": "Chilli oil drizzle"
+          }
+        },
+        {
+          "number": 21,
+          "name": "Chicken Supreme",
+          "description": "Chicken, pineapple, onion, mushroom, oregano and garlic",
+          "categorySlug": "chicken-pizzas",
+          "prices": {
+            "small": 11.9,
+            "large": 16.9,
+            "glutenFreeLarge": 20.9,
+            "family": 22.9
+          },
+          "preparation": {
+            "base": "Napoli sauce (spiral from centre, 1cm rim)",
+            "build": [
+              "Mozzarella",
+              "Chicken",
+              "Pineapple, onion, mushrooms",
+              "Sprinkle oregano and garlic oil"
+            ],
+            "bake": "Bake until golden, cheese bubbling",
+            "afterOven": null
+          }
+        }
+      ]
+    },
+    {
+      "slug": "vegetarian-pizzas",
+      "label": "Vegetarian Pizzas",
+      "kind": "pizza",
+      "items": [
+        {
+          "number": 22,
+          "name": "Mediterranean",
+          "description": "Baby spinach, fresh tomato, red pepper, olives and Feta cheese, topped with basil and pesto",
+          "categorySlug": "vegetarian-pizzas",
+          "prices": {
+            "small": 11.9,
+            "large": 16.9,
+            "glutenFreeLarge": 20.9,
+            "family": 22.9
+          },
+          "preparation": {
+            "base": "Napoli sauce (spiral from centre, 1cm rim)",
+            "build": [
+              "Mozzarella",
+              "Spinach, tomato wheels, capsicum, olives",
+              "Crumble feta on top before baking"
+            ],
+            "bake": "Bake until golden, cheese bubbling",
+            "afterOven": "Fresh basil and pesto drizzle"
+          }
+        },
+        {
+          "number": 23,
+          "name": "Red Devil",
+          "description": "Fresh tomato, red pepper, sundried tomato, jalapeno, kalamata olives and chili flakes",
+          "categorySlug": "vegetarian-pizzas",
+          "prices": {
+            "small": 11.9,
+            "large": 16.9,
+            "glutenFreeLarge": 20.9,
+            "family": 22.9
+          },
+          "preparation": {
+            "base": "Napoli sauce (spiral from centre, 1cm rim)",
+            "build": [
+              "Mozzarella",
+              "Sun-dried and fresh tomato, capsicum, olives, jalapenos",
+              "Chilli flakes over the top"
+            ],
+            "bake": "Bake until golden, cheese bubbling",
+            "afterOven": null
+          }
+        },
+        {
+          "number": 24,
+          "name": "Gourmet Vegetarian",
+          "description": "Baby spinach, mushroom, fresh capsicums, pineapple, Spanish onion and kalamata olives and Feta cheese",
+          "categorySlug": "vegetarian-pizzas",
+          "prices": {
+            "small": 11.9,
+            "large": 16.9,
+            "glutenFreeLarge": 20.9,
+            "family": 22.9
+          },
+          "preparation": {
+            "base": "Napoli sauce (spiral from centre, 1cm rim)",
+            "build": [
+              "Mozzarella",
+              "Spinach, mushrooms, capsicum, onion",
+              "Pineapple, olives",
+              "Crumble feta on top before baking"
+            ],
+            "bake": "Bake until golden, cheese bubbling",
+            "afterOven": null
+          }
+        }
+      ]
+    },
+    {
+      "slug": "pasta",
+      "label": "Pasta",
+      "kind": "single",
+      "items": [
+        {
+          "name": "Bolognese",
+          "description": "Combination of premium beef balance with onion, carrot and celery, cooked with crushed tomato and red wine.",
+          "categorySlug": "pasta",
+          "price": 18.9
+        },
+        {
+          "name": "Carbonara",
+          "description": "Sautéed bacon with a thickened cream sauce, drizzled with a freshly cracked egg",
+          "categorySlug": "pasta",
+          "price": 18.9
+        },
+        {
+          "name": "Chicken Pollo",
+          "description": "Chicken, mushroom, with a rich creamy white sauce",
+          "categorySlug": "pasta",
+          "price": 18.9
+        },
+        {
+          "name": "Lasagne",
+          "description": "Cheese and home-made Bolognese sauce",
+          "categorySlug": "pasta",
+          "price": 18.9
+        },
+        {
+          "name": "Marinara",
+          "description": "Selected seafood stir fried and cooked with Napoli sauce",
+          "categorySlug": "pasta",
+          "price": 18.9
+        },
+        {
+          "name": "Matriciana",
+          "description": "Salami, red pepper, olives and chili",
+          "categorySlug": "pasta",
+          "price": 18.9
+        },
+        {
+          "name": "Rose",
+          "description": "Green capsicum, red pepper and oven roasted chicken, with a creamy white sauce and a touch of Napoli sauce",
+          "categorySlug": "pasta",
+          "price": 18.9
+        },
+        {
+          "name": "Vegetarian",
+          "description": "Mushroom, onion, capsicum and Kalamata olives",
+          "categorySlug": "pasta",
+          "price": 18.9
+        }
+      ]
+    },
+    {
+      "slug": "mains",
+      "label": "Mains",
+      "kind": "single",
+      "items": [
+        {
+          "name": "BBQ Chicken Wings 6 pcs+ chips",
+          "description": "",
+          "categorySlug": "mains",
+          "price": 15.9
+        },
+        {
+          "name": "Chicken Parmigiana + chips",
+          "description": "Freshly prepare by our chef, crumbed and baked with Mozzarella Cheese, homemade sauce",
+          "categorySlug": "mains",
+          "price": 24.9
+        },
+        {
+          "name": "Chicken Schnitzel + chips",
+          "description": "Succulent crumbed chicken schnitzel fried to perfection",
+          "categorySlug": "mains",
+          "price": 24.9
+        }
+      ]
+    },
+    {
+      "slug": "sides",
+      "label": "Sides",
+      "kind": "single",
+      "items": [
+        {
+          "name": "Garlic Bread",
+          "description": "Garlic",
+          "categorySlug": "sides",
+          "price": 4.9
+        },
+        {
+          "name": "Benny Boy's Fries",
+          "description": "",
+          "categorySlug": "sides",
+          "price": 7.9
+        },
+        {
+          "name": "Chips loaded with cheese&bacon",
+          "description": "Bacon, Cheese",
+          "categorySlug": "sides",
+          "price": 9.9
+        },
+        {
+          "name": "Seasoned Potato with cream",
+          "description": "Cream Sauce",
+          "categorySlug": "sides",
+          "price": 9.9
+        }
+      ]
+    },
+    {
+      "slug": "desserts",
+      "label": "Desserts",
+      "kind": "single",
+      "items": [
+        {
+          "name": "Chocolate mouse",
+          "description": "",
+          "categorySlug": "desserts",
+          "price": 7.9,
+          "skip": true,
+          "skipReason": "Listed as 'Chocolate mouse $7.90' directly above 'Chocolate Mousse $4.50'. Looks like a typo or a second size — confirm before importing."
+        },
+        {
+          "name": "Chocolate Mousse",
+          "description": "",
+          "categorySlug": "desserts",
+          "price": 4.5
+        },
+        {
+          "name": "Chocolate Pizza",
+          "description": "Nutella base, cheese (Cashew nuts optional)",
+          "categorySlug": "desserts",
+          "price": 10.9
+        },
+        {
+          "name": "Gelato",
+          "description": "",
+          "categorySlug": "desserts",
+          "price": 7.0
+        },
+        {
+          "name": "Hot Jam Donuts",
+          "description": "Cheese",
+          "categorySlug": "desserts",
+          "price": 2.0
+        }
+      ]
+    },
+    {
+      "slug": "drinks",
+      "label": "Drinks",
+      "kind": "drinks",
+      "items": [
+        {
+          "name": "Lemonade",
+          "categorySlug": "drinks",
+          "sizes": {
+            "can": 3.5,
+            "bottle1250": 5.9
+          }
+        },
+        {
+          "name": "Mountain Dew",
+          "categorySlug": "drinks",
+          "sizes": {
+            "can": 3.5,
+            "bottle1250": 5.9
+          }
+        },
+        {
+          "name": "Pepsi",
+          "categorySlug": "drinks",
+          "sizes": {
+            "can": 3.5,
+            "bottle1250": 5.9
+          }
+        },
+        {
+          "name": "Pepsi Max",
+          "categorySlug": "drinks",
+          "sizes": {
+            "can": 3.5,
+            "bottle1250": 5.9
+          }
+        },
+        {
+          "name": "Solo",
+          "categorySlug": "drinks",
+          "sizes": {
+            "can": 3.5,
+            "bottle1250": 5.9
+          }
+        },
+        {
+          "name": "Sunkist",
+          "categorySlug": "drinks",
+          "sizes": {
+            "can": 3.5,
+            "bottle1250": 5.9
+          }
+        },
+        {
+          "name": "Water",
+          "categorySlug": "drinks",
+          "sizes": {
+            "bottle": 3.5
+          }
+        }
+      ]
+    }
+  ],
+  "textFixes": [
+    {
+      "from": "thicken cream",
+      "to": "thickened cream"
+    },
+    {
+      "from": "sacue",
+      "to": "sauce"
+    },
+    {
+      "from": "Gelto",
+      "to": "Gelato"
+    }
+  ],
+  "needsReview": [
+    {
+      "item": "Chocolate mouse",
+      "price": 7.9,
+      "reason": "Listed as 'Chocolate mouse $7.90' directly above 'Chocolate Mousse $4.50'. Looks like a typo or a second size — confirm before importing."
+    }
+  ],
+  "glutenFree": {
+    "crustSlug": "gluten-free",
+    "label": "Gluten Free - Large 11\"",
+    "defaultDelta": 4.0,
+    "categoryDeltas": {
+      "basic-pizzas": 3.0
+    },
+    "perCategory": {
+      "basic-pizzas": 3.0,
+      "supreme-pizzas": 4.0,
+      "chicken-pizzas": 4.0,
+      "vegetarian-pizzas": 4.0
+    }
+  },
+  "source": {
+    "file": "Benny_Boys_Menu_and_Pizza_Guidelines.docx"
+  }
+}

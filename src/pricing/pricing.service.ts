@@ -5,6 +5,7 @@ import {
   ComboSlotSourceType,
   MenuItem,
   PosDiscountType,
+  Prisma,
 } from '@prisma/client';
 import { randomUUID } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
@@ -299,10 +300,14 @@ export class PricingService {
 
     if (selection.crust) {
       const crust = await this.prisma.crustOption.findFirst({
-        where: { slug: selection.crust, isActive: true },
+        where: {
+          brandId: menuItem.brandId,
+          slug: selection.crust,
+          isActive: true,
+        },
       });
       if (crust) {
-        price += Number(crust.priceDelta);
+        price += this.crustSurcharge(crust, menuItem.categorySlug);
       }
     }
 
@@ -329,11 +334,15 @@ export class PricingService {
 
     if (item.crust) {
       const crust = await this.prisma.crustOption.findFirst({
-        where: { slug: item.crust, isActive: true },
+        where: {
+          brandId: menuItem.brandId,
+          slug: item.crust,
+          isActive: true,
+        },
       });
 
       if (crust) {
-        price += Number(crust.priceDelta);
+        price += this.crustSurcharge(crust, menuItem.categorySlug);
       }
     }
 
@@ -351,6 +360,23 @@ export class PricingService {
     }
 
     return this.round(price);
+  }
+
+  /** Crust surcharge for a menu category (per-category override, else the default delta). */
+  private crustSurcharge(
+    crust: { priceDelta: Prisma.Decimal; categoryPriceDeltas: Prisma.JsonValue },
+    categorySlug: string,
+  ): number {
+    const overrides = crust.categoryPriceDeltas;
+    if (
+      overrides &&
+      typeof overrides === 'object' &&
+      !Array.isArray(overrides) &&
+      typeof overrides[categorySlug] === 'number'
+    ) {
+      return overrides[categorySlug] as number;
+    }
+    return Number(crust.priceDelta);
   }
 
   private basePriceForSize(menuItem: MenuItem, size?: string): number {

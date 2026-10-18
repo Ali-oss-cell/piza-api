@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
-"""Apply Wantirna South store catalog prices + missing items to Benny Boys.
+"""SUPERSEDED - do not run. Its hard-coded prices are older than the menu doc.
+Use menu-source/apply-menu-source.sh (source of truth: the Word menu doc).
+
+Apply Wantirna South store catalog prices + missing items to Benny Boys.
 
 Source of truth: WANTIRNA_SOUTH_FULL_MENU.md / MENU_GAP_CHECK.md
 

@@ -1,9 +1,8 @@
 Import **Benny Boy's Pizza (Wantirna South)** menu into the Marina API.
 
-- **Store catalog (source of truth draft):** [`WANTIRNA_SOUTH_FULL_MENU.md`](./WANTIRNA_SOUTH_FULL_MENU.md)
+- **Menu source of truth (names, prices, descriptions, preparation):** the Word doc in [`menu-source/`](./menu-source/) — see *Menu source of truth* below.
+- **Older catalog notes (ingredient lists only):** [`WANTIRNA_SOUTH_FULL_MENU.md`](./WANTIRNA_SOUTH_FULL_MENU.md)
 - **What’s missing vs current scrape:** [`MENU_GAP_CHECK.md`](./MENU_GAP_CHECK.md)
-- **Apply store S/L/F + missing items to live API:**
-  `bash docs/benny-boys/apply-wantirna-store-catalog.sh --brand benny-boys`
 - **Sync deals from live Zwift Specials** ([trending page](https://wantirnasouth.bbpizza.com.au/?group=trending)):
   `python3 docs/benny-boys/sync-live-specials.py --brand benny-boys`
 - **Migrate menu “deals” → real ComboDeal bundles** (then deactivate category deals):
@@ -84,3 +83,43 @@ DELETE FROM orders;
 DELETE FROM brands;
 COMMIT;"
 ```
+
+## Menu source of truth (Word doc)
+
+`menu-source/Benny_Boys_Menu_and_Pizza_Guidelines.docx` is the master for the store menu.
+To change a price or description: edit the doc, replace the file, then:
+
+```bash
+cd ~/piza/piza-api && git pull origin main
+python3 docs/benny-boys/menu-source/parse-menu-docx.py        # validates + rewrites benny-boys-menu.source.json
+export ADMIN_PASSWORD='your-password'
+bash docs/benny-boys/menu-source/apply-menu-source.sh --brand benny-boys --dry-run   # preview every change
+bash docs/benny-boys/menu-source/apply-menu-source.sh --brand benny-boys
+```
+
+- Deploy the API first (gluten-free pricing needs crust `categoryPriceDeltas`).
+- Pizza Small/Large/Family come from the doc; gluten-free Large is the crust surcharge per category (+$3 Basic, +$4 others).
+- Items not in the doc are hidden, never deleted. Deals/combos are never touched.
+- The parser stops with an error if counts or prices look wrong, and skips items flagged for review.
+- Preparation cards are stored in `benny-boys-menu.source.json` for kitchen reference (not loaded into the database).
+- Do not run `apply-wantirna-store-catalog.*` any more - it carries older prices.
+
+## Menu source of truth (Word doc)
+
+`menu-source/Benny_Boys_Menu_and_Pizza_Guidelines.docx` is the master for the store menu.
+To change a price or description: edit the doc, replace the file, then:
+
+```bash
+cd ~/piza/piza-api && git pull origin main
+python3 docs/benny-boys/menu-source/parse-menu-docx.py        # validates + rewrites benny-boys-menu.source.json
+export ADMIN_PASSWORD='your-password'
+bash docs/benny-boys/menu-source/apply-menu-source.sh --brand benny-boys --dry-run   # preview every change
+bash docs/benny-boys/menu-source/apply-menu-source.sh --brand benny-boys
+```
+
+- Deploy the API first (gluten-free pricing needs crust `categoryPriceDeltas`).
+- Pizza Small/Large/Family come from the doc; gluten-free Large is the crust surcharge per category (+$3 Basic, +$4 others).
+- Items not in the doc are hidden, never deleted. Deals/combos are never touched.
+- The parser stops with an error if counts or prices look wrong, and skips items flagged for review.
+- Preparation cards are stored in `benny-boys-menu.source.json` for kitchen reference (not loaded into the database).
+- Do not run `apply-wantirna-store-catalog.*` any more - it carries older prices.

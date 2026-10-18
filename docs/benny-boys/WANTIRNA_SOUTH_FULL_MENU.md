@@ -1,3 +1,7 @@
+> **Superseded.** Prices and descriptions now come from the Word menu doc - see [`menu-source/`](./menu-source/) (`parse-menu-docx.py` then `apply-menu-source.sh`). Keep this file for the ingredient lists and live-site notes only.
+
+> **Superseded.** Prices and descriptions now come from the Word menu doc - see [`menu-source/`](./menu-source/) (`parse-menu-docx.py` then `apply-menu-source.sh`). Keep this file for the ingredient lists and live-site notes only.
+
 # Benny Boy's Pizza — Wantirna South
 **Full Menu with Ingredients & Details**
 

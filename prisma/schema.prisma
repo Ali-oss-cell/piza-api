@@ -553,6 +553,9 @@ model CrustOption {
   slug        String
   label       String
   priceDelta  Decimal  @map("price_delta") @db.Decimal(10, 2)
+  /// Optional surcharge override per menu category slug, e.g. {"basic-pizzas": 3}.
+  /// Categories not listed use priceDelta.
+  categoryPriceDeltas Json? @map("category_price_deltas")
   sortOrder   Int      @default(0) @map("sort_order")
   isActive    Boolean  @default(true) @map("is_active")
   createdAt   DateTime @default(now()) @map("created_at")

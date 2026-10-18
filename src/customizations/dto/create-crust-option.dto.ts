@@ -1,4 +1,12 @@
-import { IsBoolean, IsInt, IsNumber, IsOptional, IsString, Min } from 'class-validator';
+import {
+  IsBoolean,
+  IsInt,
+  IsNumber,
+  IsObject,
+  IsOptional,
+  IsString,
+  Min,
+} from 'class-validator';
 
 export class CreateCrustOptionDto {
   @IsString()
@@ -19,4 +27,9 @@ export class CreateCrustOptionDto {
   @IsOptional()
   @IsBoolean()
   isActive?: boolean;
+
+  /** Surcharge override per menu category slug. `null` clears all overrides. */
+  @IsOptional()
+  @IsObject()
+  categoryPriceDeltas?: Record<string, number> | null;
 }
