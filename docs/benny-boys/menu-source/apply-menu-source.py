@@ -5,17 +5,20 @@ Source: benny-boys-menu.source.json  (generated from the Word doc by
 parse-menu-docx.py — re-run that after editing the doc).
 
 What it does (idempotent — safe to run again):
-  1. Ensures the menu categories exist.
+  1. Ensures menu categories exist and syncs size/extras flags (extras on for
+     pizzas only — hides Extra Toppings on pasta/mains/sides/desserts/drinks).
   2. Matches each doc item to the store's existing item and updates its
      prices, description, number and sizes. Image, slug, ingredients, badges and
-     extras stay as they are. Missing items are created (placeholder image).
+     topping IDs stay as they are. Missing items are created (placeholder image).
   3. Pizzas get Small / Large / Family prices from the doc. Gluten-free Large is
      the gluten-free crust surcharge, set per category (needs the API build that
      supports crust `categoryPriceDeltas`).
   4. Drinks become one item per size (e.g. "Pepsi 375ML", "Pepsi 1.25L").
   5. Items in the store that are NOT in the doc are hidden (deactivated, never
-     deleted). Deals / combos are never touched, and neither is any item used
-     by a combo deal slot.
+     deleted). Combo-slot items are never hidden.
+  6. Deal *descriptions* for Single / Double / Family 1 / Party are rewritten to
+     match the Instagram creatives (prices left as Zwift specials). Other deals
+     (Family Deal 2, Wings) are left alone.
 
 Always preview first:
   export ADMIN_PASSWORD='...'
@@ -61,6 +64,38 @@ CATEGORY_DEFS = [
     ("drinks", "Drinks", 9, False, False),
 ]
 PIZZA_CATEGORIES = {s for s, _, _, size, _ in CATEGORY_DEFS if size}
+
+# Instagram deal creatives → website deal copy (prices stay as live Zwift specials).
+DEAL_COPY = [
+    {
+        "match": ["single deal"],
+        "description": (
+            "1× Small Traditional Pizza, 1× Classic Garlic Bread, "
+            "1× Can of Soda 375mL."
+        ),
+    },
+    {
+        "match": ["double deal"],
+        "description": (
+            "2× Large Traditional Pizzas, 1× Classic Garlic Bread, "
+            "1× Large Soda 1.25L."
+        ),
+    },
+    {
+        "match": ["family deal 1", "family deal"],
+        "description": (
+            "3× Large Traditional Pizzas, 1× Classic Garlic Bread, "
+            "2× 1.25L drinks."
+        ),
+    },
+    {
+        "match": ["party deal 1", "party deal"],
+        "description": (
+            "5× Large Traditional Pizzas, 2× Classic Garlic Bread, "
+            "2× Large Sodas 1.25L."
+        ),
+    },
+]
 
 # Doc name (normalized) -> other names the same dish has had in the store.
 ALIASES = {
@@ -329,22 +364,42 @@ def changed_fields(existing: dict, payload: dict) -> list[str]:
 def ensure_categories(api: Api) -> None:
     print("-> Categories")
     existing = api.get("/menu/categories/manage/all")
-    have = {c["slug"] for c in existing} if isinstance(existing, list) else set()
+    by_slug = {c["slug"]: c for c in existing} if isinstance(existing, list) else {}
     for slug, label, order, sizes, extras in CATEGORY_DEFS:
-        if slug in have:
-            print(f"   . {slug}")
+        row = by_slug.get(slug)
+        if row is None:
+            api.post(
+                "/menu/categories",
+                {
+                    "slug": slug,
+                    "label": label,
+                    "sortOrder": order,
+                    "supportsSizeOptions": sizes,
+                    "supportsExtras": extras,
+                },
+            )
+            print(f"   + {slug} (created)")
             continue
-        api.post(
-            "/menu/categories",
-            {
-                "slug": slug,
-                "label": label,
-                "sortOrder": order,
-                "supportsSizeOptions": sizes,
-                "supportsExtras": extras,
-            },
+        # Pizza keeps extras; pasta/mains/sides/desserts/drinks must not show Extra Toppings.
+        needs = (
+            bool(row.get("supportsSizeOptions")) != sizes
+            or bool(row.get("supportsExtras")) != extras
+            or row.get("label") != label
+            or int(row.get("sortOrder") or 0) != order
         )
-        print(f"   + {slug} (created)")
+        if needs:
+            api.put(
+                f"/menu/categories/{slug}",
+                {
+                    "label": label,
+                    "sortOrder": order,
+                    "supportsSizeOptions": sizes,
+                    "supportsExtras": extras,
+                },
+            )
+            print(f"   ~ {slug} (sizes={sizes}, extras={extras})")
+        else:
+            print(f"   . {slug}")
 
 
 def apply_gluten_free(api: Api, source: dict) -> None:
@@ -392,6 +447,64 @@ def combo_item_ids(api: Api) -> set[str]:
             if slot.get("menuItemId"):
                 ids.add(slot["menuItemId"])
     return ids
+
+
+def apply_deal_copy(api: Api, catalog: list[dict]) -> tuple[int, int, int]:
+    """Rewrite Single/Double/Family 1/Party descriptions to match Instagram creatives."""
+    print("-> Deal copy (Instagram creatives)")
+    deals = [r for r in catalog if r.get("categorySlug") == "deals" and r.get("isActive", True)]
+    updated = unchanged = failed = 0
+    for spec in DEAL_COPY:
+        keys = {normalize_key(k) for k in spec["match"]}
+        # Prefer the most specific match (e.g. "family deal 1" over bare "family deal").
+        row = None
+        for key in sorted(keys, key=len, reverse=True):
+            for d in deals:
+                if normalize_key(d["name"]) == key:
+                    row = d
+                    break
+            if row:
+                break
+        if row is None:
+            # Soft match: name starts with the shortest key (Family Deal 1 matches family deal).
+            for d in deals:
+                nk = normalize_key(d["name"])
+                if any(nk == k or nk.startswith(k + " ") for k in keys):
+                    # Skip Family Deal 2 when matching "family deal"
+                    if "family deal" in keys and "2" in nk.split():
+                        continue
+                    row = d
+                    break
+        if row is None:
+            print(f"   ! no live deal matched {spec['match']}")
+            failed += 1
+            continue
+        if (row.get("description") or "").strip() == spec["description"]:
+            print(f"   . [{row['name']}] already matches")
+            unchanged += 1
+            continue
+        payload = payload_for(
+            {
+                "name": row["name"],
+                "description": spec["description"],
+                "categorySlug": "deals",
+                "price": float(row.get("price") or 0),
+                "number": int(row.get("number") or 1),
+            },
+            row,
+            False,
+        )
+        # Keep existing price / image; only description changes.
+        payload["description"] = spec["description"]
+        try:
+            api.put(f"/menu/{row['id']}", payload)
+            print(f"   ~ [{row['name']}] description → Instagram copy")
+            updated += 1
+        except RuntimeError as exc:
+            print(f"   x [{row['name']}]: {exc}")
+            failed += 1
+        time.sleep(0.02)
+    return updated, unchanged, failed
 
 
 def main() -> int:
@@ -505,6 +618,15 @@ def main() -> int:
                 except RuntimeError as exc:
                     print(f"   x {label}: {exc}")
                     failed += 1
+
+    # Refresh catalog so deal updates see current rows (incl. any renames).
+    catalog = api.get("/menu/manage/all") if not api.dry_run else catalog
+    if not isinstance(catalog, list):
+        catalog = []
+    d_upd, d_ok, d_fail = apply_deal_copy(api, catalog)
+    updated += d_upd
+    unchanged += d_ok
+    failed += d_fail
 
     for r in source.get("needsReview", []):
         print(f"-> NOT imported (needs your confirmation): {r['item']} ${r['price']:.2f} — {r['reason']}")
