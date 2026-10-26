@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { AuthModule } from '../auth/auth.module';
 import { CrmModule } from '../crm/crm.module';
 import { InventoryModule } from '../inventory/inventory.module';
+import { MailModule } from '../mail/mail.module';
 import { PaymentsModule } from '../payments/payments.module';
 import { PaymentSettingsModule } from '../payment-settings/payment-settings.module';
 import { PricingModule } from '../pricing/pricing.module';
@@ -17,6 +18,7 @@ import { PosService } from './pos.service';
     PaymentSettingsModule,
     CrmModule,
     InventoryModule,
+    MailModule,
     AuthModule,
   ],
   controllers: [PosController],

@@ -1,12 +1,13 @@
 import { Module } from '@nestjs/common';
 import { CrmModule } from '../crm/crm.module';
 import { InventoryModule } from '../inventory/inventory.module';
+import { MailModule } from '../mail/mail.module';
 import { PrismaModule } from '../prisma/prisma.module';
 import { LinklyService } from './linkly.service';
 import { StripeService } from './stripe.service';
 
 @Module({
-  imports: [PrismaModule, CrmModule, InventoryModule],
+  imports: [PrismaModule, CrmModule, InventoryModule, MailModule],
   providers: [StripeService, LinklyService],
   exports: [StripeService, LinklyService],
 })

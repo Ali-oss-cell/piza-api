@@ -27,6 +27,7 @@ import * as bcrypt from 'bcrypt';
 import { AuthenticatedUser } from '../auth/interfaces/authenticated-user.interface';
 import { CrmService } from '../crm/crm.service';
 import { InventoryService } from '../inventory/inventory.service';
+import { OrderReceiptMailService } from '../mail/order-receipt-mail.service';
 import { PaymentSettingsService } from '../payment-settings/payment-settings.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { PricingService } from '../pricing/pricing.service';
@@ -50,6 +51,7 @@ export class PosService {
     private readonly crmService: CrmService,
     private readonly inventoryService: InventoryService,
     private readonly jwtService: JwtService,
+    private readonly orderReceiptMail: OrderReceiptMailService,
   ) {}
 
   quote(dto: QuoteRequestDto) {
@@ -513,6 +515,7 @@ export class PosService {
 
     await this.crmService.linkOrderById(orderId);
     await this.inventoryService.deductForPaidOrder(orderId);
+    await this.orderReceiptMail.sendPaidReceipt(orderId);
 
     return {
       orderId: updated.id,
@@ -667,6 +670,7 @@ export class PosService {
       });
       await this.crmService.linkOrderById(orderId);
       await this.inventoryService.deductForPaidOrder(orderId);
+      await this.orderReceiptMail.sendPaidReceipt(orderId);
       return {
         orderId: updated.id,
         paymentStatus: updated.paymentStatus,
@@ -914,6 +918,7 @@ export class PosService {
 
     await this.crmService.linkOrderById(orderId);
     await this.inventoryService.deductForPaidOrder(orderId);
+    await this.orderReceiptMail.sendPaidReceipt(orderId);
     return updated;
   }
 

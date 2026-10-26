@@ -11,6 +11,7 @@ import StripeLib from 'stripe';
 import { PrismaService } from '../prisma/prisma.service';
 import { CrmService } from '../crm/crm.service';
 import { InventoryService } from '../inventory/inventory.service';
+import { OrderReceiptMailService } from '../mail/order-receipt-mail.service';
 import { PlatformSecretsService } from '../platform-secrets/platform-secrets.service';
 
 function createStripeClient(secretKey: string) {
@@ -32,6 +33,7 @@ export class StripeService {
     private readonly crmService: CrmService,
     private readonly inventoryService: InventoryService,
     private readonly platformSecrets: PlatformSecretsService,
+    private readonly orderReceiptMail: OrderReceiptMailService,
   ) {
     const secretKey = this.resolveGlobalSecretKey();
     this.globalStripe = secretKey ? createStripeClient(secretKey) : null;
@@ -484,6 +486,7 @@ export class StripeService {
 
     await this.crmService.linkOrderById(orderId);
     await this.inventoryService.deductForPaidOrder(orderId);
+    await this.orderReceiptMail.sendPaidReceipt(orderId);
   }
 
   private async markOrderFailedFromIntent(paymentIntent: {
