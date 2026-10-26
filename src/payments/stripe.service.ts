@@ -504,6 +504,51 @@ export class StripeService {
     });
   }
 
+  /**
+   * Full refund for an online card PaymentIntent. Marks the order REFUNDED
+   * and restocks. Safe to call when already refunded (no-op).
+   */
+  async refundOnlinePaymentIntent(orderId: string): Promise<void> {
+    const order = await this.prisma.order.findUnique({
+      where: { id: orderId },
+      select: {
+        id: true,
+        paymentStatus: true,
+        paymentMethod: true,
+        stripePaymentIntentId: true,
+        location: { select: { brandId: true } },
+      },
+    });
+
+    if (!order) {
+      throw new NotFoundException('Order not found.');
+    }
+
+    if (order.paymentStatus === PaymentStatus.REFUNDED) {
+      return;
+    }
+
+    if (
+      order.paymentStatus !== PaymentStatus.PAID ||
+      !order.stripePaymentIntentId
+    ) {
+      throw new BadRequestException(
+        'Order has no paid Stripe payment to refund.',
+      );
+    }
+
+    const stripe = await this.getStripeClientForStore(order.location.brandId);
+    await stripe.refunds.create({
+      payment_intent: order.stripePaymentIntentId,
+    });
+
+    await this.prisma.order.update({
+      where: { id: orderId },
+      data: { paymentStatus: PaymentStatus.REFUNDED },
+    });
+    await this.inventoryService.restockForRefundedOrder(orderId);
+  }
+
   private async markOrderRefundedFromCharge(charge: {
     payment_intent?: string | { id: string } | null;
   }): Promise<void> {

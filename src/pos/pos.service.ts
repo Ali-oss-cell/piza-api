@@ -25,6 +25,7 @@ import {
 } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 import { AuthenticatedUser } from '../auth/interfaces/authenticated-user.interface';
+import { AuditService } from '../audit/audit.service';
 import { CrmService } from '../crm/crm.service';
 import { InventoryService } from '../inventory/inventory.service';
 import { OrderReceiptMailService } from '../mail/order-receipt-mail.service';
@@ -52,6 +53,7 @@ export class PosService {
     private readonly inventoryService: InventoryService,
     private readonly jwtService: JwtService,
     private readonly orderReceiptMail: OrderReceiptMailService,
+    private readonly audit: AuditService,
   ) {}
 
   quote(dto: QuoteRequestDto) {
@@ -272,6 +274,107 @@ export class PosService {
       where: { id },
       data: { status },
       include: { items: true, staffUser: true },
+    });
+  }
+
+  /**
+   * Staff refuse a waiting online/phone order: cancel, refund card if paid,
+   * email apology, record who refused for admin stats.
+   */
+  async refuseOnlineOrder(
+    orderId: string,
+    staff: AuthenticatedUser,
+    reason?: string,
+  ): Promise<Order> {
+    const order = await this.ensurePosOrder(orderId, staff, [
+      OrderChannel.WEB,
+      OrderChannel.PHONE,
+    ]);
+
+    if (order.refusedAt) {
+      throw new BadRequestException('This order was already refused.');
+    }
+
+    if (
+      order.status !== OrderStatus.CONFIRMED &&
+      order.status !== OrderStatus.PREPARING
+    ) {
+      throw new BadRequestException(
+        'Only new or early kitchen online orders can be refused.',
+      );
+    }
+
+    const location = await this.prisma.location.findUnique({
+      where: { id: order.locationId },
+      select: { brandId: true },
+    });
+
+    const refuseReason = reason?.trim().slice(0, 500) || null;
+
+    await this.prisma.order.update({
+      where: { id: orderId },
+      data: {
+        status: OrderStatus.CANCELLED,
+        refusedByUserId: staff.id,
+        refusedAt: new Date(),
+        refuseReason,
+      },
+    });
+
+    if (
+      order.paymentStatus === PaymentStatus.PAID &&
+      order.stripePaymentIntentId &&
+      (order.paymentMethod === PaymentMethod.CARD_ONLINE ||
+        order.paymentMethod === PaymentMethod.CARD_TERMINAL)
+    ) {
+      try {
+        await this.stripeService.refundOnlinePaymentIntent(orderId);
+      } catch (error) {
+        await this.prisma.order.update({
+          where: { id: orderId },
+          data: {
+            notes: [
+              order.notes,
+              `REFUND FAILED: ${
+                error instanceof Error ? error.message : String(error)
+              }`,
+            ]
+              .filter(Boolean)
+              .join('\n'),
+          },
+        });
+        throw new BadRequestException(
+          `Order cancelled but refund failed: ${
+            error instanceof Error ? error.message : String(error)
+          }. Fix the refund in Stripe, then email the customer.`,
+        );
+      }
+    } else if (order.paymentStatus === PaymentStatus.PAID) {
+      await this.prisma.order.update({
+        where: { id: orderId },
+        data: { paymentStatus: PaymentStatus.REFUNDED },
+      });
+      await this.inventoryService.restockForRefundedOrder(orderId);
+    }
+
+    await this.orderReceiptMail.sendRefusalApology(orderId);
+
+    await this.audit.log(
+      staff.id,
+      location?.brandId,
+      AuditAction.ONLINE_ORDER_REFUSED,
+      `Refused online order #${order.ticketNumber ?? orderId}`,
+      {
+        orderId,
+        ticketNumber: order.ticketNumber,
+        reason: refuseReason,
+        channel: order.channel,
+      },
+    );
+
+    return this.prisma.order.findUniqueOrThrow({
+      where: { id: orderId },
+      include: { items: true, staffUser: true, refusedByUser: true },
     });
   }
 

@@ -40,6 +40,7 @@ import {
   VerifyPosPinDto,
   VoidOrderDto,
 } from './dto/pos-ops.dto';
+import { RefuseOrderDto } from './dto/refuse-order.dto';
 import { UpdatePosOrderStatusDto } from './dto/update-pos-order-status.dto';
 import { PosService } from './pos.service';
 
@@ -112,6 +113,15 @@ export class PosController {
     @CurrentUser() staff: AuthenticatedUser,
   ) {
     return this.posService.updateStatus(id, dto.status, staff);
+  }
+
+  @Post('orders/:id/refuse')
+  refuseOrder(
+    @Param('id') id: string,
+    @Body() dto: RefuseOrderDto,
+    @CurrentUser() staff: AuthenticatedUser,
+  ) {
+    return this.posService.refuseOnlineOrder(id, staff, dto.reason);
   }
 
   @Post('orders/:id/void')

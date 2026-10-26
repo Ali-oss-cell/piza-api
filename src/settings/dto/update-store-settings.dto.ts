@@ -79,6 +79,14 @@ export class UpdateStoreSettingsDto {
   minOrderAmount?: number;
 
   @IsOptional()
+  @IsBoolean()
+  onlineOrderingEnabled?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  deliveryEnabled?: boolean;
+
+  @IsOptional()
   @IsString()
   contactEmail?: string;
 

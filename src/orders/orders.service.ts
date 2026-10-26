@@ -61,6 +61,21 @@ export class OrdersService {
       dto.locationId,
     );
 
+    if (!location.onlineOrderingEnabled) {
+      throw new BadRequestException(
+        'Online ordering is paused for this store right now.',
+      );
+    }
+
+    if (
+      dto.deliveryMode === DeliveryMode.DELIVERY &&
+      !location.deliveryEnabled
+    ) {
+      throw new BadRequestException(
+        'Delivery is not available. Please choose pickup.',
+      );
+    }
+
     await this.orderSchedulingService.assertScheduledAtValid(
       scheduledAt,
       brandSlug,
@@ -88,43 +103,41 @@ export class OrdersService {
       location.brandId,
     );
 
-    const usesServerPricing = dto.items.some(
-      (item) => item.type === 'COMBO' || !!item.comboDealId,
-    );
-
-    let subtotal = dto.subtotal;
-    let itemCreates: Prisma.OrderItemCreateWithoutOrderInput[];
-
-    if (usesServerPricing) {
-      const quoteLines: QuoteLineDto[] = dto.items.map((item) => {
-        if (item.type === 'COMBO' || item.comboDealId) {
-          return {
-            type: 'COMBO' as const,
-            comboDealId: item.comboDealId,
-            selections: item.selections,
-          };
-        }
-        if (!item.menuItemId) {
-          throw new BadRequestException(
-            'menuItemId is required when using server pricing',
-          );
-        }
+    const quoteLines: QuoteLineDto[] = dto.items.map((item) => {
+      if (item.type === 'COMBO' || item.comboDealId) {
         return {
-          type: 'ITEM' as const,
-          menuItemId: item.menuItemId,
-          quantity: item.quantity ?? 1,
-          size: item.size,
-          crust: item.crust,
-          toppingIds: item.toppings,
-          removedIngredients: item.removedIngredients,
+          type: 'COMBO' as const,
+          comboDealId: item.comboDealId,
+          selections: item.selections,
         };
-      });
+      }
+      if (!item.menuItemId) {
+        throw new BadRequestException(
+          'menuItemId is required for each order item.',
+        );
+      }
+      return {
+        type: 'ITEM' as const,
+        menuItemId: item.menuItemId,
+        quantity: item.quantity ?? 1,
+        size: item.size,
+        crust: item.crust,
+        toppingIds: item.toppings,
+        removedIngredients: item.removedIngredients,
+      };
+    });
 
-      const quote = await this.pricingService.quote(quoteLines, {
-        deliveryFee: dto.deliveryFee,
-      });
-      subtotal = quote.subtotal;
-      itemCreates = quote.lines.map((line) => ({
+    const deliveryFee =
+      dto.deliveryMode === DeliveryMode.DELIVERY
+        ? Number(location.deliveryFee)
+        : 0;
+
+    const quote = await this.pricingService.quote(quoteLines, {
+      deliveryFee,
+    });
+    const subtotal = quote.subtotal;
+    const itemCreates: Prisma.OrderItemCreateWithoutOrderInput[] =
+      quote.lines.map((line) => ({
         menuItemId: line.menuItemId,
         name: line.name,
         description: line.name,
@@ -138,19 +151,6 @@ export class OrdersService {
         comboInstanceId: line.comboInstanceId,
         isComboHeader: line.isComboHeader ?? false,
       }));
-    } else {
-      itemCreates = dto.items.map((item) => ({
-        menuItemId: item.menuItemId,
-        name: item.name ?? 'Item',
-        description: item.description ?? '',
-        price: item.price ?? 0,
-        quantity: item.quantity ?? 1,
-        size: item.size,
-        crust: item.crust,
-        toppings: item.toppings,
-        removedIngredients: item.removedIngredients ?? [],
-      }));
-    }
 
     await this.orderSchedulingService.assertMinOrderAmount(
       subtotal,
@@ -166,14 +166,10 @@ export class OrdersService {
         )
       : null;
     const discountAmount = promo?.discountAmount ?? 0;
-    const total =
-      promo || usesServerPricing
-        ? Math.max(
-            0,
-            Math.round((subtotal + dto.deliveryFee - discountAmount) * 100) /
-              100,
-          )
-        : dto.total;
+    const total = Math.max(
+      0,
+      Math.round((subtotal + deliveryFee - discountAmount) * 100) / 100,
+    );
     const isDelivery = dto.deliveryMode === DeliveryMode.DELIVERY;
     const hasCoordinates =
       isDelivery &&
@@ -189,7 +185,7 @@ export class OrdersService {
       paymentStatus: PaymentStatus.UNPAID,
       ticketNumber,
       subtotal,
-      deliveryFee: dto.deliveryFee,
+      deliveryFee,
       total,
       promoCode: promo?.code,
       discountAmount,
@@ -201,8 +197,14 @@ export class OrdersService {
       discountReason: promo ? `Promo: ${promo.title}` : undefined,
       scheduledAt,
       notes: dto.notes?.trim() || undefined,
-      guestEmail: user ? undefined : dto.guestEmail?.trim(),
-      guestName: user ? undefined : dto.guestName?.trim(),
+      guestEmail: user
+        ? user.email?.trim() || dto.guestEmail?.trim() || undefined
+        : dto.guestEmail?.trim(),
+      guestName: user
+        ? `${user.firstName ?? ''} ${user.lastName ?? ''}`.trim() ||
+          dto.guestName?.trim() ||
+          undefined
+        : dto.guestName?.trim(),
       guestPhone: dto.guestPhone?.trim(),
       deliveryAddressLine1: dto.deliveryAddressLine1?.trim(),
       deliveryAddressLine2: dto.deliveryAddressLine2?.trim() || undefined,

@@ -148,6 +148,7 @@ enum AuditAction {
   POS_TRAINING_TOGGLE
   POS_PIN_SET
   EMAIL_SETTINGS_UPDATED
+  ONLINE_ORDER_REFUSED
 }
 
 enum PosDiscountType {
@@ -204,6 +205,7 @@ model User {
   updatedAt        DateTime     @updatedAt @map("updated_at")
   orders           Order[]      @relation("CustomerOrders")
   staffedOrders    Order[]      @relation("StaffOrders")
+  refusedOrders    Order[]      @relation("RefusedOrders")
   storeMemberships UserStore[]
   auditEvents      AuditEvent[]
   stockMovements   StockMovement[]
@@ -283,6 +285,10 @@ model Location {
   deliveryFee              Decimal  @default(5) @map("delivery_fee") @db.Decimal(10, 2)
   minOrderAmount           Decimal  @default(0) @map("min_order_amount") @db.Decimal(10, 2)
   openingHours             Json?    @map("opening_hours")
+  /// When false, website cannot place WEB orders (kill switch).
+  onlineOrderingEnabled    Boolean  @default(true) @map("online_ordering_enabled")
+  /// When false, checkout is pickup-only (delivery option hidden).
+  deliveryEnabled          Boolean  @default(false) @map("delivery_enabled")
   isActive                 Boolean  @default(true) @map("is_active")
   isDefault                Boolean  @default(false) @map("is_default")
   stripeTerminalLocationId String?  @map("stripe_terminal_location_id")
@@ -738,11 +744,15 @@ model Order {
   promoCode             String?         @map("promo_code")
   notes                 String?
   isTraining            Boolean         @default(false) @map("is_training")
+  refusedByUserId       String?         @map("refused_by_user_id") @db.Uuid
+  refusedAt             DateTime?       @map("refused_at")
+  refuseReason          String?         @map("refuse_reason")
   createdAt             DateTime        @default(now()) @map("created_at")
   updatedAt             DateTime        @updatedAt @map("updated_at")
   location              Location        @relation(fields: [locationId], references: [id], onDelete: Restrict)
   user                  User?           @relation("CustomerOrders", fields: [userId], references: [id], onDelete: SetNull)
   staffUser             User?           @relation("StaffOrders", fields: [staffUserId], references: [id], onDelete: SetNull)
+  refusedByUser         User?           @relation("RefusedOrders", fields: [refusedByUserId], references: [id], onDelete: SetNull)
   storeCustomer         StoreCustomer?  @relation(fields: [storeCustomerId], references: [id], onDelete: SetNull)
   shift                 PosShift?       @relation(fields: [shiftId], references: [id], onDelete: SetNull)
   items                 OrderItem[]
@@ -750,6 +760,7 @@ model Order {
 
   @@index([userId])
   @@index([staffUserId])
+  @@index([refusedByUserId])
   @@index([locationId])
   @@index([storeCustomerId])
   @@index([status])
@@ -757,6 +768,7 @@ model Order {
   @@index([channel, ticketNumber])
   @@index([shiftId])
   @@index([guestPhone])
+  @@index([refusedAt])
   @@map("orders")
 }
 

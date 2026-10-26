@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { FulfillmentType, PaymentMethod } from '@prisma/client';
+import { FulfillmentType, PaymentMethod, PaymentStatus } from '@prisma/client';
 import { MailService } from './mail.service';
 import { PrismaService } from '../prisma/prisma.service';
 
@@ -237,6 +237,122 @@ export class OrderReceiptMailService {
     } catch (error) {
       this.logger.error(
         `Paid receipt failed for order ${orderId}: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+    }
+  }
+
+  /**
+   * Apology when the store cannot fulfil a paid online order.
+   * Never names staff. Never throws.
+   */
+  async sendRefusalApology(orderId: string): Promise<void> {
+    try {
+      const order = await this.prisma.order.findUnique({
+        where: { id: orderId },
+        include: {
+          user: { select: { email: true, firstName: true, lastName: true } },
+          storeCustomer: { select: { email: true, name: true } },
+          location: {
+            select: {
+              name: true,
+              phone: true,
+              email: true,
+              brandId: true,
+              brand: { select: { name: true } },
+            },
+          },
+        },
+      });
+
+      if (!order || order.isTraining) {
+        return;
+      }
+
+      const to =
+        order.guestEmail?.trim() ||
+        order.user?.email?.trim() ||
+        order.storeCustomer?.email?.trim() ||
+        null;
+      if (!to) {
+        return;
+      }
+
+      const brandId = order.location.brandId;
+      if (!(await this.mail.isConfiguredFor(brandId))) {
+        this.logger.warn(
+          `Refusal apology skipped for order ${orderId}: email not configured`,
+        );
+        return;
+      }
+
+      const brandName = order.location.brand.name;
+      const customerName =
+        order.guestName?.trim() ||
+        order.storeCustomer?.name?.trim() ||
+        (order.user
+          ? `${order.user.firstName ?? ''} ${order.user.lastName ?? ''}`.trim()
+          : '') ||
+        null;
+      const ticket =
+        order.ticketNumber != null ? String(order.ticketNumber) : null;
+      const hello = customerName ? `Hi ${customerName},` : 'Hi,';
+      const refundNote =
+        order.paymentStatus === PaymentStatus.REFUNDED ||
+        order.paymentStatus === PaymentStatus.PAID
+          ? 'If you paid online, a full refund is being processed and should appear on your statement shortly.'
+          : 'No payment was taken for this order.';
+
+      const subject = ticket
+        ? `${brandName} — We're sorry about order #${ticket}`
+        : `${brandName} — We're sorry we couldn't complete your order`;
+
+      const text = [
+        hello,
+        '',
+        `We're really sorry — we weren't able to fulfil your order${
+          ticket ? ` #${ticket}` : ''
+        } today.`,
+        '',
+        refundNote,
+        '',
+        'We know this is disappointing. If you still need pizza, please call us or place a new order when you can.',
+        order.location.phone ? `Phone: ${order.location.phone}` : null,
+        '',
+        `— ${brandName}`,
+      ]
+        .filter((l) => l !== null)
+        .join('\n');
+
+      const html = `<div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#18181b;line-height:1.45;max-width:560px">
+        <p>${esc(hello)}</p>
+        <p>We're really sorry — we weren't able to fulfil your order${
+          ticket ? ` <strong>#${esc(ticket)}</strong>` : ''
+        } today.</p>
+        <p>${esc(refundNote)}</p>
+        <p>We know this is disappointing. If you still need pizza, please call us or place a new order when you can.</p>
+        <p style="margin-top:20px">— <strong>${esc(brandName)}</strong>${
+          order.location.phone
+            ? `<br><span style="color:#666">${esc(order.location.phone)}</span>`
+            : ''
+        }</p>
+      </div>`;
+
+      await this.mail.send(
+        {
+          to,
+          subject,
+          text,
+          html,
+          replyTo: order.location.email?.trim() || undefined,
+        },
+        brandId,
+      );
+      this.logger.log(`Refusal apology sent for order ${orderId} → ${to}`);
+    } catch (error) {
+      this.logger.error(
+        `Refusal apology failed for order ${orderId}: ${
           error instanceof Error ? error.message : String(error)
         }`,
       );
