@@ -26,7 +26,7 @@ export type EmailSettingsResponse = {
   lastTestAt: Date | null;
   lastTestOk: boolean | null;
   lastTestError: string | null;
-  /** True when no store SMTP is active and the server env mail will be used. */
+  /** True when Resend/env mail is used (preferred over store SMTP when configured). */
   usingEnvFallback: boolean;
   envFallbackAvailable: boolean;
 };
@@ -207,7 +207,9 @@ export class EmailSettingsService {
       lastTestError: string | null;
     },
   ): EmailSettingsResponse {
-    const storeActive = Boolean(row.enabled && row.host?.trim());
+    const envAvailable = this.mail.isConfigured();
+    // Resend/env wins when configured (store SMTP on DO usually cannot reach Gmail).
+    const usingEnvFallback = envAvailable || !Boolean(row.enabled && row.host?.trim());
     return {
       storeId: row.storeId,
       storeSlug,
@@ -223,8 +225,8 @@ export class EmailSettingsService {
       lastTestAt: row.lastTestAt,
       lastTestOk: row.lastTestOk,
       lastTestError: row.lastTestError,
-      usingEnvFallback: !storeActive,
-      envFallbackAvailable: this.mail.isConfigured(),
+      usingEnvFallback,
+      envFallbackAvailable: envAvailable,
     };
   }
 }

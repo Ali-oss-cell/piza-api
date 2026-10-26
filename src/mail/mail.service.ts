@@ -58,10 +58,17 @@ export class MailService {
   }
 
   /**
-   * Send mail. If `brandId` is given and the store has enabled SMTP settings,
-   * those are used; otherwise falls back to server env (Resend / SMTP).
+   * Send mail. Prefer Resend (HTTPS) when RESEND_API_KEY is set — DigitalOcean
+   * blocks outbound SMTP, so store Gmail/SMTP often fails on the Droplet.
+   * Otherwise use store SMTP, then env SMTP.
    */
   async send(options: SendMailOptions, brandId?: string | null): Promise<void> {
+    const from = this.fromAddress();
+    if (this.resendApiKey() && from) {
+      await this.sendViaResend(from, options);
+      return;
+    }
+
     if (brandId) {
       const storeConfig = await this.loadStoreConfig(brandId);
       if (storeConfig) {
@@ -70,16 +77,10 @@ export class MailService {
       }
     }
 
-    const from = this.fromAddress();
     if (!from) {
       throw new ServiceUnavailableException(
-        'Email is not configured. Add SMTP settings for this store in Infrastructure → Email, or set MAIL_FROM plus RESEND_API_KEY / SMTP_HOST on the server.',
+        'Email is not configured. Set RESEND_API_KEY + MAIL_FROM on the server, or add SMTP in Infrastructure → Email.',
       );
-    }
-
-    if (this.resendApiKey()) {
-      await this.sendViaResend(from, options);
-      return;
     }
 
     if (this.smtpHost()) {
@@ -88,7 +89,7 @@ export class MailService {
     }
 
     throw new ServiceUnavailableException(
-      'Email is not configured. Add SMTP settings for this store in Infrastructure → Email.',
+      'Email is not configured. Set RESEND_API_KEY + MAIL_FROM on the server, or add SMTP in Infrastructure → Email.',
     );
   }
 
