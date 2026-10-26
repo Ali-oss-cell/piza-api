@@ -1044,19 +1044,21 @@ model PurchaseOrderLine {
 
 /// Weekly hand-fill stock order sheet (Benny Boy's form). Lines snapshot catalogue data.
 model WeeklyStockOrder {
-  id             String                 @id @default(uuid()) @db.Uuid
-  brandId        String                 @map("brand_id") @db.Uuid
-  number         Int
-  weekCommencing DateTime               @map("week_commencing") @db.Date
-  orderedBy      String?                @map("ordered_by")
-  pizzasExpected Int?                   @map("pizzas_expected")
-  supplierDay    String?                @map("supplier_day")
-  status         WeeklyStockOrderStatus @default(DRAFT)
-  notes          String?
-  createdById    String?                @map("created_by_id") @db.Uuid
-  sentAt         DateTime?              @map("sent_at")
-  createdAt      DateTime               @default(now()) @map("created_at")
-  updatedAt      DateTime               @updatedAt @map("updated_at")
+  id                    String                 @id @default(uuid()) @db.Uuid
+  brandId               String                 @map("brand_id") @db.Uuid
+  number                Int
+  weekCommencing        DateTime               @map("week_commencing") @db.Date
+  orderedBy             String?                @map("ordered_by")
+  pizzasExpected        Int?                   @map("pizzas_expected")
+  supplierDay           String?                @map("supplier_day")
+  /// Date we need the goods delivered (shown clearly on supplier emails / PDF).
+  expectedDeliveryDate  DateTime?              @map("expected_delivery_date") @db.Date
+  status                WeeklyStockOrderStatus @default(DRAFT)
+  notes                 String?
+  createdById           String?                @map("created_by_id") @db.Uuid
+  sentAt                DateTime?              @map("sent_at")
+  createdAt             DateTime               @default(now()) @map("created_at")
+  updatedAt             DateTime               @updatedAt @map("updated_at")
 
   brand      Brand                       @relation(fields: [brandId], references: [id], onDelete: Cascade)
   lines      WeeklyStockOrderLine[]

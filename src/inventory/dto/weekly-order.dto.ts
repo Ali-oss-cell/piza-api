@@ -34,6 +34,11 @@ export class CreateWeeklyOrderDto {
   @MaxLength(80)
   supplierDay?: string | null;
 
+  /** Calendar date goods should arrive (YYYY-MM-DD). */
+  @IsOptional()
+  @IsDateString()
+  expectedDeliveryDate?: string | null;
+
   @IsOptional()
   @IsString()
   @MaxLength(500)
@@ -91,6 +96,10 @@ export class UpdateWeeklyOrderDto {
   @IsString()
   @MaxLength(80)
   supplierDay?: string | null;
+
+  @IsOptional()
+  @IsDateString()
+  expectedDeliveryDate?: string | null;
 
   @IsOptional()
   @IsString()

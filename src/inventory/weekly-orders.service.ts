@@ -67,6 +67,7 @@ export type WeeklyOrderSummaryResponse = {
   orderedBy: string | null;
   pizzasExpected: number | null;
   supplierDay: string | null;
+  expectedDeliveryDate: string | null;
   status: WeeklyStockOrderStatus;
   sentAt: Date | null;
   lineCount: number;
@@ -174,6 +175,9 @@ export class WeeklyOrdersService {
       orderedBy: order.orderedBy,
       pizzasExpected: order.pizzasExpected,
       supplierDay: order.supplierDay,
+      expectedDeliveryDate: order.expectedDeliveryDate
+        ? this.dateOnly(order.expectedDeliveryDate)
+        : null,
       status: order.status,
       sentAt: order.sentAt,
       lineCount: order.lines.length,
@@ -236,6 +240,12 @@ export class WeeklyOrdersService {
               ? dto.pizzasExpected
               : (source?.pizzasExpected ?? null),
           supplierDay: dto.supplierDay?.trim() || source?.supplierDay || null,
+          expectedDeliveryDate:
+            dto.expectedDeliveryDate !== undefined
+              ? dto.expectedDeliveryDate
+                ? this.parseDate(dto.expectedDeliveryDate)
+                : null
+              : (source?.expectedDeliveryDate ?? null),
           notes: dto.notes?.trim() || null,
           createdById: userId ?? null,
           lines: {
@@ -303,6 +313,13 @@ export class WeeklyOrdersService {
             : {}),
           ...(dto.supplierDay !== undefined
             ? { supplierDay: dto.supplierDay?.trim() || null }
+            : {}),
+          ...(dto.expectedDeliveryDate !== undefined
+            ? {
+                expectedDeliveryDate: dto.expectedDeliveryDate
+                  ? this.parseDate(dto.expectedDeliveryDate)
+                  : null,
+              }
             : {}),
           ...(dto.notes !== undefined
             ? { notes: dto.notes?.trim() || null }
@@ -403,7 +420,7 @@ export class WeeklyOrdersService {
 
     if (!(await this.mailService.isConfiguredFor(brand.id))) {
       throw new BadRequestException(
-        'Email is not configured for this store. Add SMTP settings in Infrastructure → Email.',
+        'Email is not configured. Set RESEND_API_KEY + MAIL_FROM on the server, or add SMTP in Infrastructure → Email.',
       );
     }
 
@@ -423,7 +440,15 @@ export class WeeklyOrdersService {
         supplierId: vendor.supplierId,
       });
       const week = this.dateOnly(order.weekCommencing);
-      const subject = `${brand.name} — Weekly stock order — week commencing ${week}`;
+      const expectedIso = order.expectedDeliveryDate
+        ? this.dateOnly(order.expectedDeliveryDate)
+        : null;
+      const expectedLabel = expectedIso
+        ? this.formatAuDate(order.expectedDeliveryDate as Date)
+        : null;
+      const subject = expectedLabel
+        ? `${brand.name} — Stock order (deliver by ${expectedLabel})`
+        : `${brand.name} — Weekly stock order — week of ${week}`;
       const lineText = vendor.lines
         .map(
           (l) =>
@@ -435,14 +460,24 @@ export class WeeklyOrdersService {
       const text = [
         `Hello ${vendor.supplierName},`,
         '',
-        `Please find our weekly stock order for the week commencing ${week} below (PDF attached).`,
-        order.supplierDay ? `Delivery / supplier day: ${order.supplierDay}` : null,
+        `Please supply the items below for ${brand.name}.`,
+        `Week commencing: ${week}`,
+        expectedLabel
+          ? `Expected delivery date: ${expectedLabel} (${expectedIso})`
+          : null,
+        order.supplierDay
+          ? `Usual supplier day: ${order.supplierDay}`
+          : null,
         order.orderedBy ? `Ordered by: ${order.orderedBy}` : null,
         '',
+        'ORDER LINES',
         lineText,
         order.notes ? `\nNotes: ${order.notes}` : null,
         '',
+        'A PDF of this order is attached.',
+        '',
         `Thanks,\n${brand.name}`,
+        replyTo ? `Reply to: ${replyTo}` : null,
       ]
         .filter((l) => l !== null)
         .join('\n');
@@ -450,20 +485,38 @@ export class WeeklyOrdersService {
       const rows = vendor.lines
         .map(
           (l) =>
-            `<tr><td style="padding:4px 12px 4px 0">${esc(l.name)}</td><td style="padding:4px 12px">${esc(
+            `<tr><td style="padding:6px 12px 6px 0;border-bottom:1px solid #eee">${esc(l.name)}</td><td style="padding:6px 12px;border-bottom:1px solid #eee">${esc(
               this.fmtQty(l.orderQty),
-            )} ${esc(UNIT_LABEL[l.unit])}</td><td style="padding:4px 0 4px 12px;color:#666">${esc(
+            )} ${esc(UNIT_LABEL[l.unit])}</td><td style="padding:6px 0 6px 12px;border-bottom:1px solid #eee;color:#666">${esc(
               l.packSize ?? '',
             )}</td></tr>`,
         )
         .join('');
-      const html = `<p>Hello ${esc(vendor.supplierName)},</p>
-        <p>Please find our weekly stock order for the week commencing <strong>${esc(week)}</strong> below (PDF attached).</p>
-        ${order.supplierDay ? `<p>Delivery / supplier day: ${esc(order.supplierDay)}</p>` : ''}
-        ${order.orderedBy ? `<p>Ordered by: ${esc(order.orderedBy)}</p>` : ''}
-        <table style="border-collapse:collapse;font-size:14px"><thead><tr><th align="left" style="padding:4px 12px 4px 0">Item</th><th align="left" style="padding:4px 12px">Order qty</th><th align="left" style="padding:4px 0 4px 12px">Pack size</th></tr></thead><tbody>${rows}</tbody></table>
-        ${order.notes ? `<p>Notes: ${esc(order.notes)}</p>` : ''}
-        <p>Thanks,<br>${esc(brand.name)}</p>`;
+      const html = `<div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#18181b;line-height:1.45">
+        <p>Hello ${esc(vendor.supplierName)},</p>
+        <p>Please supply the items below for <strong>${esc(brand.name)}</strong>.</p>
+        <table style="border-collapse:collapse;margin:12px 0 16px;font-size:14px">
+          <tr><td style="padding:4px 16px 4px 0;color:#666">Week commencing</td><td style="padding:4px 0"><strong>${esc(week)}</strong></td></tr>
+          ${
+            expectedLabel
+              ? `<tr><td style="padding:4px 16px 4px 0;color:#666">Expected delivery</td><td style="padding:4px 0"><strong style="color:#d81b60">${esc(expectedLabel)}</strong> <span style="color:#666">(${esc(expectedIso as string)})</span></td></tr>`
+              : ''
+          }
+          ${order.supplierDay ? `<tr><td style="padding:4px 16px 4px 0;color:#666">Usual supplier day</td><td style="padding:4px 0">${esc(order.supplierDay)}</td></tr>` : ''}
+          ${order.orderedBy ? `<tr><td style="padding:4px 16px 4px 0;color:#666">Ordered by</td><td style="padding:4px 0">${esc(order.orderedBy)}</td></tr>` : ''}
+        </table>
+        <table style="border-collapse:collapse;font-size:14px;width:100%;max-width:560px">
+          <thead><tr style="background:#f4f4f5">
+            <th align="left" style="padding:8px 12px 8px 0">Item</th>
+            <th align="left" style="padding:8px 12px">Order qty</th>
+            <th align="left" style="padding:8px 0 8px 12px">Pack size</th>
+          </tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+        ${order.notes ? `<p style="margin-top:16px"><strong>Notes:</strong> ${esc(order.notes)}</p>` : ''}
+        <p style="margin-top:16px;color:#666">A PDF of this order is attached.</p>
+        <p>Thanks,<br><strong>${esc(brand.name)}</strong>${replyTo ? `<br><span style="color:#666">Reply to: ${esc(replyTo)}</span>` : ''}</p>
+      </div>`;
 
       let status = 'SENT';
       let error: string | null = null;
@@ -612,6 +665,16 @@ export class WeeklyOrdersService {
     return date.toISOString().slice(0, 10);
   }
 
+  /** Human date for supplier emails (Australia-friendly). */
+  private formatAuDate(date: Date): string {
+    return new Intl.DateTimeFormat('en-AU', {
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+      timeZone: 'UTC',
+    }).format(date);
+  }
+
   private fmtQty(value: Prisma.Decimal | null | undefined): string {
     if (value === null || value === undefined) {
       return '';
@@ -650,6 +713,9 @@ export class WeeklyOrdersService {
       orderedBy: order.orderedBy,
       pizzasExpected: order.pizzasExpected,
       supplierDay: order.supplierDay,
+      expectedDeliveryDate: order.expectedDeliveryDate
+        ? this.dateOnly(order.expectedDeliveryDate)
+        : null,
       status: order.status,
       notes: order.notes,
       sentAt: order.sentAt,
@@ -790,8 +856,12 @@ export class WeeklyOrdersService {
 
       // Header fields
       const week = this.dateOnly(order.weekCommencing);
+      const expected = order.expectedDeliveryDate
+        ? this.formatAuDate(order.expectedDeliveryDate)
+        : '';
       const fields: Array<[string, string]> = [
         ['Week commencing', options.blank ? '' : week],
+        ['Expected delivery', options.blank ? '' : expected],
         ['Ordered by', options.blank ? '' : (order.orderedBy ?? '')],
         [
           'Pizzas expected',
